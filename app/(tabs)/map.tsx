@@ -4,12 +4,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ActivityIndicator,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { WebView } from "react-native-webview";
 
@@ -147,6 +148,19 @@ export default function Map() {
   useEffect(() => {
     fetchLocation();
   }, [fetchLocation]);
+
+  if (loading && !location) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.mapPlaceholder}>
+          <ActivityIndicator size="large" color="#2563eb" />
+          <Text style={[styles.placeholderText, { marginTop: 12 }]}>
+            Buscando sinal GPS...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const { latitude, longitude, accuracy } = location?.coords ?? {};
   const accuracyOk = (accuracy ?? Infinity) <= ACCURACY_THRESHOLD_METERS;
