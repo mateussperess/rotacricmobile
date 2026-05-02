@@ -1,5 +1,7 @@
 services:
   db:
+    env_file:
+      - .env
     image: mysql:8.0
     container_name: rtcmobile-db
     restart: unless-stopped
@@ -33,6 +35,8 @@ services:
       - rtcmobile-network
 
   backend:
+    env_file:
+      - .env
     build:
       context: .
       dockerfile: Dockerfile
@@ -47,8 +51,6 @@ services:
       - NODE_ENV=${NODE_ENV}
       - DATABASE_URL=mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
       - JWT_SECRET=${JWT_SECRET}
-    env_file:
-      - .env
     networks:
       - rtcmobile-network
     healthcheck:
