@@ -1,12 +1,12 @@
-import { useAuth } from "@/components/context/AuthContext";
+import { useAuth } from "@/components/contexts/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { styles } from "./styles";
 
@@ -26,10 +26,19 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: Props) {
   const handleSubmit = async () => {
     setError("");
     setLoading(true);
-    const ok = await login(email, password);
-    setLoading(false);
-    if (ok) onSuccess();
-    else setError("Credenciais inválidas");
+    try {
+      const ok = await login(email, password);
+      setLoading(false);
+      if (ok) {
+        onSuccess();
+      } else {
+        setError("Credenciais inválidas");
+      }
+    } catch (err: any) {
+      setLoading(false);
+      const errorMsg = err?.response?.data?.message || "Erro ao fazer login";
+      setError(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
+    }
   };
 
   return (
@@ -58,7 +67,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: Props) {
             onChangeText={setPassword}
             secureTextEntry={!showPass}
             placeholder="••••••••"
-            style={styles.input}
+            style={[styles.input, { paddingRight: 40 }]}
           />
           <TouchableOpacity onPress={() => setShowPass(!showPass)}>
             <MaterialIcons
