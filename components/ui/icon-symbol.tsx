@@ -21,6 +21,20 @@ const MAPPING = {
   "arrow.forward.circle.fill": "directions",
   "barcode.viewfinder": "qr-code",
   "star.fill": "star",
+
+  "lock.fill": "lock",
+  "award.fill": "military-tech",
+  "mappin.and.ellipse": "place",
+  "checkmark.circle.fill": "check-circle",
+  "clock.fill": "access-time",
+  "trophy.fill": "emoji-events",
+
+  "bell.fill": "notifications",
+  "shield.fill": "shield",
+  "gearshape.fill": "settings",
+  "questionmark.circle.fill": "help-outline",
+  "rectangle.portrait.and.arrow.right": "logout",
+  bicycle: "directions-bike",
 } as const;
 
 /**
