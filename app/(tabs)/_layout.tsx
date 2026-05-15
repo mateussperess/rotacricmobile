@@ -36,9 +36,19 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="nativeMap"
+        options={{
+          title: "Mapa Nativo",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="map.fill" color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="map"
         options={{
-          title: "Mapa",
+          title: "Mapa Web",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="map.fill" color={color} />
           ),
