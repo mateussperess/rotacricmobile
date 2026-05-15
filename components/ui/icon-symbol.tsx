@@ -1,14 +1,9 @@
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { SymbolViewProps, SymbolWeight } from "expo-symbols";
-import { ComponentProps } from "react";
+import { SymbolWeight } from "expo-symbols";
 import { OpaqueColorValue, type StyleProp, type TextStyle } from "react-native";
 
-type IconMapping = Record<
-  SymbolViewProps["name"],
-  ComponentProps<typeof MaterialIcons>["name"]
->;
 type IconSymbolName = keyof typeof MAPPING;
 
 /**
@@ -23,7 +18,24 @@ const MAPPING = {
   "person.fill": "person",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
-} as IconMapping;
+  "arrow.forward.circle.fill": "directions",
+  "barcode.viewfinder": "qr-code",
+  "star.fill": "star",
+
+  "lock.fill": "lock",
+  "award.fill": "military-tech",
+  "mappin.and.ellipse": "place",
+  "checkmark.circle.fill": "check-circle",
+  "clock.fill": "access-time",
+  "trophy.fill": "emoji-events",
+
+  "bell.fill": "notifications",
+  "shield.fill": "shield",
+  "gearshape.fill": "settings",
+  "questionmark.circle.fill": "help-outline",
+  "rectangle.portrait.and.arrow.right": "logout",
+  bicycle: "directions-bike",
+} as const;
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

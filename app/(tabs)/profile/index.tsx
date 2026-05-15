@@ -1,22 +1,30 @@
-import { useAuth } from "@/components/context/AuthContext";
+import { useAuth } from "@/components/contexts/AuthContext";
+import { LoginForm } from "@/components/profile/LoginForm";
+import { ProfileView } from "@/components/profile/ProfileView";
+import { RegisterForm } from "@/components/profile/RegisterForm";
+import { styles } from "@/components/profile/styles";
 import { FontAwesome5 } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { LoginForm } from "./LoginForm";
-import { ProfileView } from "./ProfileView";
-import { RegisterForm } from "./RegisterForm";
-import { styles } from "./styles";
 
 export default function ProfileScreen() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, loading } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Carregando...</Text>
+      </View>
+    );
+  }
 
   if (isLoggedIn) {
     return <ProfileView />;
