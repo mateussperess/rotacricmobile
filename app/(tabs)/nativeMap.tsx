@@ -1,5 +1,6 @@
+import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -7,13 +8,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Circle, Marker, Region } from "react-native-maps";
+import MapView, { Circle, Marker, Polyline, Region } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type LocationData = Location.LocationObject | null;
 
 const ACCURACY_THRESHOLD_METERS = 50;
 const MAX_WAIT_MS = 15000;
+
+// testandouma polyline longa do RotaCRIC pra ver se o mapa renderiza sem precisar do GPS
+const ENCODED_POLYLINE =
+  "nyzuD`nazHa@vCS~@Sj@y@h@WJi@LcDJaCVgALqGj@UBOHuC`@sFd@`@fENt@FPbAb@f@PdAj@h@TfCtAxB|AtC|Ad@^xAnBv@n@Zp@`IxNpBlElLbU~@dCRdALpAAC@vAGfBKnAeApKcA`L_@lEkApKO`EwAxg@]pM_@|IcAl_@aAlLmBrPcB`PqCdYm@bMa@nUyAxv@@`CP~DjEza@b@jFdAnHl@tGrAfPpAxNPdCBvACfB?CoFd]cIdg@]hCe@xT_Ka@oIQoBAQDwAvAGPF^Z^d@\hAp@z@Df_@|@";
 
 export default function NativeMap() {
   const [location, setLocation] = useState<LocationData>(null);
@@ -26,6 +31,19 @@ export default function NativeMap() {
   const followingRef = useRef(true);
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const acquiredRef = useRef(false);
+
+  const routeCoordinates = useMemo(() => {
+    try {
+      const points = polyline.decode(ENCODED_POLYLINE);
+      return points.map(([latitude, longitude]: [number, number]) => ({
+        latitude,
+        longitude,
+      }));
+    } catch (error) {
+      console.error("Erro ao decodificar polyline:", error);
+      return [];
+    }
+  }, []);
 
   const animateToLocation = useCallback((loc: Location.LocationObject) => {
     if (!followingRef.current || !mapRef.current) return;
@@ -105,11 +123,18 @@ export default function NativeMap() {
   const { latitude, longitude, accuracy } = location?.coords ?? {};
   const accuracyOk = (accuracy ?? Infinity) <= ACCURACY_THRESHOLD_METERS;
 
+  // const initialRegion: Region = {
+  //   latitude: latitude ?? -15.7942,
+  //   longitude: longitude ?? -47.8822,
+  //   latitudeDelta: 0.01,
+  //   longitudeDelta: 0.01,
+  // };
+
   const initialRegion: Region = {
-    latitude: latitude ?? -15.7942,
-    longitude: longitude ?? -47.8822,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
+    latitude: latitude ?? routeCoordinates[0]?.latitude ?? -15.7942,
+    longitude: longitude ?? routeCoordinates[0]?.longitude ?? -47.8822,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
   };
 
   if (loading) {
@@ -130,14 +155,23 @@ export default function NativeMap() {
           ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
-          // showsUserLocation exibe o dot nativo do SO (funciona offline)
-          showsUserLocation={false} // false pq to testando com o Marker customizado
+          showsUserLocation={false}
           showsMyLocationButton={false}
           onPanDrag={() => {
             followingRef.current = false;
             setFollowing(false);
           }}
         >
+          {/* TRECHO ADICIONADO: Renderiza a linha do traçado */}
+          {routeCoordinates.length > 0 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor="#273273" // Cor azul escuro correspondente ao formulário
+              strokeWidth={4}
+              lineJoin="round"
+            />
+          )}
+
           {latitude && longitude && (
             <>
               {/* Círculo de precisão */}
@@ -148,7 +182,7 @@ export default function NativeMap() {
                 fillColor="rgba(37,99,235,0.08)"
                 strokeWidth={1}
               />
-              {/* Marker customizado igual ao WebView */}
+              {/* Marker customizado */}
               <Marker
                 coordinate={{ latitude, longitude }}
                 anchor={{ x: 0.5, y: 0.5 }}
