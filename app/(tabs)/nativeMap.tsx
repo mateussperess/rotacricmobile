@@ -1,3 +1,4 @@
+import { Route, RoutesService } from "@/services/routes/routeService";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,13 +18,13 @@ const ACCURACY_THRESHOLD_METERS = 50;
 const MAX_WAIT_MS = 15000;
 
 // testandouma polyline longa do RotaCRIC pra ver se o mapa renderiza sem precisar do GPS
-const ENCODED_POLYLINE =
-  "nyzuD`nazHa@vCS~@Sj@y@h@WJi@LcDJaCVgALqGj@UBOHuC`@sFd@`@fENt@FPbAb@f@PdAj@h@TfCtAxB|AtC|Ad@^xAnBv@n@Zp@`IxNpBlElLbU~@dCRdALpAAC@vAGfBKnAeApKcA`L_@lEkApKO`EwAxg@]pM_@|IcAl_@aAlLmBrPcB`PqCdYm@bMa@nUyAxv@@`CP~DjEza@b@jFdAnHl@tGrAfPpAxNPdCBvACfB?CoFd]cIdg@]hCe@xT_Ka@oIQoBAQDwAvAGPF^Z^d@\hAp@z@Df_@|@";
+// const ENCODED_POLYLINE =
+//   "nyzuD`nazHa@vCS~@Sj@y@h@WJi@LcDJaCVgALqGj@UBOHuC`@sFd@`@fENt@FPbAb@f@PdAj@h@TfCtAxB|AtC|Ad@^xAnBv@n@Zp@`IxNpBlElLbU~@dCRdALpAAC@vAGfBKnAeApKcA`L_@lEkApKO`EwAxg@]pM_@|IcAl_@aAlLmBrPcB`PqCdYm@bMa@nUyAxv@@`CP~DjEza@b@jFdAnHl@tGrAfPpAxNPdCBvACfB?CoFd]cIdg@]hCe@xT_Ka@oIQoBAQDwAvAGPF^Z^d@\hAp@z@Df_@|@";
 
 export default function NativeMap() {
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
-  const [loading, setLoading] = useState(true);
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [following, setFollowing] = useState(true);
 
@@ -32,18 +33,36 @@ export default function NativeMap() {
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const acquiredRef = useRef(false);
 
-  const routeCoordinates = useMemo(() => {
-    try {
-      const points = polyline.decode(ENCODED_POLYLINE);
-      return points.map(([latitude, longitude]: [number, number]) => ({
-        latitude,
-        longitude,
-      }));
-    } catch (error) {
-      console.error("Erro ao decodificar polyline:", error);
-      return [];
-    }
+  const [routes, setRoutes] = useState<Route[]>([]);
+
+  const [gpsLoading, setGpsLoading] = useState(true);
+  const [routesLoading, setRoutesLoading] = useState(true);
+
+  useEffect(() => {
+    RoutesService.findAll().then((data) => {
+      setRoutes(data);
+      setRoutesLoading(false);
+    });
   }, []);
+
+  const routeCoordinates = useMemo(() => {
+    return routes.map((route) => ({
+      id: route.id,
+      color: route.color ?? "#273273",
+      coordinates: (() => {
+        try {
+          return polyline
+            .decode(route.polyline)
+            .map(([latitude, longitude]) => ({
+              latitude,
+              longitude,
+            }));
+        } catch {
+          return [];
+        }
+      })(),
+    }));
+  }, [routes]);
 
   const animateToLocation = useCallback((loc: Location.LocationObject) => {
     if (!followingRef.current || !mapRef.current) return;
@@ -59,7 +78,6 @@ export default function NativeMap() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
       setErrorMsg("Permissão de localização negada.");
-      setLoading(false);
       setAcquiring(false);
       return;
     }
@@ -81,7 +99,7 @@ export default function NativeMap() {
       },
       (loc) => {
         setLocation(loc);
-        setLoading(false);
+        setGpsLoading(false);
         animateToLocation(loc);
 
         const acc = loc.coords.accuracy ?? Infinity;
@@ -100,7 +118,6 @@ export default function NativeMap() {
   }, []);
 
   const restart = useCallback(async () => {
-    setLoading(true);
     setAcquiring(true);
     setErrorMsg(null);
     followingRef.current = true;
@@ -130,23 +147,36 @@ export default function NativeMap() {
   //   longitudeDelta: 0.01,
   // };
 
+  // const initialRegion: Region = {
+  //   latitude: latitude ?? routeCoordinates[0]?.latitude ?? -15.7942,
+  //   longitude: longitude ?? routeCoordinates[0]?.longitude ?? -47.8822,
+  //   latitudeDelta: 0.04,
+  //   longitudeDelta: 0.04,
+  // };
+
+  const firstCoord = routeCoordinates[0]?.coordinates[0];
+
   const initialRegion: Region = {
-    latitude: latitude ?? routeCoordinates[0]?.latitude ?? -15.7942,
-    longitude: longitude ?? routeCoordinates[0]?.longitude ?? -47.8822,
+    latitude: latitude ?? firstCoord?.latitude ?? -15.7942,
+    longitude: longitude ?? firstCoord?.longitude ?? -47.8822,
     latitudeDelta: 0.04,
     longitudeDelta: 0.04,
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#2563eb" />
-          <Text style={styles.mutedText}>Buscando sinal GPS...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <SafeAreaView style={styles.container}>
+  //       <View style={styles.centered}>
+  //         <ActivityIndicator size="large" color="#2563eb" />
+  //         <Text style={styles.mutedText}>Buscando sinal GPS...</Text>
+  //       </View>
+  //     </SafeAreaView>
+  //   );
+  // }
+
+  // if (routesLoading) {
+  //   return <LoadingS texto="Carregando rotas..." />;
+  // }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -163,14 +193,24 @@ export default function NativeMap() {
           }}
         >
           {/* TRECHO ADICIONADO: Renderiza a linha do traçado */}
-          {routeCoordinates.length > 0 && (
+          {/* {routeCoordinates.length > 0 && (
             <Polyline
               coordinates={routeCoordinates}
               strokeColor="#273273" // Cor azul escuro correspondente ao formulário
               strokeWidth={4}
               lineJoin="round"
             />
-          )}
+          )} */}
+
+          {routeCoordinates.map((route) => (
+            <Polyline
+              key={route.id}
+              coordinates={route.coordinates}
+              strokeColor={route.color}
+              strokeWidth={4}
+              lineJoin="round"
+            />
+          ))}
 
           {latitude && longitude && (
             <>
@@ -249,12 +289,12 @@ export default function NativeMap() {
         <TouchableOpacity
           style={[
             styles.button,
-            (loading || acquiring) && styles.buttonDisabled,
+            (gpsLoading || acquiring) && styles.buttonDisabled,
           ]}
           onPress={restart}
-          disabled={loading || acquiring}
+          disabled={gpsLoading || acquiring}
         >
-          {loading || acquiring ? (
+          {gpsLoading || acquiring ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text style={styles.buttonText}>Atualizar localização</Text>

@@ -23,6 +23,7 @@
     "prisma:studio": "dotenv -e .env.local -- prisma studio"
   },
   "dependencies": {
+    "@mapbox/polyline": "^1.2.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",

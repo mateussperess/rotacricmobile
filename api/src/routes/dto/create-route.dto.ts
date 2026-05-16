@@ -1,11 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateRouteDto {
   @IsString({ message: 'Nome deve ser uma string' })
@@ -24,9 +18,6 @@ export class CreateRouteDto {
   @IsString()
   @IsOptional()
   color?: string;
-
-  @IsNumber({}, { message: 'Distância deve ser um número' })
-  distance!: number;
 
   @IsBoolean()
   @IsOptional()
