@@ -23,3 +23,50 @@ model User {
 
   @@map("users")
 }
+
+model Route {
+  id         String    @id @default(uuid())
+  name       String
+  polyline   String    @db.Text
+  strava_id  String?
+  color      String?
+  distance   Float
+  active     Boolean   @default(true)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("routes")
+}
+
+model City {
+  id           String    @id @default(uuid())
+  name         String
+  lat          String
+  lng          String
+  zoom         Int
+  banner_image String?
+  visible      Boolean   @default(true)
+  active       Boolean   @default(true)
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  deleted_at   DateTime?
+
+  @@map("cities")
+}
+
+model AnchorPoint {
+  id             String    @id @default(uuid())
+  name           String
+  lat            String
+  lng            String
+  business_hours String?
+  phone          String?
+  image          String?
+  active         Boolean   @default(true)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+
+  @@map("anchor_points")
+}
