@@ -212,6 +212,16 @@ export default function NativeMap() {
             />
           ))}
 
+          {/* ========================================================= */}
+          {/* MARCADOR DE TESTE: HOSPITAL REGIONAL DE SÃO JERÔNIMO      */}
+          {/* ========================================================= */}
+          <Marker
+            coordinate={{ latitude: -29.959903, longitude: -51.715017 }}
+            title="Hospital Regional de São Jerônimo"
+            description="Ponto de Apoio / Saúde"
+          />
+          {/* ========================================================= */}
+
           {latitude && longitude && (
             <>
               {/* Círculo de precisão */}

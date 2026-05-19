@@ -79,6 +79,10 @@ model AnchorPoint {
   phone          String?
   image          String?
   active         Boolean   @default(true)
+
+  category_id       String?
+  category          AnchorPointCategory? @relation(fields: [category_id], references: [id])
+
   city_anchorpoints CityAnchorpoint[]
   user_stamps       UserStamp[]
 
@@ -170,4 +174,20 @@ model UserStamp {
   route        Route       @relation(fields: [route_id], references: [id])
 
   @@map("user_stamps")
+}
+
+model AnchorPointCategory {
+  id         String    @id @default(uuid())
+  name       String
+  icon_name  String
+  icon_image String?
+  active     Boolean   @default(true)
+  
+  anchor_points AnchorPoint[]
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("anchor_point_categories")
 }
