@@ -31,11 +31,14 @@ services:
   backend:
     env_file:
       - .env
+    volumes:
+      - ./src:/api/src
     build:
       context: .
       dockerfile: Dockerfile
     container_name: api-backend-new
     restart: unless-stopped
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
     depends_on:
       db:
         condition: service_healthy
