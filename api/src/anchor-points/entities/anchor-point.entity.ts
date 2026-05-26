@@ -1,13 +1,13 @@
-export class City {
+export class AnchorPoint {
   id!: string;
   name!: string;
-  about!: string | null;
   lat!: number;
   lng!: number;
-  zoom!: number;
-  banner_image!: string | null;
-  visible!: boolean;
+  business_hours!: string | null;
+  phone!: string | null;
+  image!: string | null;
   active!: boolean;
+  category_id!: string | null;
   created_at!: Date;
   updated_at!: Date;
   deleted_at!: Date | null;
