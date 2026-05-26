@@ -1,3 +1,8 @@
+import {
+  AnchorPoint,
+  AnchorPointsService,
+} from "@/services/anchorpoints/anchorPointService";
+import { CitiesService } from "@/services/cities/citiesService";
 import { Route, RoutesService } from "@/services/routes/routeService";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
@@ -24,7 +29,6 @@ const MAX_WAIT_MS = 15000;
 export default function NativeMap() {
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
-
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [following, setFollowing] = useState(true);
 
@@ -32,8 +36,10 @@ export default function NativeMap() {
   const followingRef = useRef(true);
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const acquiredRef = useRef(false);
+  const anchorPointsFetchedRef = useRef(false);
 
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
 
   const [gpsLoading, setGpsLoading] = useState(true);
   const [routesLoading, setRoutesLoading] = useState(true);
@@ -44,6 +50,31 @@ export default function NativeMap() {
       setRoutesLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (!location || anchorPointsFetchedRef.current) return;
+
+    anchorPointsFetchedRef.current = true;
+
+    const { latitude, longitude } = location.coords;
+
+    const fetchAnchorPoints = async () => {
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+      const cityName = place?.city ?? place?.subregion;
+      if (!cityName) return;
+
+      const city = await CitiesService.findByName(cityName);
+      if (!city) return;
+
+      const points = await AnchorPointsService.findAllByCity(city.id);
+      setAnchorPoints(points);
+    };
+
+    fetchAnchorPoints();
+  }, [location]);
 
   const routeCoordinates = useMemo(() => {
     return routes.map((route) => ({
@@ -215,12 +246,21 @@ export default function NativeMap() {
           {/* ========================================================= */}
           {/* MARCADOR DE TESTE: HOSPITAL REGIONAL DE SÃO JERÔNIMO      */}
           {/* ========================================================= */}
-          <Marker
+          {/* <Marker
             coordinate={{ latitude: -29.959903, longitude: -51.715017 }}
             title="Hospital Regional de São Jerônimo"
             description="Ponto de Apoio / Saúde"
-          />
+          /> */}
           {/* ========================================================= */}
+
+          {anchorPoints.map((ap) => (
+            <Marker
+              key={ap.id}
+              coordinate={{ latitude: ap.lat, longitude: ap.lng }}
+              title={ap.name}
+              description={ap.phone ?? ap.business_hours ?? undefined}
+            />
+          ))}
 
           {latitude && longitude && (
             <>
