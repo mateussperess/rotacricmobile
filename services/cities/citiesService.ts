@@ -25,4 +25,14 @@ export const CitiesService = {
       return null;
     }
   },
+
+  findAll: async (): Promise<City[] | null> => {
+    try {
+      const { data } = await api.get("/cities");
+      return data;
+    } catch (error) {
+      console.error("Error fetching cities:", error);
+      return null;
+    }
+  },
 };
