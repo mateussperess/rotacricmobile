@@ -1,12 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function RotaScreen() {
+export default function Cidades() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Rota</Text>
-        <Text style={styles.description}>Tela de gerenciamento de rotas</Text>
+        <Text style={styles.title}>Cidades</Text>
+        <Text style={styles.description}>Tela de listagem de cidades</Text>
       </View>
     </SafeAreaView>
   );

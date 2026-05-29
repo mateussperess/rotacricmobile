@@ -38,7 +38,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="nativeMap"
         options={{
-          title: "Mapa Nativo",
+          title: "Mapa",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="map.fill" color={color} />
           ),
@@ -54,19 +54,17 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
-        name="rota"
+        name="cidades"
         options={{
-          title: "Rotas",
+          title: "Cidades",
           tabBarIcon: ({ color }) => (
-            <IconSymbol
-              size={28}
-              name="arrow.forward.circle.fill"
-              color={color}
-            />
+            <IconSymbol name="building.2.fill" size={28} color={color} />
           ),
         }}
       />
+
       <Tabs.Screen
         name="escanear"
         options={{

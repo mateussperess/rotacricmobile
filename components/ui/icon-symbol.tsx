@@ -21,6 +21,7 @@ const MAPPING = {
   "arrow.forward.circle.fill": "directions",
   "barcode.viewfinder": "qr-code",
   "star.fill": "star",
+  "building.2.fill": "location-city",
 
   "lock.fill": "lock",
   "award.fill": "military-tech",
