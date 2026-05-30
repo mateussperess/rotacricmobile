@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PrismaService } from './prisma/prisma.service';
 import { RoutesModule } from './routes/routes.module';
 import { UsersModule } from './users/users.module';
+import { RouteSegmentsModule } from './route-segments/route-segments.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module';
     CitiesModule,
     AnchorPointCategoriesModule,
     AnchorPointsModule,
+    RouteSegmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

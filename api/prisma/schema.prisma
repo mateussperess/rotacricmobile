@@ -41,6 +41,7 @@ model Route {
   city_routes CityRoute[]
   activities  Activity[]
   user_stamps UserStamp[]
+  segments RouteSegment[]
   
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
@@ -60,8 +61,11 @@ model City {
   banner_image String?
   visible      Boolean   @default(true)
   active       Boolean   @default(true)
+
   city_routes CityRoute[]
   city_anchorpoints CityAnchorpoint[]
+  segmentsAsOrigin RouteSegment[] @relation("SegmentOrigin")
+  segmentsAsDestination RouteSegment[] @relation("SegmentDestination")
 
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
@@ -191,4 +195,22 @@ model AnchorPointCategory {
   deleted_at DateTime?
 
   @@map("anchor_point_categories")
+}
+
+model RouteSegment {
+  id           String @id @default(uuid())
+  route_id     String
+  from_city_id String
+  to_city_id   String
+  distance     Float?
+  
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  route     Route @relation(fields: [route_id], references: [id])
+  from_city City  @relation("SegmentOrigin", fields: [from_city_id], references: [id])
+  to_city   City  @relation("SegmentDestination", fields: [to_city_id], references: [id])
+
+  @@map("route_segments")
 }
