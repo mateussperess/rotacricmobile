@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CitiesService } from './cities.service';
 import { CityResponseDto } from './dto/city-response.dto';
@@ -26,22 +27,25 @@ export class CitiesController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  async findAll(): Promise<CityResponseDto[]> {
+  findAll(@Query('name') name?: string) {
+    if (name) {
+      return this.citiesService.findByName(name);
+    }
     return this.citiesService.findAll();
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.citiesService.findOne(+id);
+    return this.citiesService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateCityDto: UpdateCityDto) {
-    return this.citiesService.update(+id, updateCityDto);
+    return this.citiesService.update(id, updateCityDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.citiesService.remove(+id);
+    return this.citiesService.remove(id);
   }
 }
