@@ -11,6 +11,7 @@ datasource db {
   provider = "mysql"
 }
 
+// Definição do modelo de Usuário
 model User {
   id         String   @id @default(uuid())
   username   String   @unique
@@ -18,8 +19,198 @@ model User {
   last_name  String
   email      String   @unique
   pass       String
+  activities Activity[]
+  user_stamps UserStamp[]
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@map("users")
+}
+
+// Definição do modelo de Rota
+model Route {
+  id         String    @id @default(uuid())
+  name       String
+  polyline   String    @db.Text
+  strava_id  String?
+  color      String?
+  distance   Float
+  active     Boolean   @default(true)
+  
+  city_routes CityRoute[]
+  activities  Activity[]
+  user_stamps UserStamp[]
+  segments RouteSegment[]
+  
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("routes")
+}
+
+// Definição do modelo de Cidade
+model City {
+  id           String    @id @default(uuid())
+  name         String
+  about        String?
+  lat          Float
+  lng          Float
+  zoom         Int
+  banner_image String?
+  visible      Boolean   @default(true)
+  active       Boolean   @default(true)
+
+  city_routes CityRoute[]
+  city_anchorpoints CityAnchorpoint[]
+  segmentsAsOrigin RouteSegment[] @relation("SegmentOrigin")
+  segmentsAsDestination RouteSegment[] @relation("SegmentDestination")
+
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  deleted_at   DateTime?
+
+  @@map("cities")
+}
+
+// Definição do modelo de Ponto de Apoio
+model AnchorPoint {
+  id             String    @id @default(uuid())
+  name           String
+  lat            Float
+  lng            Float
+  business_hours String?
+  phone          String?
+  image          String?
+  active         Boolean   @default(true)
+
+  category_id       String?
+  category          AnchorPointCategory? @relation(fields: [category_id], references: [id])
+
+  city_anchorpoints CityAnchorpoint[]
+  user_stamps       UserStamp[]
+
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+
+  @@map("anchor_points")
+}
+
+// Definição do modelo de relação entre Cidade e Rota
+model CityRoute {
+  id         String    @id @default(uuid())
+  city_id    String
+  route_id   String
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  city  City  @relation(fields: [city_id], references: [id])
+  route Route @relation(fields: [route_id], references: [id])
+
+  @@map("city_routes")
+}
+
+// Definição do modelo de relação entre Cidade e Ponto de Apoio
+model CityAnchorpoint {
+  id              String    @id @default(uuid())
+  city_id         String
+  anchor_point_id String
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  deleted_at      DateTime?
+
+  city            City        @relation(fields: [city_id], references: [id])
+  anchor_point    AnchorPoint @relation(fields: [anchor_point_id], references: [id])
+
+  @@map("city_anchorpoints")
+}
+
+// Definição do modelo de Atividade
+model Activity {
+  id             String    @id @default(uuid())
+  user_id        String
+  route_id       String?
+  total_distance Float
+  start_time     DateTime
+  end_time       DateTime
+  user  User   @relation(fields: [user_id], references: [id])
+  route Route? @relation(fields: [route_id], references: [id])
+  waypoints ActivityWaypoint[]
+
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+
+  @@map("activities")
+}
+
+// Definição do modelo de Waypoint de Atividade (responsável por armazenar os pontos de localização durante a atividade)
+model ActivityWaypoint {
+  id          String    @id @default(uuid())
+  activity_id String
+  lat         Float
+  lng         Float
+  timestamp   DateTime
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  deleted_at  DateTime?
+
+  activity Activity @relation(fields: [activity_id], references: [id])
+
+  @@map("activity_waypoints")
+}
+
+// Definição do modelo de Carimbo de Usuário (responsável por armazenar os carimbos ganhos pelos usuários ao completar rotas ou visitar pontos de apoio)
+model UserStamp {
+  id              String    @id @default(uuid())
+  user_id         String
+  anchor_point_id String?
+  route_id        String?
+  earned_at       DateTime
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  deleted_at      DateTime?
+
+  user         User        @relation(fields: [user_id], references: [id])
+  anchor_point AnchorPoint? @relation(fields: [anchor_point_id], references: [id])
+  route        Route?       @relation(fields: [route_id], references: [id])
+
+  @@map("user_stamps")
+}
+
+model AnchorPointCategory {
+  id         String    @id @default(uuid())
+  name       String
+  icon_name  String
+  icon_image String?
+  active     Boolean   @default(true)
+  
+  anchor_points AnchorPoint[]
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("anchor_point_categories")
+}
+
+model RouteSegment {
+  id           String @id @default(uuid())
+  route_id     String
+  from_city_id String
+  to_city_id   String
+  distance     Float?
+  
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  route     Route @relation(fields: [route_id], references: [id])
+  from_city City  @relation("SegmentOrigin", fields: [from_city_id], references: [id])
+  to_city   City  @relation("SegmentDestination", fields: [to_city_id], references: [id])
+
+  @@map("route_segments")
 }
