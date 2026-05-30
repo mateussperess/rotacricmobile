@@ -64,6 +64,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="carimbos"
         options={{
@@ -73,6 +74,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="profile/index"
         options={{

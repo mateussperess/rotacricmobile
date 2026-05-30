@@ -6,9 +6,11 @@ import { CitiesService } from "@/services/cities/citiesService";
 import { Route, RoutesService } from "@/services/routes/routeService";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
+import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,38 +24,72 @@ type LocationData = Location.LocationObject | null;
 const ACCURACY_THRESHOLD_METERS = 50;
 const MAX_WAIT_MS = 15000;
 
-// testandouma polyline longa do RotaCRIC pra ver se o mapa renderiza sem precisar do GPS
-// const ENCODED_POLYLINE =
-//   "nyzuD`nazHa@vCS~@Sj@y@h@WJi@LcDJaCVgALqGj@UBOHuC`@sFd@`@fENt@FPbAb@f@PdAj@h@TfCtAxB|AtC|Ad@^xAnBv@n@Zp@`IxNpBlElLbU~@dCRdALpAAC@vAGfBKnAeApKcA`L_@lEkApKO`EwAxg@]pM_@|IcAl_@aAlLmBrPcB`PqCdYm@bMa@nUyAxv@@`CP~DjEza@b@jFdAnHl@tGrAfPpAxNPdCBvACfB?CoFd]cIdg@]hCe@xT_Ka@oIQoBAQDwAvAGPF^Z^d@\hAp@z@Df_@|@";
-
 export default function NativeMap() {
+  const { lat, lng, zoom, t } = useLocalSearchParams<{
+    lat?: string;
+    lng?: string;
+    zoom?: string;
+    t?: string;
+  }>();
+
+  const cityTarget =
+    lat && lng
+      ? {
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lng),
+          zoom: zoom ? parseInt(zoom) : 12,
+        }
+      : null;
+
+  const [viewingCity, setViewingCity] = useState(!!cityTarget);
+
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [following, setFollowing] = useState(true);
+  const [following, setFollowing] = useState(!cityTarget);
 
   const mapRef = useRef<MapView>(null);
-  const followingRef = useRef(true);
+  const followingRef = useRef(!cityTarget);
+  const viewingCityRef = useRef(!!cityTarget); // ref síncrona para uso nos callbacks
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const acquiredRef = useRef(false);
   const anchorPointsFetchedRef = useRef(false);
 
   const [routes, setRoutes] = useState<Route[]>([]);
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
-
   const [gpsLoading, setGpsLoading] = useState(true);
-  const [routesLoading, setRoutesLoading] = useState(true);
 
   useEffect(() => {
-    RoutesService.findAll().then((data) => {
-      setRoutes(data);
-      setRoutesLoading(false);
-    });
+    RoutesService.findAll().then((data) => setRoutes(data));
   }, []);
+
+  // anima para a cidade quando o mapa montar
+  useEffect(() => {
+    if (!lat || !lng) return;
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const zoomLevel = zoom ? parseInt(zoom) : 12;
+    const delta = 1 / Math.pow(2, zoomLevel - 8);
+
+    // mostra o banner e trava o GPS
+    viewingCityRef.current = true;
+    setViewingCity(true);
+    followingRef.current = false;
+    setFollowing(false);
+
+    const timer = setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        500,
+      );
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [lat, lng, t]);
 
   useEffect(() => {
     if (!location || anchorPointsFetchedRef.current) return;
-
     anchorPointsFetchedRef.current = true;
 
     const { latitude, longitude } = location.coords;
@@ -65,10 +101,8 @@ export default function NativeMap() {
       });
       const cityName = place?.city ?? place?.subregion;
       if (!cityName) return;
-
       const city = await CitiesService.findByName(cityName);
       if (!city) return;
-
       const points = await AnchorPointsService.findAllByCity(city.id);
       setAnchorPoints(points);
     };
@@ -79,15 +113,12 @@ export default function NativeMap() {
   const routeCoordinates = useMemo(() => {
     return routes.map((route) => ({
       id: route.id,
-      color: route.color ?? "#273273",
+      color: route.color ?? "#2563EB",
       coordinates: (() => {
         try {
           return polyline
             .decode(route.polyline)
-            .map(([latitude, longitude]) => ({
-              latitude,
-              longitude,
-            }));
+            .map(([latitude, longitude]) => ({ latitude, longitude }));
         } catch {
           return [];
         }
@@ -96,7 +127,9 @@ export default function NativeMap() {
   }, [routes]);
 
   const animateToLocation = useCallback((loc: Location.LocationObject) => {
-    if (!followingRef.current || !mapRef.current) return;
+    // nao move o mapa enquanto estiver visualizando uma cidade
+    if (!followingRef.current || !mapRef.current || viewingCityRef.current)
+      return;
     const { latitude, longitude, accuracy } = loc.coords;
     const delta = Math.max((accuracy ?? 100) / 50000, 0.005);
     mapRef.current.animateToRegion(
@@ -168,46 +201,32 @@ export default function NativeMap() {
     if (location) animateToLocation(location);
   }, [location, animateToLocation]);
 
+  // fecha o banner e volta a seguir o usuário
+  const handleDismissCity = useCallback(() => {
+    viewingCityRef.current = false;
+    setViewingCity(false);
+    followingRef.current = true;
+    setFollowing(true);
+    if (location) animateToLocation(location);
+  }, [location, animateToLocation]);
+
   const { latitude, longitude, accuracy } = location?.coords ?? {};
   const accuracyOk = (accuracy ?? Infinity) <= ACCURACY_THRESHOLD_METERS;
-
-  // const initialRegion: Region = {
-  //   latitude: latitude ?? -15.7942,
-  //   longitude: longitude ?? -47.8822,
-  //   latitudeDelta: 0.01,
-  //   longitudeDelta: 0.01,
-  // };
-
-  // const initialRegion: Region = {
-  //   latitude: latitude ?? routeCoordinates[0]?.latitude ?? -15.7942,
-  //   longitude: longitude ?? routeCoordinates[0]?.longitude ?? -47.8822,
-  //   latitudeDelta: 0.04,
-  //   longitudeDelta: 0.04,
-  // };
-
   const firstCoord = routeCoordinates[0]?.coordinates[0];
 
-  const initialRegion: Region = {
-    latitude: latitude ?? firstCoord?.latitude ?? -15.7942,
-    longitude: longitude ?? firstCoord?.longitude ?? -47.8822,
-    latitudeDelta: 0.04,
-    longitudeDelta: 0.04,
-  };
-
-  // if (loading) {
-  //   return (
-  //     <SafeAreaView style={styles.container}>
-  //       <View style={styles.centered}>
-  //         <ActivityIndicator size="large" color="#2563eb" />
-  //         <Text style={styles.mutedText}>Buscando sinal GPS...</Text>
-  //       </View>
-  //     </SafeAreaView>
-  //   );
-  // }
-
-  // if (routesLoading) {
-  //   return <LoadingS texto="Carregando rotas..." />;
-  // }
+  const initialRegion: Region = cityTarget
+    ? {
+        latitude: cityTarget.latitude,
+        longitude: cityTarget.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }
+    : {
+        latitude: latitude ?? firstCoord?.latitude ?? -15.7942,
+        longitude: longitude ?? firstCoord?.longitude ?? -47.8822,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -223,16 +242,6 @@ export default function NativeMap() {
             setFollowing(false);
           }}
         >
-          {/* TRECHO ADICIONADO: Renderiza a linha do traçado */}
-          {/* {routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#273273" // Cor azul escuro correspondente ao formulário
-              strokeWidth={4}
-              lineJoin="round"
-            />
-          )} */}
-
           {routeCoordinates.map((route) => (
             <Polyline
               key={route.id}
@@ -242,16 +251,6 @@ export default function NativeMap() {
               lineJoin="round"
             />
           ))}
-
-          {/* ========================================================= */}
-          {/* MARCADOR DE TESTE: HOSPITAL REGIONAL DE SÃO JERÔNIMO      */}
-          {/* ========================================================= */}
-          {/* <Marker
-            coordinate={{ latitude: -29.959903, longitude: -51.715017 }}
-            title="Hospital Regional de São Jerônimo"
-            description="Ponto de Apoio / Saúde"
-          /> */}
-          {/* ========================================================= */}
 
           {anchorPoints.map((ap) => (
             <Marker
@@ -264,7 +263,6 @@ export default function NativeMap() {
 
           {latitude && longitude && (
             <>
-              {/* Círculo de precisão */}
               <Circle
                 center={{ latitude, longitude }}
                 radius={accuracy ?? 50}
@@ -272,7 +270,6 @@ export default function NativeMap() {
                 fillColor="rgba(37,99,235,0.08)"
                 strokeWidth={1}
               />
-              {/* Marker customizado */}
               <Marker
                 coordinate={{ latitude, longitude }}
                 anchor={{ x: 0.5, y: 0.5 }}
@@ -284,14 +281,27 @@ export default function NativeMap() {
           )}
         </MapView>
 
+        {/* Banner: visualizando cidade — com botão fechar */}
+        {viewingCity && cityTarget && (
+          <View style={styles.cityBanner}>
+            <Text style={styles.cityBannerText}>Visualizando cidade</Text>
+            <Pressable
+              onPress={handleDismissCity}
+              style={styles.cityBannerClose}
+            >
+              <Text style={styles.cityBannerCloseText}>✕</Text>
+            </Pressable>
+          </View>
+        )}
+
         {acquiring && (
           <View style={styles.acquiringBanner}>
-            <ActivityIndicator size="small" color="#2563eb" />
+            <ActivityIndicator size="small" color="#2563EB" />
             <Text style={styles.acquiringText}>Refinando precisão GPS...</Text>
           </View>
         )}
 
-        {!following && (
+        {!following && !viewingCity && (
           <TouchableOpacity style={styles.recenterBtn} onPress={handleRecenter}>
             <Text style={styles.recenterText}>📍 Centralizar</Text>
           </TouchableOpacity>
@@ -376,18 +386,12 @@ function InfoRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
-  centered: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
   mapWrapper: { height: "60%", width: "100%", overflow: "hidden" },
   map: { flex: 1 },
   userDot: {
     width: 18,
     height: 18,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#2563EB",
     borderRadius: 9,
     borderWidth: 3,
     borderColor: "#fff",
@@ -396,6 +400,32 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+
+  cityBanner: {
+    position: "absolute",
+    top: 12,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#2563EB",
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+    borderRadius: 20,
+    elevation: 4,
+  },
+  cityBannerText: { fontSize: 13, color: "#fff", fontWeight: "600" },
+  cityBannerClose: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cityBannerCloseText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+
   acquiringBanner: {
     position: "absolute",
     bottom: 12,
@@ -421,6 +451,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   recenterText: { fontSize: 13, color: "#374151" },
+
   infoWrapper: {
     flex: 1,
     paddingHorizontal: 24,
@@ -456,7 +487,7 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 14, color: "#dc2626" },
   button: {
     marginTop: 8,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#2563EB",
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",

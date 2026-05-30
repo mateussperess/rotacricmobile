@@ -35,4 +35,14 @@ export const CitiesService = {
       return null;
     }
   },
+
+  findOne: async (id: string): Promise<City | null> => {
+    try {
+      const { data } = await api.get(`/cities/${id}`);
+      return data;
+    } catch (error) {
+      console.error("Error fetching city:", error);
+      return null;
+    }
+  },
 };
