@@ -4,14 +4,30 @@ import React, { useEffect } from "react";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+
+const TAB_BAR_HEIGHT = 64;
+
+/** Botão central elevado — substitui o tabBarButton padrão só no Escanear */
+function ScanTabButton({ onPress, children }: any) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.scanTabButton}
+      android_ripple={{ color: "transparent" }}
+    >
+      {/* Círculo azul elevado */}
+      <View style={styles.scanButton}>
+        <IconSymbol size={26} name="barcode.viewfinder" color="#FFFFFF" />
+      </View>
+      <Text style={styles.scanLabel}>Escanear</Text>
+    </Pressable>
+  );
+}
 
 export default function TabLayout() {
   const { token, loading } = useAuth();
   const router = useRouter();
-  const colorScheme = useColorScheme();
 
   useEffect(() => {
     if (!loading && !token) {
@@ -21,8 +37,8 @@ export default function TabLayout() {
 
   if (loading) {
     return (
-      <View>
-        <Text>Carregando...</Text>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Carregando...</Text>
       </View>
     );
   }
@@ -30,70 +46,164 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: "#2563EB",
+        tabBarInactiveTintColor: "#9CA3AF",
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarItemStyle: styles.tabBarItem,
       }}
     >
       <Tabs.Screen
         name="nativeMap"
         options={{
-          title: "Mapa Nativo",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="map.fill" color={color} />
+          title: "Mapa",
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+            >
+              <IconSymbol size={22} name="map.fill" color={color} />
+            </View>
           ),
         }}
       />
 
       <Tabs.Screen
-        name="map"
+        name="cidades"
         options={{
-          title: "Mapa Web",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="map.fill" color={color} />
+          title: "Cidades",
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+            >
+              <IconSymbol name="building.2.fill" size={22} color={color} />
+            </View>
           ),
         }}
       />
-      <Tabs.Screen
-        name="rota"
-        options={{
-          title: "Rotas",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol
-              size={28}
-              name="arrow.forward.circle.fill"
-              color={color}
-            />
-          ),
-        }}
-      />
+
+      {/* ── Escanear: botão customizado elevado ── */}
       <Tabs.Screen
         name="escanear"
         options={{
           title: "Escanear",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="barcode.viewfinder" color={color} />
-          ),
+          tabBarLabel: () => null,
+          tabBarIcon: () => null,
+          tabBarButton: (props) => <ScanTabButton {...props} />,
+          tabBarItemStyle: styles.scanTabItem,
         }}
       />
+
       <Tabs.Screen
         name="carimbos"
         options={{
           title: "Carimbos",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="star.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+            >
+              <IconSymbol size={22} name="star.fill" color={color} />
+            </View>
           ),
         }}
       />
+
       <Tabs.Screen
         name="profile/index"
         options={{
           title: token ? "Perfil" : "Entrar",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="person.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+            >
+              <IconSymbol size={22} name="person.fill" color={color} />
+            </View>
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  loadingText: {
+    color: "#6B7280",
+  },
+
+  tabBar: {
+    height: TAB_BAR_HEIGHT + (Platform.OS === "ios" ? 20 : 0),
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 16,
+    paddingBottom: Platform.OS === "ios" ? 20 : 6,
+  },
+  tabBarLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  tabBarItem: {
+    paddingTop: 4,
+  },
+
+  iconWrapper: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeIconWrapper: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  scanTabItem: {
+    overflow: "visible",
+  },
+  scanTabButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: Platform.OS === "ios" ? 20 : 6,
+    overflow: "visible",
+  },
+  scanButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+    marginTop: -20,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 12,
+  },
+  scanLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#2563EB",
+    marginTop: 3,
+    letterSpacing: 0.2,
+  },
+});
