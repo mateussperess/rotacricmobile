@@ -1,3 +1,13 @@
+import BeverageStorage from "@/assets/images/anchorpoint_categories_logos/beverage_storage.svg";
+import Food from "@/assets/images/anchorpoint_categories_logos/food.svg";
+import GasStation from "@/assets/images/anchorpoint_categories_logos/gas_station.svg";
+import Hospital from "@/assets/images/anchorpoint_categories_logos/hospital.svg";
+import Hotel from "@/assets/images/anchorpoint_categories_logos/hotel.svg";
+import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg";
+import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
+import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
+import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+
 import {
   AnchorPoint,
   AnchorPointsService,
@@ -16,6 +26,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Tab = "sobre" | "trecho" | "apoio";
+type ApoioFilter = "all" | "on_route" | "off_route";
 
 export default function CidadeDetalhe() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,6 +35,7 @@ export default function CidadeDetalhe() {
   const [loadingCity, setLoadingCity] = useState(true);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("sobre");
+  const [apoioFilter, setApoioFilter] = useState<ApoioFilter>("all");
   const router = useRouter();
 
   useEffect(() => {
@@ -42,16 +54,17 @@ export default function CidadeDetalhe() {
     });
   }, [id]);
 
+  const filteredPoints = anchorPoints.filter((ap) => {
+    if (apoioFilter === "on_route") return ap.on_route === true;
+    if (apoioFilter === "off_route") return ap.on_route === false;
+    return true;
+  });
+
   const handleGoToMap = () => {
     if (!city) return;
     router.push({
       pathname: "/(tabs)/nativeMap",
-      params: {
-        lat: city.lat,
-        lng: city.lng,
-        zoom: city.zoom,
-        t: Date.now(),
-      },
+      params: { lat: city.lat, lng: city.lng, zoom: city.zoom, t: Date.now() },
     });
   };
 
@@ -72,6 +85,27 @@ export default function CidadeDetalhe() {
       </SafeAreaView>
     );
   }
+
+  const APOIO_FILTERS: { key: ApoioFilter; label: string; icon: string }[] = [
+    { key: "all", label: "Todos", icon: "" },
+    { key: "on_route", label: "Na rota", icon: "" },
+    { key: "off_route", label: "Fora da rota", icon: "" },
+  ];
+
+  const ICON_MAP: Record<
+    string,
+    React.FC<{ width: number; height: number }>
+  > = {
+    beverage_storage: BeverageStorage,
+    food: Food,
+    gas_station: GasStation,
+    hospital: Hospital,
+    hotel: Hotel,
+    pharmacy: Pharmacy,
+    repair: Repair,
+    store: Store,
+    tourism: Tourism,
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -119,16 +153,14 @@ export default function CidadeDetalhe() {
       >
         {/* ── ABA: SOBRE ── */}
         {activeTab === "sobre" && (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Sobre a cidade</Text>
-              <Text style={styles.cardText}>
-                {city.about?.trim()
-                  ? city.about
-                  : "Informações sobre esta cidade em breve."}
-              </Text>
-            </View>
-          </>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sobre a cidade</Text>
+            <Text style={styles.cardText}>
+              {city.about?.trim()
+                ? city.about
+                : "Informações sobre esta cidade em breve."}
+            </Text>
+          </View>
         )}
 
         {/* ── ABA: TRECHO ── */}
@@ -157,7 +189,6 @@ export default function CidadeDetalhe() {
                 Dados do trecho disponíveis em breve.
               </Text>
             </View>
-
             <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
               <Text style={styles.mapBtnText}>Ver no mapa</Text>
             </Pressable>
@@ -167,37 +198,88 @@ export default function CidadeDetalhe() {
         {/* ── ABA: PONTOS DE APOIO ── */}
         {activeTab === "apoio" && (
           <>
+            {/* Filtros */}
+            <View style={styles.filterRow}>
+              {APOIO_FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
+                  style={[
+                    styles.filterChip,
+                    apoioFilter === f.key && styles.filterChipActive,
+                  ]}
+                  onPress={() => setApoioFilter(f.key)}
+                >
+                  <Text style={styles.filterChipIcon}>{f.icon}</Text>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      apoioFilter === f.key && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Lista */}
             {loadingAnchor ? (
               <ActivityIndicator color="#2563EB" style={{ marginTop: 32 }} />
-            ) : anchorPoints.length === 0 ? (
+            ) : filteredPoints.length === 0 ? (
               <View style={styles.card}>
                 <Text style={styles.cardText}>
-                  Nenhum ponto de apoio cadastrado para esta cidade.
+                  {anchorPoints.length === 0
+                    ? "Nenhum ponto de apoio cadastrado para esta cidade."
+                    : "Nenhum ponto de apoio encontrado com este filtro."}
                 </Text>
               </View>
             ) : (
               <>
-                {anchorPoints.map((ap) => (
-                  <View key={ap.id} style={styles.anchorCard}>
-                    <View style={styles.anchorIcon}>
-                      <Text style={styles.anchorIconText}>📍</Text>
+                {filteredPoints.map((ap) => {
+                  const IconComponent = ap.category?.icon_name
+                    ? ICON_MAP[ap.category.icon_name]
+                    : null;
+
+                  return (
+                    <View key={ap.id} style={styles.anchorCard}>
+                      <View
+                        style={[
+                          styles.anchorIcon,
+                          ap.on_route && styles.anchorIconOnRoute,
+                        ]}
+                      >
+                        {IconComponent ? (
+                          <IconComponent width={22} height={22} />
+                        ) : (
+                          <Text style={styles.anchorIconText}>📍</Text>
+                        )}
+                      </View>
+                      <View style={styles.anchorInfo}>
+                        <View style={styles.anchorNameRow}>
+                          <Text style={styles.anchorName}>{ap.name}</Text>
+                          {ap.on_route && (
+                            <View style={styles.onRouteBadge}>
+                              <Text style={styles.onRouteBadgeText}>
+                                Na rota
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        {ap.business_hours && (
+                          <Text style={styles.anchorDetail}>
+                            🕐 {ap.business_hours}
+                          </Text>
+                        )}
+                        {ap.phone && (
+                          <Text style={styles.anchorDetail}>📞 {ap.phone}</Text>
+                        )}
+                      </View>
                     </View>
-                    <View style={styles.anchorInfo}>
-                      <Text style={styles.anchorName}>{ap.name}</Text>
-                      {ap.business_hours && (
-                        <Text style={styles.anchorDetail}>
-                          🕐 {ap.business_hours}
-                        </Text>
-                      )}
-                      {ap.phone && (
-                        <Text style={styles.anchorDetail}>📞 {ap.phone}</Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
                 <Text style={styles.anchorCount}>
-                  {anchorPoints.length} ponto
-                  {anchorPoints.length !== 1 ? "s" : ""} de apoio em {city.name}
+                  {filteredPoints.length} ponto
+                  {filteredPoints.length !== 1 ? "s" : ""} em {city.name}
                 </Text>
               </>
             )}
@@ -213,7 +295,6 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   errorText: { fontSize: 16, color: "#6B7280" },
 
-  // Header
   header: {
     backgroundColor: "#2563EB",
     paddingHorizontal: 24,
@@ -245,7 +326,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  // Tabs
   tabs: {
     flexDirection: "row",
     borderTopWidth: 1,
@@ -262,10 +342,8 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: "500" },
   tabTextActive: { color: "#fff", fontWeight: "700" },
 
-  // Body
   body: { padding: 20, gap: 16, paddingBottom: 40 },
 
-  // Card genérico
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -277,11 +355,7 @@ const styles = StyleSheet.create({
     elevation: 1,
     gap: 8,
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
   cardText: { fontSize: 15, color: "#374151", lineHeight: 22 },
   comingSoon: {
     fontSize: 13,
@@ -290,7 +364,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Stats (trecho)
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -301,7 +374,6 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 16, fontWeight: "700", color: "#111827" },
   statLabel: { fontSize: 11, color: "#9CA3AF" },
 
-  // Botão mapa
   mapBtn: {
     backgroundColor: "#2563EB",
     borderRadius: 14,
@@ -310,7 +382,33 @@ const styles = StyleSheet.create({
   },
   mapBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
-  // Anchor points
+  // Filtros
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  filterChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+  },
+  filterChipActive: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#2563EB",
+  },
+  filterChipIcon: { fontSize: 13 },
+  filterChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
+  filterChipTextActive: { color: "#2563EB" },
+
+  // Anchor cards
   anchorCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -332,9 +430,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  anchorIconOnRoute: {
+    backgroundColor: "#dce9fc",
+  },
   anchorIconText: { fontSize: 18 },
   anchorInfo: { flex: 1, gap: 4 },
+  anchorNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   anchorName: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  onRouteBadge: {
+    backgroundColor: "#dce9fc",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  onRouteBadgeText: { fontSize: 11, fontWeight: "700", color: "#2563EB" },
   anchorDetail: { fontSize: 13, color: "#6B7280" },
   anchorCount: {
     textAlign: "center",

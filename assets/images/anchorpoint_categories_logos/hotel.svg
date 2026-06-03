@@ -1,0 +1,21 @@
+<svg width="344" height="420" viewBox="0 0 344 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sombra -->
+  <ellipse cx="172" cy="397.643" rx="55.6667" ry="19.881" fill="black" fill-opacity="0.15"/>
+  <!-- Pin shape -->
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M172 4C264.232 4 339 78.7685 339 171C339 241.717 295.045 302.168 232.966 326.522L181.512 396.853C180.439 398.325 179.015 399.527 177.359 400.356C175.704 401.186 173.866 401.619 172 401.619C170.134 401.619 168.296 401.186 166.641 400.356C164.985 399.527 163.561 398.325 162.488 396.853L111.034 326.522C48.9548 302.168 5 241.717 5 171C5 78.7685 79.7685 4 172 4Z" fill="#4E64A6"/>
+  <!-- Círculo interno escuro -->
+  <circle cx="172" cy="171" r="135.191" fill="#273273"/>
+  <!-- Ícone de cama -->
+  <!-- Base da cama -->
+  <rect x="90" y="185" width="164" height="55" rx="8" fill="white"/>
+  <!-- Cabeceira -->
+  <rect x="90" y="140" width="20" height="105" rx="6" fill="white"/>
+  <!-- Travesseiro 1 -->
+  <rect x="120" y="148" width="55" height="40" rx="10" fill="white"/>
+  <!-- Travesseiro 2 -->
+  <rect x="185" y="148" width="55" height="40" rx="10" fill="white"/>
+  <!-- Pé da cama esquerdo -->
+  <rect x="90" y="238" width="16" height="20" rx="4" fill="white"/>
+  <!-- Pé da cama direito -->
+  <rect x="238" y="238" width="16" height="20" rx="4" fill="white"/>
+</svg>

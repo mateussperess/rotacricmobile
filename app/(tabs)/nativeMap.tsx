@@ -1,3 +1,14 @@
+import BeverageStorage from "@/assets/images/anchorpoint_categories_logos/beverage_storage.svg";
+import Food from "@/assets/images/anchorpoint_categories_logos/food.svg";
+import GasStation from "@/assets/images/anchorpoint_categories_logos/gas_station.svg";
+import Hospital from "@/assets/images/anchorpoint_categories_logos/hospital.svg";
+import Hotel from "@/assets/images/anchorpoint_categories_logos/hotel.svg";
+import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg";
+import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
+import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
+import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+
+import { AnchorPointMarker } from "@/components/anchorPointIcon";
 import {
   AnchorPoint,
   AnchorPointsService,
@@ -28,6 +39,18 @@ const ACCURACY_THRESHOLD_METERS = 50;
 const MAX_WAIT_MS = 15000;
 const SHEET_COLLAPSED = 90;
 const SHEET_EXPANDED = 380;
+
+const ICON_MAP: Record<string, React.FC<{ width: number; height: number }>> = {
+  beverage_storage: BeverageStorage,
+  food: Food,
+  gas_station: GasStation,
+  hospital: Hospital,
+  hotel: Hotel,
+  pharmacy: Pharmacy,
+  repair: Repair,
+  store: Store,
+  tourism: Tourism,
+};
 
 function haversineMeters(
   lat1: number,
@@ -333,14 +356,29 @@ export default function NativeMap() {
               lineJoin="round"
             />
           ))}
-          {anchorPoints.map((ap) => (
+          {/* {anchorPoints.map((ap) => (
             <Marker
               key={ap.id}
               coordinate={{ latitude: ap.lat, longitude: ap.lng }}
               title={ap.name}
               description={ap.phone ?? ap.business_hours ?? undefined}
             />
+          ))} */}
+
+          {anchorPoints.map((ap) => (
+            <Marker
+              key={ap.id}
+              coordinate={{ latitude: ap.lat, longitude: ap.lng }}
+              title={ap.name}
+              description={ap.phone ?? ap.business_hours ?? undefined}
+            >
+              <AnchorPointMarker
+                icon_name={ap.category?.icon_name}
+                on_route={ap.on_route}
+              />
+            </Marker>
           ))}
+
           {latitude && longitude && (
             <>
               <Circle
@@ -470,15 +508,50 @@ export default function NativeMap() {
               Nenhum ponto de apoio encontrado próximo.
             </Text>
           ) : (
-            nearbyPoints.map((ap) => (
-              <View key={ap.id} style={styles.anchorRow}>
-                <Text style={styles.anchorRowIcon}>📍</Text>
-                <Text style={styles.anchorRowName} numberOfLines={1}>
-                  {ap.name}
-                </Text>
-                <Text style={styles.anchorRowDist}>{formatDist(ap.distM)}</Text>
-              </View>
-            ))
+            nearbyPoints.map((ap) => {
+              const IconComponent = ap.category?.icon_name
+                ? ICON_MAP[ap.category.icon_name]
+                : null;
+
+              return (
+                <Pressable
+                  key={ap.id}
+                  style={styles.anchorRow}
+                  onPress={() => {
+                    mapRef.current?.animateToRegion(
+                      {
+                        latitude: ap.lat,
+                        longitude: ap.lng,
+                        latitudeDelta: 0.005,
+                        longitudeDelta: 0.005,
+                      },
+                      500,
+                    );
+                    followingRef.current = false;
+                    setFollowing(false);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.anchorRowIconWrap,
+                      ap.on_route && styles.anchorRowIconOnRoute,
+                    ]}
+                  >
+                    {IconComponent ? (
+                      <IconComponent width={35} height={35} />
+                    ) : (
+                      <Text style={styles.anchorRowIcon}>📍</Text>
+                    )}
+                  </View>
+                  <Text style={styles.anchorRowName} numberOfLines={1}>
+                    {ap.name}
+                  </Text>
+                  <Text style={styles.anchorRowDist}>
+                    {formatDist(ap.distM)}
+                  </Text>
+                </Pressable>
+              );
+            })
           )}
         </ScrollView>
       </Animated.View>
@@ -661,5 +734,16 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontStyle: "italic",
     paddingVertical: 8,
+  },
+  anchorRowIconWrap: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    backgroundColor: "rgba(107, 114, 128, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  anchorRowIconOnRoute: {
+    backgroundColor: "rgba(37, 100, 235, 0.45)",
   },
 });
