@@ -30,7 +30,7 @@ interface Props {
   on_route?: boolean;
 }
 
-export function AnchorPointMarker({ icon_name, on_route }: Props) {
+const AnchorPointMarkerComponent = ({ icon_name, on_route }: Props) => {
   const IconComponent = icon_name ? ICON_MAP[icon_name] : null;
 
   return (
@@ -42,7 +42,10 @@ export function AnchorPointMarker({ icon_name, on_route }: Props) {
       )}
     </View>
   );
-}
+};
+
+AnchorPointMarkerComponent.displayName = "AnchorPointMarker";
+export const AnchorPointMarker = React.memo(AnchorPointMarkerComponent);
 
 const styles = StyleSheet.create({
   shadow: {
