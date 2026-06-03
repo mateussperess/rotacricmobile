@@ -29,7 +29,10 @@ export const CitiesService = {
   findAll: async (): Promise<City[] | null> => {
     try {
       const { data } = await api.get("/cities");
-      return data;
+      const orderedData = [...data].sort((a: City, b: City) =>
+        a.name.localeCompare(b.name),
+      );
+      return orderedData;
     } catch (error) {
       console.error("Error fetching cities:", error);
       return null;
