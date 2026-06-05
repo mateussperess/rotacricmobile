@@ -88,7 +88,7 @@ export class CitiesService {
     }[];
     totalDistanceKm: number;
   }> {
-    // 1. Busca a cidade
+    // 1. busca a cidade
     const city = await this.prisma.city.findUnique({
       where: { id: cityId },
     });

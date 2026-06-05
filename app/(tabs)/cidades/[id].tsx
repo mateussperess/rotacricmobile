@@ -159,6 +159,7 @@ export default function CidadeDetalhe() {
         {activeTab === "sobre" && (
           <>
             <View style={styles.card}>
+              <WeatherCard lat={city.lat} lng={city.lng} />
               <Text style={styles.cardTitle}>Sobre a cidade</Text>
               <Text style={styles.cardText}>
                 {city.about?.trim()
@@ -166,8 +167,6 @@ export default function CidadeDetalhe() {
                   : "Informações sobre esta cidade em breve."}
               </Text>
             </View>
-
-            <WeatherCard lat={city.lat} lng={city.lng} />
           </>
         )}
 
