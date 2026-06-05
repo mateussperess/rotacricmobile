@@ -7,6 +7,7 @@ import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg"
 import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+import { WeatherCard } from "@/components/WeatherCard";
 
 import {
   AnchorPoint,
@@ -153,14 +154,18 @@ export default function CidadeDetalhe() {
       >
         {/* ── ABA: SOBRE ── */}
         {activeTab === "sobre" && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Sobre a cidade</Text>
-            <Text style={styles.cardText}>
-              {city.about?.trim()
-                ? city.about
-                : "Informações sobre esta cidade em breve."}
-            </Text>
-          </View>
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Sobre a cidade</Text>
+              <Text style={styles.cardText}>
+                {city.about?.trim()
+                  ? city.about
+                  : "Informações sobre esta cidade em breve."}
+              </Text>
+            </View>
+
+            <WeatherCard lat={city.lat} lng={city.lng} />
+          </>
         )}
 
         {/* ── ABA: TRECHO ── */}
