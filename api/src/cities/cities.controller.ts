@@ -48,4 +48,11 @@ export class CitiesController {
   remove(@Param('id') id: string) {
     return this.citiesService.remove(id);
   }
+
+  @Get(':id/route-distance')
+  @HttpCode(HttpStatus.OK)
+  getRouteDistance(@Param('id') id: string, @Query('radius') radius?: string) {
+    const radiusKm = radius ? parseFloat(radius) : 8;
+    return this.citiesService.getRouteDistanceThruCity(id, radiusKm);
+  }
 }

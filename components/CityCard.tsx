@@ -1,6 +1,7 @@
 import { City } from "@/services/cities/citiesService";
 import { Feather } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useCityRouteDistance } from "../hooks/use-city-route-distance";
 import { useWeather } from "../hooks/use-weather";
 
 const CRIC_BLUE = "#2563EB";
@@ -10,7 +11,6 @@ interface CityMeta {
   kmStart: number;
   kmEnd: number;
   subtitle: string;
-  distance: string;
   elevation: string;
 }
 
@@ -29,6 +29,15 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
     item.lat,
     item.lng,
   );
+
+  const { data: routeDistance, loading: distanceLoading } =
+    useCityRouteDistance(item.id);
+
+  const distanceLabel = distanceLoading
+    ? "···"
+    : routeDistance && routeDistance.totalDistanceKm > 0
+      ? `${routeDistance.totalDistanceKm} km`
+      : null;
 
   return (
     <Pressable
@@ -87,11 +96,11 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
         {/* Footer */}
         <View style={styles.cardFooter}>
           <View style={styles.footerStats}>
-            {meta && (
-              <>
-                <Text style={styles.footerStat}>🚴 {meta.distance}</Text>
-                <Text style={styles.footerStat}>↑ {meta.elevation}</Text>
-              </>
+            {distanceLabel && (
+              <Text style={styles.footerStat}>🚴 {distanceLabel}</Text>
+            )}
+            {meta?.elevation && (
+              <Text style={styles.footerStat}>↑ {meta.elevation}</Text>
             )}
             {item.anchorCount > 0 && (
               <Text style={styles.footerStat}>📍 {item.anchorCount}</Text>

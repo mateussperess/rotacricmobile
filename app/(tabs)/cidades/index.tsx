@@ -1,4 +1,5 @@
 import { CityCard } from "@/components/CityCard";
+import { useTotalDistance } from "@/hooks/use-total-distance";
 import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { useRouter } from "expo-router";
@@ -109,6 +110,10 @@ export default function Cidades() {
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const { data: distanceData } = useTotalDistance();
+  const totalKm = distanceData ? Math.round(distanceData.totalKm) : "—";
+  const totalCities = cities.length;
+
   useEffect(() => {
     const fetchCities = async () => {
       const data = await CitiesService.findAll();
@@ -136,8 +141,8 @@ export default function Cidades() {
     fetchCities();
   }, [fadeAnim]);
 
-  const totalKm = 180; // mockado — distância total da CRIC
-  const totalCities = cities.length;
+  // const totalKm = 180; // mockado — distância total da CRIC
+  // const totalCities = cities.length;
 
   if (loading) {
     return (

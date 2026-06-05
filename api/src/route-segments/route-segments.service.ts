@@ -108,17 +108,41 @@ export class RouteSegmentsService {
     return segment;
   }
 
-  // }
-
-  // update(id: number, updateRouteSegmentDto: UpdateRouteSegmentDto) {
-  //   return `This action updates a #${id} routeSegment`;
-  // }
-
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.routeSegment.update({
       where: { id },
       data: { deleted_at: new Date() },
     });
+  }
+
+  async getTotalDistance(): Promise<{
+    totalKm: number;
+    segmentCount: number;
+    segments: { from: string; to: string; distanceKm: number }[];
+  }> {
+    const segments = await this.prisma.routeSegment.findMany({
+      where: { deleted_at: null },
+      include: {
+        from_city: { select: { name: true } },
+        to_city: { select: { name: true } },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+
+    const mapped = segments.map((s) => ({
+      from: s.from_city.name,
+      to: s.to_city.name,
+      distanceKm: s.distance ?? 0,
+    }));
+
+    const totalKm =
+      Math.round(mapped.reduce((acc, s) => acc + s.distanceKm, 0) * 100) / 100;
+
+    return {
+      totalKm,
+      segmentCount: segments.length,
+      segments: mapped,
+    };
   }
 }
