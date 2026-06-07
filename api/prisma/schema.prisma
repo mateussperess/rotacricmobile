@@ -67,6 +67,7 @@ model City {
   city_anchorpoints CityAnchorpoint[]
   segmentsAsOrigin RouteSegment[] @relation("SegmentOrigin")
   segmentsAsDestination RouteSegment[] @relation("SegmentDestination")
+  city_images CityImage[]
 
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
@@ -89,9 +90,10 @@ model AnchorPoint {
   category_id       String?
   category          AnchorPointCategory? @relation(fields: [category_id], references: [id])
 
-  city_anchorpoints CityAnchorpoint[]
-  user_stamps       UserStamp[]
-  route_anchorpoints RouteAnchorPoint[]
+  city_anchorpoints   CityAnchorpoint[]
+  user_stamps         UserStamp[]
+  route_anchorpoints  RouteAnchorPoint[]
+  anchor_point_images AnchorPointImage[]
 
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
@@ -231,4 +233,38 @@ model RouteAnchorPoint {
   anchor_point AnchorPoint @relation(fields: [anchor_point_id], references: [id])
 
   @@map("route_anchor_points")
+}
+
+model CityImage {
+  id         String    @id @default(uuid())
+  city_id    String
+  url        String
+  caption    String?   // legenda opcional
+  order      Int       @default(0) // pra ordenar as fotos na galeria
+  active     Boolean   @default(true)
+
+  city       City      @relation(fields: [city_id], references: [id])
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("city_images")
+}
+
+model AnchorPointImage {
+  id              String    @id @default(uuid())
+  anchor_point_id String
+  url             String
+  caption         String?
+  order           Int       @default(0)
+  active          Boolean   @default(true)
+
+  anchor_point    AnchorPoint @relation(fields: [anchor_point_id], references: [id])
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("anchor_point_images")
 }

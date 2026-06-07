@@ -7,7 +7,9 @@ import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg"
 import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+import { CityImageCarousel } from "@/components/CityImageCarousel";
 import { WeatherCard } from "@/components/WeatherCard";
+import { useCityImages } from "@/hooks/use-city-images";
 import { useCityRouteDistance } from "@/hooks/use-city-route-distance";
 
 import {
@@ -41,6 +43,7 @@ export default function CidadeDetalhe() {
   const router = useRouter();
   const { data: routeDistance, loading: loadingDistance } =
     useCityRouteDistance(id);
+  const { images: cityImages, loading: loadingImages } = useCityImages(id);
 
   useEffect(() => {
     CitiesService.findOne(id).then((data) => {
@@ -160,6 +163,12 @@ export default function CidadeDetalhe() {
           <>
             <View style={styles.card}>
               <WeatherCard lat={city.lat} lng={city.lng} />
+
+              {/* Carrossel de imagens */}
+              {!loadingImages && cityImages.length > 0 && (
+                <CityImageCarousel images={cityImages} />
+              )}
+
               <Text style={styles.cardTitle}>Sobre a cidade</Text>
               <Text style={styles.cardText}>
                 {city.about?.trim()
