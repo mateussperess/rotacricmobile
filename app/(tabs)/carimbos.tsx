@@ -11,12 +11,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const CRIC_BLUE = "#2563EB";
+
 const allStamps = [
   {
     id: "ap1",
     name: "Ponto 1 — Início da Rota",
     local: "Charqueadas - RS",
-    description: "Marco inicial da ROTA CRIC. Partida da Praça Central.",
     color: "#3B82F6",
     icon: "🚴",
     collectedAt: "10/04/2025 09:15",
@@ -26,7 +27,6 @@ const allStamps = [
     id: "ap2",
     name: "Ponto 2 — Ciclovia 3 de Outubro",
     local: "Charqueadas - RS",
-    description: "Primeiro grande trecho de ciclovia pavimentada da rota.",
     color: "#3B82F6",
     icon: "🛣️",
     collectedAt: "10/04/2025 10:30",
@@ -36,7 +36,6 @@ const allStamps = [
     id: "ap3",
     name: "Ponto 3 — Mina do Butiá",
     local: "Butiá - RS",
-    description: "Patrimônio histórico da mineração carbonífera regional.",
     color: "#F59E0B",
     icon: "⛏️",
     collectedAt: null,
@@ -46,7 +45,6 @@ const allStamps = [
     id: "ap7",
     name: "Ponto 7 — São Jerônimo",
     local: "São Jerônimo - RS",
-    description: "Marco final da ROTA CRIC, no centro histórico.",
     color: "#EF4444",
     icon: "🏁",
     collectedAt: null,
@@ -57,7 +55,6 @@ const allStamps = [
 function StampCard({ stamp }: { stamp: any }) {
   return (
     <View style={[styles.card, !stamp.collected && styles.cardLocked]}>
-      {/* Container do Ícone/Carimbo */}
       <View
         style={[
           styles.stampIconContainer,
@@ -69,15 +66,12 @@ function StampCard({ stamp }: { stamp: any }) {
         ) : (
           <IconSymbol name="lock.fill" size={24} color="#9CA3AF" />
         )}
-
         {stamp.collected && (
           <View style={styles.checkBadge}>
             <IconSymbol name="checkmark.circle.fill" size={12} color="white" />
           </View>
         )}
       </View>
-
-      {/* Informações do Ponto */}
       <View style={styles.cardContent}>
         <Text
           style={[styles.stampName, !stamp.collected && styles.textDisabled]}
@@ -92,20 +86,17 @@ function StampCard({ stamp }: { stamp: any }) {
           />
           <Text style={styles.localText}>{stamp.local}</Text>
         </View>
-
         {stamp.collected ? (
           <View style={styles.row}>
-            <IconSymbol name="clock.fill" size={10} color="#3B82F6" />
+            <IconSymbol name="clock.fill" size={10} color={CRIC_BLUE} />
             <Text style={styles.dateText}>{stamp.collectedAt}</Text>
           </View>
         ) : (
           <Text style={styles.lockedLabel}>Ainda não coletado</Text>
         )}
       </View>
-
-      {/* Indicador de Status lateral */}
       {stamp.collected ? (
-        <IconSymbol name="award.fill" size={20} color="#3B82F6" />
+        <IconSymbol name="award.fill" size={20} color={CRIC_BLUE} />
       ) : (
         <IconSymbol name="lock.fill" size={16} color="#D1D5DB" />
       )}
@@ -120,126 +111,202 @@ export default function CarimbosScreen() {
   const total = allStamps.length;
   const progress = (collected / total) * 100;
 
-  // State: não logado
+  // ── State: não logado ──
   if (!isLoggedIn) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.brand}>ROTACRIC</Text>
-          <Text style={styles.title}>Meus Carimbos</Text>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.headerBlue}>
+          <Text style={styles.brand}>ROTA CRIC</Text>
+          <Text style={styles.heroTitle}>Meus Carimbos</Text>
+          <Text style={styles.heroSub}>
+            Colete carimbos nos pontos da rota e ganhe seu certificado oficial.
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{total}</Text>
+              <Text style={styles.statLabel}>Pontos</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>180 km</Text>
+              <Text style={styles.statLabel}>Extensão</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>1</Text>
+              <Text style={styles.statLabel}>Certificado</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.loginContainer}>
-          <View style={styles.lockCircle}>
-            <IconSymbol name="lock.fill" size={40} color="#9CA3AF" />
-          </View>
-
-          <Text style={styles.loginTitle}>Acesso restrito</Text>
-          <Text style={styles.loginSub}>
-            Faça login para visualizar seus carimbos coletados e acompanhar seu
-            progresso.
-          </Text>
-
-          <View style={styles.gamificationCard}>
-            <View style={styles.row}>
-              <IconSymbol name="trophy.fill" size={20} color="#2563EB" />
-              <Text style={styles.gamificationTitle}>
-                Sistema de gamificação
-              </Text>
+        <View style={styles.content}>
+          <View style={styles.loginContainer}>
+            <View style={styles.lockCircle}>
+              <IconSymbol name="lock.fill" size={36} color="#9CA3AF" />
             </View>
-            <Text style={styles.gamificationText}>
-              Colete carimbos via QR Code nos pontos da rota e ganhe seu
-              certificado oficial!
+            <Text style={styles.loginTitle}>Acesso restrito</Text>
+            <Text style={styles.loginSub}>
+              Faça login para visualizar seus carimbos e acompanhar seu
+              progresso na rota.
             </Text>
-            <View style={[styles.row, { marginTop: 12, gap: 8 }]}>
-              {["🚴", "⛏️", "💧", "🏁"].map((icon, i) => (
-                <View key={i} style={styles.miniIcon}>
-                  <Text>{icon}</Text>
-                </View>
-              ))}
+            <View style={styles.gamificationCard}>
+              <View style={styles.row}>
+                <IconSymbol name="trophy.fill" size={18} color={CRIC_BLUE} />
+                <Text style={styles.gamificationTitle}>
+                  Sistema de gamificação
+                </Text>
+              </View>
+              <Text style={styles.gamificationText}>
+                Escaneie QR Codes nos pontos da rota, colecione carimbos e
+                complete o percurso!
+              </Text>
+              <View style={[styles.row, { marginTop: 12, gap: 8 }]}>
+                {["🚴", "⛏️", "💧", "🏁"].map((icon, i) => (
+                  <View key={i} style={styles.miniIcon}>
+                    <Text>{icon}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.primaryButton}
+              onPress={() => router.push("/profile")}
+            >
+              <Text style={styles.primaryButtonText}>Fazer login</Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.primaryButton}
-            onPress={() => router.push("/profile")}
-          >
-            <Text style={styles.primaryButtonText}>Fazer login</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // State: logado
+  // ── State: logado ──
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.brand}>ROTACRIC</Text>
-        <Text style={styles.title}>Meus Carimbos</Text>
-
-        <View style={styles.progressCard}>
-          <View style={[styles.row, { justifyContent: "space-between" }]}>
-            <View style={styles.row}>
-              <IconSymbol name="trophy.fill" size={18} color="#1E40AF" />
-              <Text style={styles.progressLabel}>Progresso da rota</Text>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.container}>
+        <View style={styles.headerBlue}>
+          <Text style={styles.brand}>ROTA CRIC</Text>
+          <Text style={styles.heroTitle}>Meus Carimbos</Text>
+          <Text style={styles.heroSub}>
+            Colete carimbos nos pontos da rota, ganhe seu certificado oficial e
+            desconto especiais nos pontos de apoio parceiros.
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{collected}</Text>
+              <Text style={styles.statLabel}>Coletados</Text>
             </View>
-            <Text style={styles.progressCount}>
-              {collected}/{total}
-            </Text>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{total - collected}</Text>
+              <Text style={styles.statLabel}>Restantes</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{Math.round(progress)}%</Text>
+              <Text style={styles.statLabel}>Progresso</Text>
+            </View>
           </View>
-
           <View style={styles.progressBarBg}>
             <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
           </View>
-          <Text style={styles.remainingText}>
-            {total - collected} carimbos restantes para completar
-          </Text>
         </View>
-      </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {allStamps.map((stamp) => (
-          <StampCard key={stamp.id} stamp={stamp} />
-        ))}
-      </ScrollView>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionLabel}>PONTOS DA ROTA</Text>
+          {allStamps.map((stamp) => (
+            <StampCard key={stamp.id} stamp={stamp} />
+          ))}
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: CRIC_BLUE,
+  },
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F3F4F6",
   },
-  header: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
+  headerBlue: {
+    backgroundColor: CRIC_BLUE,
+    paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    paddingBottom: 32,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   brand: {
-    color: "#2563EB",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 1,
+    letterSpacing: 2.5,
+    color: "rgba(255,255,255,0.45)",
+    marginBottom: 6,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1F2937",
-    marginTop: 4,
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  heroSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.65)",
+    lineHeight: 19,
+    marginBottom: 24,
+  },
+  statsRow: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    marginBottom: 16,
+  },
+  statBox: { flex: 1, alignItems: "center", gap: 4 },
+  statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
+  statValue: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  statLabel: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 3,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
   },
   scrollContent: {
     padding: 20,
-    gap: 12,
-    paddingBottom: 40,
+    paddingBottom: 48,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9CA3AF",
+    letterSpacing: 1.5,
+    marginBottom: 12,
   },
   card: {
     flexDirection: "row",
@@ -247,6 +314,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "#EBF5FF",
     elevation: 2,
@@ -256,7 +324,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardLocked: {
-    opacity: 0.7,
+    opacity: 0.6,
     borderColor: "transparent",
   },
   stampIconContainer: {
@@ -270,7 +338,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    backgroundColor: "#3B82F6",
+    backgroundColor: CRIC_BLUE,
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -279,96 +347,45 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  cardContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  stampName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  textDisabled: {
-    color: "#9CA3AF",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 2,
-  },
-  localText: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  dateText: {
-    fontSize: 10,
-    color: "#2563EB",
-  },
+  cardContent: { flex: 1, marginLeft: 12 },
+  stampName: { fontSize: 14, fontWeight: "600", color: "#1F2937" },
+  textDisabled: { color: "#9CA3AF" },
+  row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  localText: { fontSize: 12, color: "#6B7280" },
+  dateText: { fontSize: 10, color: CRIC_BLUE },
   lockedLabel: {
     fontSize: 10,
     color: "#9CA3AF",
     fontStyle: "italic",
     marginTop: 4,
   },
-  progressCard: {
-    marginTop: 16,
-    backgroundColor: "#EFF6FF",
-    padding: 16,
-    borderRadius: 16,
-  },
-  progressLabel: {
-    color: "#1E40AF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  progressCount: {
-    color: "#1D4ED8",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  progressBarBg: {
-    height: 10,
-    backgroundColor: "#DBEAFE",
-    borderRadius: 5,
-    marginTop: 10,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#3B82F6",
-    borderRadius: 5,
-  },
-  remainingText: {
-    fontSize: 11,
-    color: "#2563EB",
-    marginTop: 8,
-  },
   loginContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 30,
+    padding: 28,
   },
   lockCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#F3F4F6",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
   },
   loginTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#1F2937",
+    letterSpacing: -0.3,
   },
   loginSub: {
     textAlign: "center",
     color: "#6B7280",
-    marginTop: 10,
+    marginTop: 8,
     lineHeight: 20,
+    fontSize: 13,
   },
   gamificationCard: {
     width: "100%",
@@ -379,11 +396,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DBEAFE",
   },
-  gamificationTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1E40AF",
-  },
+  gamificationTitle: { fontSize: 14, fontWeight: "700", color: "#1E40AF" },
   gamificationText: {
     fontSize: 12,
     color: "#1E40AF",
@@ -402,19 +415,15 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     width: "100%",
-    backgroundColor: "#2563EB",
+    backgroundColor: CRIC_BLUE,
     paddingVertical: 15,
     borderRadius: 16,
     alignItems: "center",
-    shadowColor: "#2563EB",
+    shadowColor: CRIC_BLUE,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
-  primaryButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  primaryButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });
