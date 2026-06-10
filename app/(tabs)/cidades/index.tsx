@@ -128,13 +128,6 @@ export default function Cidades() {
         }),
       );
 
-      // Ordena pela sequência da rota
-      withMeta.sort((a, b) => {
-        const oa = CITY_ORDER[a.name]?.order ?? 99;
-        const ob = CITY_ORDER[b.name]?.order ?? 99;
-        return oa - ob;
-      });
-
       setCities(withMeta);
       setLoading(false);
 
@@ -145,7 +138,7 @@ export default function Cidades() {
       }).start();
     };
     fetchCities();
-  }, []);
+  }, [fadeAnim]);
 
   const totalKm = 180; // mockado — distância total da CRIC
   const totalCities = cities.length;
