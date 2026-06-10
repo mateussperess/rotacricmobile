@@ -7,6 +7,10 @@ import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg"
 import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+import { CityImageCarousel } from "@/components/CityImageCarousel";
+import { WeatherCard } from "@/components/WeatherCard";
+import { useCityImages } from "@/hooks/use-city-images";
+import { useCityRouteDistance } from "@/hooks/use-city-route-distance";
 
 import {
   AnchorPoint,
@@ -37,6 +41,9 @@ export default function CidadeDetalhe() {
   const [activeTab, setActiveTab] = useState<Tab>("sobre");
   const [apoioFilter, setApoioFilter] = useState<ApoioFilter>("all");
   const router = useRouter();
+  const { data: routeDistance, loading: loadingDistance } =
+    useCityRouteDistance(id);
+  const { images: cityImages, loading: loadingImages } = useCityImages(id);
 
   useEffect(() => {
     CitiesService.findOne(id).then((data) => {
@@ -153,42 +160,90 @@ export default function CidadeDetalhe() {
       >
         {/* ── ABA: SOBRE ── */}
         {activeTab === "sobre" && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Sobre a cidade</Text>
-            <Text style={styles.cardText}>
-              {city.about?.trim()
-                ? city.about
-                : "Informações sobre esta cidade em breve."}
-            </Text>
-          </View>
+          <>
+            <View style={styles.card}>
+              <WeatherCard lat={city.lat} lng={city.lng} />
+
+              {/* Carrossel de imagens */}
+              {!loadingImages && cityImages.length > 0 && (
+                <CityImageCarousel images={cityImages} />
+              )}
+
+              <Text style={styles.cardTitle}>Sobre a cidade</Text>
+              <Text style={styles.cardText}>
+                {city.about?.trim()
+                  ? city.about
+                  : "Informações sobre esta cidade em breve."}
+              </Text>
+            </View>
+          </>
         )}
 
         {/* ── ABA: TRECHO ── */}
         {activeTab === "trecho" && (
           <>
+            {/* Card de resumo */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Resumo do trecho</Text>
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statIcon}>🚴</Text>
-                  <Text style={styles.statValue}>—</Text>
-                  <Text style={styles.statLabel}>Distância</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statIcon}>⏱</Text>
-                  <Text style={styles.statValue}>—</Text>
-                  <Text style={styles.statLabel}>Tempo est.</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statIcon}>↑</Text>
-                  <Text style={styles.statValue}>—</Text>
-                  <Text style={styles.statLabel}>Elevação</Text>
-                </View>
-              </View>
-              <Text style={styles.comingSoon}>
-                Dados do trecho disponíveis em breve.
-              </Text>
+              <Text style={styles.cardTitle}>Rotas pela cidade</Text>
+
+              {loadingDistance ? (
+                <ActivityIndicator
+                  color="#2563EB"
+                  style={{ marginVertical: 8 }}
+                />
+              ) : routeDistance && routeDistance.routes.length > 0 ? (
+                <>
+                  {/* Stat de distância total */}
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statIcon}>🚴</Text>
+                      <Text style={styles.statValue}>
+                        {routeDistance.totalDistanceKm} km
+                      </Text>
+                      <Text style={styles.statLabel}>Total na cidade</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statIcon}>🛣️</Text>
+                      <Text style={styles.statValue}>
+                        {routeDistance.routes.length}
+                      </Text>
+                      <Text style={styles.statLabel}>
+                        {routeDistance.routes.length === 1 ? "Rota" : "Rotas"}
+                      </Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statIcon}>📍</Text>
+                      <Text style={styles.statValue}>
+                        {routeDistance.radiusKm} km
+                      </Text>
+                      <Text style={styles.statLabel}>Raio usado</Text>
+                    </View>
+                  </View>
+
+                  {/* Divider */}
+                  <View style={styles.divider} />
+
+                  {/* Lista de rotas individuais */}
+                  {routeDistance.routes.map((route) => (
+                    <View key={route.routeId} style={styles.routeItem}>
+                      <View style={styles.routeItemLeft}>
+                        <View style={styles.routeDot} />
+                        <Text style={styles.routeName}>{route.routeName}</Text>
+                      </View>
+                      <Text style={styles.routeDistance}>
+                        {route.distanceKm} km
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                <Text style={styles.comingSoon}>
+                  Nenhuma rota cadastrada passando por esta cidade.
+                </Text>
+              )}
             </View>
+
+            {/* Botão ver no mapa */}
             <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
               <Text style={styles.mapBtnText}>Ver no mapa</Text>
             </Pressable>
@@ -455,5 +510,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     marginTop: 4,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 4,
+  },
+  routeItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  routeItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  routeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#2563EB",
+  },
+  routeName: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "500",
+    flex: 1,
+  },
+  routeDistance: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2563EB",
   },
 });

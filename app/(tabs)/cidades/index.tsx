@@ -1,13 +1,13 @@
+import { CityCard } from "@/components/CityCard";
+import { useTotalDistance } from "@/hooks/use-total-distance";
 import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
-import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -102,9 +102,6 @@ const CITY_ORDER: Record<
   },
 };
 
-// Clima mockado — substituir por websocket
-const MOCK_WEATHER = { temp: "22°", icon: "🌤" };
-
 type CityWithMeta = City & { anchorCount: number };
 
 export default function Cidades() {
@@ -112,6 +109,10 @@ export default function Cidades() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const { data: distanceData } = useTotalDistance();
+  const totalKm = distanceData ? Math.round(distanceData.totalKm) : "—";
+  const totalCities = cities.length;
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -140,8 +141,8 @@ export default function Cidades() {
     fetchCities();
   }, [fadeAnim]);
 
-  const totalKm = 180; // mockado — distância total da CRIC
-  const totalCities = cities.length;
+  // const totalKm = 180; // mockado — distância total da CRIC
+  // const totalCities = cities.length;
 
   if (loading) {
     return (
@@ -193,106 +194,13 @@ export default function Cidades() {
               <Text style={styles.sectionLabel}>MUNICÍPIOS</Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const meta = CITY_ORDER[item.name];
-            const accentColor = CRIC_BLUE;
-
-            return (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.card,
-                  pressed && styles.cardPressed,
-                ]}
-                onPress={() => router.push(`/cidades/${item.id}`)}
-              >
-                {/* Faixa colorida */}
-                <View
-                  style={[styles.cardAccent, { backgroundColor: accentColor }]}
-                />
-
-                <View style={styles.cardBody}>
-                  {/* KM + clima */}
-                  <View style={styles.cardMeta}>
-                    {meta && (
-                      <Text style={styles.kmLabel}>
-                        KM {meta.kmStart} – {meta.kmEnd} KM
-                      </Text>
-                    )}
-                    <View style={styles.weatherChip}>
-                      <Text style={styles.weatherIcon}>
-                        {MOCK_WEATHER.icon}
-                      </Text>
-                      <Text
-                        style={[styles.weatherTemp, { color: accentColor }]}
-                      >
-                        {MOCK_WEATHER.temp}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Nome + ícone de localização */}
-                  <View style={styles.cardTitleRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cityName}>{item.name}</Text>
-                      {meta?.subtitle && (
-                        <Text style={styles.citySubtitle}>{meta.subtitle}</Text>
-                      )}
-                    </View>
-                    <View
-                      style={[
-                        styles.locationIcon,
-                        { backgroundColor: accentColor + "18" },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.locationIcon,
-                          { backgroundColor: accentColor + "18" },
-                        ]}
-                      >
-                        <Feather name="map-pin" size={18} color={accentColor} />
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* About */}
-                  {!!item.about?.trim() && (
-                    <Text style={styles.cityAbout} numberOfLines={2}>
-                      {item.about}
-                    </Text>
-                  )}
-
-                  {/* Footer: stats + ver detalhes */}
-                  <View style={styles.cardFooter}>
-                    <View style={styles.footerStats}>
-                      {meta && (
-                        <>
-                          <Text style={styles.footerStat}>
-                            🚴 {meta.distance}
-                          </Text>
-                          <Text style={styles.footerStat}>
-                            ↑ {meta.elevation}
-                          </Text>
-                        </>
-                      )}
-                      {item.anchorCount > 0 && (
-                        <Text style={styles.footerStat}>
-                          📍 {item.anchorCount}
-                        </Text>
-                      )}
-                    </View>
-                    <Pressable style={styles.detailsBtn}>
-                      <Text
-                        style={[styles.detailsBtnText, { color: accentColor }]}
-                      >
-                        Ver detalhes ›
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          }}
+          renderItem={({ item }) => (
+            <CityCard
+              item={item}
+              meta={CITY_ORDER[item.name]}
+              onPress={() => router.push(`/cidades/${item.id}`)}
+            />
+          )}
         />
       </Animated.View>
     </SafeAreaView>
@@ -336,7 +244,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F7F8FC" },
   listContent: { paddingBottom: 40 },
 
-  // Hero
   // Hero
   hero: {
     backgroundColor: CRIC_BLUE,

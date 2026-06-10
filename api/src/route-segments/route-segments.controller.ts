@@ -49,6 +49,12 @@ export class RouteSegmentsController {
     return this.routeSegmentsService.findDestinationsFromCity(cityId, routeId);
   }
 
+  @Get('total-distance')
+  @HttpCode(HttpStatus.OK)
+  getTotalDistance() {
+    return this.routeSegmentsService.getTotalDistance();
+  }
+
   /**
    * GET /route-segments/:id
    * Retorna um segmento específico.
