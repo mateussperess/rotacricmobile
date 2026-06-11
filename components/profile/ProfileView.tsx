@@ -30,38 +30,37 @@ export function ProfileView() {
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       {/* Header — radius na base gera a curva */}
 
-      <View style={styles.headerBlue}>
-        <View style={styles.userInfoRow}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.avatarText}>
-              {user?.name?.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.userInfoText}>
-            <Text style={styles.brand}>ROTA CRIC</Text>
-            <Text style={styles.title}>{user?.name}</Text>
-            <Text style={styles.subtitle}>{user?.email}</Text>
-            <View style={styles.verifiedBadge}>
-              <View style={styles.badgeDot} />
-              <Text style={styles.badgeText}>Cicloturista verificado</Text>
+      <View style={styles.container}>
+        <View style={styles.headerBlue}>
+          <View style={styles.userInfoRow}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.avatarText}>
+                {user?.name?.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.userInfoText}>
+              <Text style={styles.brand}>ROTA CRIC</Text>
+              <Text style={styles.title}>{user?.name}</Text>
+              <Text style={styles.subtitle}>{user?.email}</Text>
+              <View style={styles.verifiedBadge}>
+                <View style={styles.badgeDot} />
+                <Text style={styles.badgeText}>Cicloturista verificado</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.statsRow}>
-          {stats.map((s, i) => (
-            <React.Fragment key={s.label}>
-              <View style={styles.statBox}>
-                <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-              {i < stats.length - 1 && <View style={styles.statDivider} />}
-            </React.Fragment>
-          ))}
+          <View style={styles.statsRow}>
+            {stats.map((s, i) => (
+              <React.Fragment key={s.label}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statValue}>{s.value}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+                {i < stats.length - 1 && <View style={styles.statDivider} />}
+              </React.Fragment>
+            ))}
+          </View>
         </View>
-      </View>
-
-      <View style={styles.container}>
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.scrollPadding}
