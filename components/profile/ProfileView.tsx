@@ -16,16 +16,6 @@ export function ProfileView() {
   const { user, logout } = useAuth();
 
   const menuItems = [
-    {
-      icon: "award.fill",
-      label: "Meus carimbos",
-      sub: `${user?.stampsCount ?? 0} coletados`,
-    },
-    {
-      icon: "bicycle",
-      label: "Histórico de rotas",
-      sub: "2 concluídas",
-    },
     { icon: "bell.fill", label: "Notificações", sub: "Ativadas" },
     { icon: "questionmark.circle.fill", label: "Ajuda e suporte", sub: "" },
   ];
