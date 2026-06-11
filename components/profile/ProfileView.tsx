@@ -37,8 +37,9 @@ export function ProfileView() {
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       {/* Header — radius na base gera a curva */}
+
       <View style={styles.headerBlue}>
         <View style={styles.userInfoRow}>
           <View style={styles.iconCircle}>
@@ -70,54 +71,60 @@ export function ProfileView() {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.scrollPadding}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.menuCard}>
-          {menuItems.map((item, index) => (
-            <TouchableOpacity
-              key={item.label}
-              style={[
-                styles.menuItem,
-                index < menuItems.length - 1 && styles.menuBorder,
-              ]}
-            >
-              <View style={styles.menuIconBox}>
-                <IconSymbol
-                  name={item.icon as any}
-                  size={18}
-                  color={CRIC_BLUE}
-                />
-              </View>
-              <View style={styles.menuTextContainer}>
-                <Text style={styles.menuTextMain}>{item.label}</Text>
-                {item.sub ? (
-                  <Text style={styles.menuTextSub}>{item.sub}</Text>
-                ) : null}
-              </View>
-              <IconSymbol name="chevron.right" size={16} color="#D1D5DB" />
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.scrollPadding}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.menuCard}>
+            {menuItems.map((item, index) => (
+              <TouchableOpacity
+                key={item.label}
+                style={[
+                  styles.menuItem,
+                  index < menuItems.length - 1 && styles.menuBorder,
+                ]}
+              >
+                <View style={styles.menuIconBox}>
+                  <IconSymbol
+                    name={item.icon as any}
+                    size={18}
+                    color={CRIC_BLUE}
+                  />
+                </View>
+                <View style={styles.menuTextContainer}>
+                  <Text style={styles.menuTextMain}>{item.label}</Text>
+                  {item.sub ? (
+                    <Text style={styles.menuTextSub}>{item.sub}</Text>
+                  ) : null}
+                </View>
+                <IconSymbol name="chevron.right" size={16} color="#D1D5DB" />
+              </TouchableOpacity>
+            ))}
+          </View>
 
-        <TouchableOpacity style={styles.buttonLogout} onPress={logout}>
-          <IconSymbol
-            name="rectangle.portrait.and.arrow.right"
-            size={18}
-            color="white"
-          />
-          <Text style={styles.logoutText}>Sair da conta</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.buttonLogout} onPress={logout}>
+            <IconSymbol
+              name="rectangle.portrait.and.arrow.right"
+              size={18}
+              color="white"
+            />
+            <Text style={styles.logoutText}>Sair da conta</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.versionText}>ROTA CRIC Mobile v1.0.0</Text>
-      </ScrollView>
+          <Text style={styles.versionText}>ROTA CRIC Mobile v1.0.0</Text>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: CRIC_BLUE,
+  },
   container: {
     flex: 1,
     backgroundColor: "#F3F4F6",
