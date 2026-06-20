@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { distanceInsideRadius } from 'src/utils/geo.utils';
 import { CityResponseDto } from './dto/city-response.dto';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
@@ -71,5 +72,92 @@ export class CitiesService {
       where: { id },
       data: { deleted_at: new Date() },
     });
+  }
+
+  async getRouteDistanceThruCity(
+    cityId: string,
+    radiusKm: number = 8,
+  ): Promise<{
+    cityId: string;
+    cityName: string;
+    radiusKm: number;
+    routes: {
+      routeId: string;
+      routeName: string;
+      distanceKm: number;
+    }[];
+    totalDistanceKm: number;
+  }> {
+    // 1. busca a cidade
+    const city = await this.prisma.city.findUnique({
+      where: { id: cityId },
+    });
+
+    if (!city) {
+      throw new NotFoundException(`Cidade ${cityId} não encontrada.`);
+    }
+
+    // 2. Busca todos os segmentos onde a cidade aparece como origem OU destino
+    //    e inclui a rota associada (com o polyline)
+    const segments = await this.prisma.routeSegment.findMany({
+      where: {
+        deleted_at: null,
+        OR: [{ from_city_id: cityId }, { to_city_id: cityId }],
+      },
+      include: {
+        route: true,
+      },
+    });
+
+    if (segments.length === 0) {
+      return {
+        cityId: city.id,
+        cityName: city.name,
+        radiusKm,
+        routes: [],
+        totalDistanceKm: 0,
+      };
+    }
+
+    // 3. Deduplica as rotas (uma rota pode ter múltiplos segmentos passando pela cidade)
+    const routeMap = new Map<
+      string,
+      { routeId: string; routeName: string; polyline: string }
+    >();
+
+    for (const segment of segments) {
+      if (!routeMap.has(segment.route.id)) {
+        routeMap.set(segment.route.id, {
+          routeId: segment.route.id,
+          routeName: segment.route.name,
+          polyline: segment.route.polyline,
+        });
+      }
+    }
+
+    // 4. Para cada rota única, calcula a distância dentro do raio da cidade
+    const routes = Array.from(routeMap.values()).map(
+      ({ routeId, routeName, polyline }) => ({
+        routeId,
+        routeName,
+        distanceKm: distanceInsideRadius(
+          polyline,
+          city.lat,
+          city.lng,
+          radiusKm,
+        ),
+      }),
+    );
+
+    const totalDistanceKm =
+      Math.round(routes.reduce((acc, r) => acc + r.distanceKm, 0) * 100) / 100;
+
+    return {
+      cityId: city.id,
+      cityName: city.name,
+      radiusKm,
+      routes,
+      totalDistanceKm,
+    };
   }
 }

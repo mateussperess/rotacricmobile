@@ -42,6 +42,7 @@ model Route {
   activities  Activity[]
   user_stamps UserStamp[]
   segments RouteSegment[]
+  route_anchorpoints RouteAnchorPoint[]
   
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
@@ -54,7 +55,7 @@ model Route {
 model City {
   id           String    @id @default(uuid())
   name         String
-  about        String?
+  about        String?   @db.Text
   lat          Float
   lng          Float
   zoom         Int
@@ -66,6 +67,7 @@ model City {
   city_anchorpoints CityAnchorpoint[]
   segmentsAsOrigin RouteSegment[] @relation("SegmentOrigin")
   segmentsAsDestination RouteSegment[] @relation("SegmentDestination")
+  city_images CityImage[]
 
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
@@ -88,8 +90,10 @@ model AnchorPoint {
   category_id       String?
   category          AnchorPointCategory? @relation(fields: [category_id], references: [id])
 
-  city_anchorpoints CityAnchorpoint[]
-  user_stamps       UserStamp[]
+  city_anchorpoints   CityAnchorpoint[]
+  user_stamps         UserStamp[]
+  route_anchorpoints  RouteAnchorPoint[]
+  anchor_point_images AnchorPointImage[]
 
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
@@ -213,4 +217,54 @@ model RouteSegment {
   to_city   City  @relation("SegmentDestination", fields: [to_city_id], references: [id])
 
   @@map("route_segments")
+}
+
+model RouteAnchorPoint {
+  id              String  @id @default(uuid())
+  route_id        String
+  anchor_point_id String
+  on_route        Boolean @default(false)  // faz parte do trajeto principal da rota?
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  route        Route       @relation(fields: [route_id], references: [id])
+  anchor_point AnchorPoint @relation(fields: [anchor_point_id], references: [id])
+
+  @@map("route_anchor_points")
+}
+
+model CityImage {
+  id         String    @id @default(uuid())
+  city_id    String
+  url        String
+  caption    String?   // legenda opcional
+  order      Int       @default(0) // pra ordenar as fotos na galeria
+  active     Boolean   @default(true)
+
+  city       City      @relation(fields: [city_id], references: [id])
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("city_images")
+}
+
+model AnchorPointImage {
+  id              String    @id @default(uuid())
+  anchor_point_id String
+  url             String
+  caption         String?
+  order           Int       @default(0)
+  active          Boolean   @default(true)
+
+  anchor_point    AnchorPoint @relation(fields: [anchor_point_id], references: [id])
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  @@map("anchor_point_images")
 }

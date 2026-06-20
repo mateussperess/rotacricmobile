@@ -96,12 +96,27 @@ export class AnchorPointsService {
 
     const cityAnchorpoints = await this.prisma.cityAnchorpoint.findMany({
       where: { city_id, deleted_at: null },
-      include: { anchor_point: true },
+      include: {
+        anchor_point: {
+          include: {
+            category: true,
+            route_anchorpoints: {
+              select: { on_route: true },
+              where: { deleted_at: null },
+              take: 1,
+            },
+          },
+        },
+      },
     });
 
     return cityAnchorpoints
       .filter((ca) => ca.anchor_point.deleted_at === null)
-      .map((ca) => new AnchorPointResponseDto(ca.anchor_point));
+      .map((ca) => ({
+        ...new AnchorPointResponseDto(ca.anchor_point),
+        category: ca.anchor_point.category ?? null,
+        on_route: ca.anchor_point.route_anchorpoints[0]?.on_route ?? false,
+      }));
   }
 
   async findOne(id: string) {

@@ -9,7 +9,14 @@ export interface AnchorPoint {
   phone: string | null;
   image: string | null;
   active: boolean;
+  on_route: boolean;
   category_id: string | null;
+  category?: {
+    id: string;
+    name: string;
+    icon_name: string;
+    icon_image: string;
+  } | null;
   created_at: string;
   updated_at: string;
 }

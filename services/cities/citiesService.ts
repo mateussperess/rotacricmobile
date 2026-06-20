@@ -14,6 +14,15 @@ export interface City {
   updated_at: string;
 }
 
+export interface CityImage {
+  id: string;
+  city_id: string;
+  url: string;
+  caption: string | null;
+  order: number;
+  created_at: string;
+}
+
 export const CitiesService = {
   findByName: async (name: string): Promise<City | null> => {
     try {
@@ -29,7 +38,10 @@ export const CitiesService = {
   findAll: async (): Promise<City[] | null> => {
     try {
       const { data } = await api.get("/cities");
-      return data;
+      const orderedData = [...data].sort((a: City, b: City) =>
+        a.name.localeCompare(b.name),
+      );
+      return orderedData;
     } catch (error) {
       console.error("Error fetching cities:", error);
       return null;
@@ -43,6 +55,16 @@ export const CitiesService = {
     } catch (error) {
       console.error("Error fetching city:", error);
       return null;
+    }
+  },
+
+  findImages: async (cityId: string): Promise<CityImage[]> => {
+    try {
+      const { data } = await api.get(`/cities/${cityId}/images`);
+      return data;
+    } catch (error) {
+      console.error("Error fetching city images:", error);
+      return [];
     }
   },
 };

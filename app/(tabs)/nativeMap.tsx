@@ -1,3 +1,14 @@
+import BeverageStorage from "@/assets/images/anchorpoint_categories_logos/beverage_storage.svg";
+import Food from "@/assets/images/anchorpoint_categories_logos/food.svg";
+import GasStation from "@/assets/images/anchorpoint_categories_logos/gas_station.svg";
+import Hospital from "@/assets/images/anchorpoint_categories_logos/hospital.svg";
+import Hotel from "@/assets/images/anchorpoint_categories_logos/hotel.svg";
+import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg";
+import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
+import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
+import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+
+import { AnchorPointMarker } from "@/components/anchorPointIcon";
 import {
   AnchorPoint,
   AnchorPointsService,
@@ -7,7 +18,13 @@ import { Route, RoutesService } from "@/services/routes/routeService";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
 import { useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -28,6 +45,30 @@ const ACCURACY_THRESHOLD_METERS = 50;
 const MAX_WAIT_MS = 15000;
 const SHEET_COLLAPSED = 90;
 const SHEET_EXPANDED = 380;
+
+const ICON_MAP: Record<string, React.FC<{ width: number; height: number }>> = {
+  beverage_storage: BeverageStorage,
+  food: Food,
+  gas_station: GasStation,
+  hospital: Hospital,
+  hotel: Hotel,
+  pharmacy: Pharmacy,
+  repair: Repair,
+  store: Store,
+  tourism: Tourism,
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  beverage_storage: "Depósito de Bebidas",
+  food: "Alimentação",
+  gas_station: "Posto de Gasolina",
+  hospital: "Hospital",
+  hotel: "Hotel",
+  pharmacy: "Farmácia",
+  repair: "Reparo",
+  store: "Lojas e Mercados",
+  tourism: "Turismo",
+};
 
 function haversineMeters(
   lat1: number,
@@ -58,6 +99,55 @@ const MOCK_ROUTE_INFO = {
   time: "3h 20min",
   elevation: "+280 m",
 };
+
+const AnchorMarker = React.memo(({ ap }: { ap: AnchorPoint }) => {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <Marker
+      coordinate={{ latitude: ap.lat, longitude: ap.lng }}
+      title={ap.name}
+      description={ap.phone ?? ap.business_hours ?? undefined}
+      tracksViewChanges={!ready}
+    >
+      <AnchorPointMarker
+        icon_name={ap.category?.icon_name}
+        on_route={ap.on_route}
+      />
+    </Marker>
+  );
+});
+
+AnchorMarker.displayName = "AnchorMarker";
+
+const UserMarker = React.memo(
+  ({ latitude, longitude }: { latitude: number; longitude: number }) => {
+    const [ready, setReady] = useState(false);
+
+    useEffect(() => {
+      const t = setTimeout(() => setReady(true), 300);
+      return () => clearTimeout(t);
+    }, []);
+
+    return (
+      <Marker
+        coordinate={{ latitude, longitude }}
+        anchor={{ x: 0.5, y: 0.5 }}
+        flat
+        tracksViewChanges={!ready}
+      >
+        <View style={styles.userDot} />
+      </Marker>
+    );
+  },
+);
+
+UserMarker.displayName = "UserMarker";
 
 export default function NativeMap() {
   const { lat, lng, zoom, t } = useLocalSearchParams<{
@@ -90,6 +180,28 @@ export default function NativeMap() {
   const chevronAnim = useRef(new Animated.Value(0)).current;
   const sheetOpen = useRef(false);
   const dragStart = useRef(0);
+  const modalAnim = useRef(new Animated.Value(0)).current;
+
+  const openModal = useCallback(() => {
+    setShowFilterModal(true);
+    Animated.timing(modalAnim, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+  }, [modalAnim]);
+
+  const closeModal = useCallback(() => {
+    Animated.timing(modalAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => setShowFilterModal(false));
+  }, [modalAnim]);
+
+  // states do filtro das categorias dos anchoir points
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   const animateSheet = (open: boolean) => {
     Animated.parallel([
@@ -164,7 +276,7 @@ export default function NativeMap() {
       );
     }, 300);
     return () => clearTimeout(timer);
-  }, [lat, lng, t]);
+  }, [lat, lng, t, zoom]);
 
   useEffect(() => {
     if (!location || anchorFetchedRef.current) return;
@@ -255,7 +367,7 @@ export default function NativeMap() {
   useEffect(() => {
     startWatch();
     return stopWatch;
-  }, []);
+  }, [startWatch, stopWatch]);
 
   const handleRecenter = useCallback(() => {
     followingRef.current = true;
@@ -288,16 +400,24 @@ export default function NativeMap() {
         longitudeDelta: 0.04,
       };
 
+  const visibleAnchorPoints = useMemo(() => {
+    if (categoryFilter.size === 0) return anchorPoints;
+    return anchorPoints.filter(
+      (ap) =>
+        ap.category?.icon_name && categoryFilter.has(ap.category.icon_name),
+    );
+  }, [anchorPoints, categoryFilter]);
+
   const nearbyPoints = useMemo(() => {
-    if (!latitude || !longitude || anchorPoints.length === 0) return [];
-    return [...anchorPoints]
+    if (!latitude || !longitude || visibleAnchorPoints.length === 0) return [];
+    return [...visibleAnchorPoints]
       .map((ap) => ({
         ...ap,
         distM: haversineMeters(latitude, longitude, ap.lat, ap.lng),
       }))
       .sort((a, b) => a.distM - b.distM)
       .slice(0, 4);
-  }, [anchorPoints, latitude, longitude]);
+  }, [visibleAnchorPoints, latitude, longitude]);
 
   const mapHeight = sheetAnim.interpolate({
     inputRange: [SHEET_COLLAPSED, SHEET_EXPANDED],
@@ -310,184 +430,314 @@ export default function NativeMap() {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* ── Mapa ── */}
-      <Animated.View style={[styles.mapWrapper, { height: mapHeight }]}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={initialRegion}
-          showsUserLocation={false}
-          showsMyLocationButton={false}
-          onPanDrag={() => {
-            followingRef.current = false;
-            setFollowing(false);
-          }}
-        >
-          {routeCoordinates.map((route) => (
-            <Polyline
-              key={route.id}
-              coordinates={route.coordinates}
-              strokeColor={route.color}
-              strokeWidth={4}
-              lineJoin="round"
-            />
-          ))}
-          {anchorPoints.map((ap) => (
-            <Marker
-              key={ap.id}
-              coordinate={{ latitude: ap.lat, longitude: ap.lng }}
-              title={ap.name}
-              description={ap.phone ?? ap.business_hours ?? undefined}
-            />
-          ))}
-          {latitude && longitude && (
-            <>
-              <Circle
-                center={{ latitude, longitude }}
-                radius={accuracy ?? 50}
-                strokeColor="rgba(39,50,115,0.3)"
-                fillColor="rgba(39,50,115,0.06)"
-                strokeWidth={1}
-              />
-              <Marker
-                coordinate={{ latitude, longitude }}
-                anchor={{ x: 0.5, y: 0.5 }}
-                flat
-              >
-                <View style={styles.userDot} />
-              </Marker>
-            </>
-          )}
-        </MapView>
-
-        {/* Card posição */}
-        <View style={styles.positionCard}>
-          <View style={styles.positionIconWrap}>
-            <Text style={styles.positionIcon}>➤</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.positionLabel}>Você está em</Text>
-            <Text style={styles.positionCity}>
-              {cityName
-                ? `${cityName} — RS`
-                : acquiring
-                  ? "Localizando..."
-                  : "Fora da rota"}
-            </Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.positionLabel}>Próx. ponto</Text>
-            <Text style={styles.positionNext}>
-              {nearbyPoints[0] ? formatDist(nearbyPoints[0].distM) : "—"}
-            </Text>
-          </View>
-        </View>
-
-        {viewingCity && cityTarget && (
-          <View style={styles.cityBanner}>
-            <Text style={styles.cityBannerText}>Visualizando cidade</Text>
-            <Pressable
-              onPress={handleDismissCity}
-              style={styles.cityBannerClose}
-            >
-              <Text style={styles.cityBannerCloseText}>✕</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {acquiring && (
-          <View style={styles.acquiringBanner}>
-            <ActivityIndicator size="small" color="#2563EB" />
-            <Text style={styles.acquiringText}>Refinando GPS...</Text>
-          </View>
-        )}
-
-        {!following && !viewingCity && (
-          <TouchableOpacity style={styles.recenterBtn} onPress={handleRecenter}>
-            <Text style={styles.recenterText}>📍</Text>
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-
-      {/* ── Bottom Sheet ── */}
-      <Animated.View style={[styles.sheet, { height: sheetAnim }]}>
-        {/* Handle de drag */}
-        <View {...panResponder.panHandlers} style={styles.handleArea}>
-          <View style={styles.handle} />
-        </View>
-
-        {/* Header clicável */}
-        <Pressable onPress={toggleSheet} style={styles.sheetHeader}>
-          <View>
-            <Text style={styles.sheetLabel}>{MOCK_ROUTE_INFO.label}</Text>
-            <Text style={styles.sheetRoute}>
-              {cityName ? `Você está em ${cityName}` : "ROTA CRIC"}
-            </Text>
-          </View>
-          <Animated.Text
-            style={[
-              styles.sheetChevron,
-              { transform: [{ rotate: chevronRotate }] },
-            ]}
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.container}>
+        {/* ── Mapa ── */}
+        <Animated.View style={[styles.mapWrapper, { height: mapHeight }]}>
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            initialRegion={initialRegion}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            onPanDrag={() => {
+              followingRef.current = false;
+              setFollowing(false);
+            }}
           >
-            ▲
-          </Animated.Text>
-        </Pressable>
+            {routeCoordinates.map((route) => (
+              <Polyline
+                key={route.id}
+                coordinates={route.coordinates}
+                strokeColor={route.color}
+                strokeWidth={4}
+                lineJoin="round"
+              />
+            ))}
 
-        {/* Conteúdo */}
-        <ScrollView
-          style={styles.sheetScroll}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statIcon}>🚴</Text>
-              <Text style={styles.statLabel}>Distância</Text>
-              <Text style={styles.statValue}>{MOCK_ROUTE_INFO.distance}</Text>
+            {visibleAnchorPoints.map((ap) => (
+              <AnchorMarker key={ap.id} ap={ap} />
+            ))}
+
+            {latitude && longitude && (
+              <>
+                <UserMarker latitude={latitude} longitude={longitude} />
+                <Circle
+                  center={{ latitude, longitude }}
+                  radius={accuracy ?? 50}
+                  strokeColor="rgba(39,50,115,0.3)"
+                  fillColor="rgba(39,50,115,0.06)"
+                  strokeWidth={1}
+                />
+              </>
+            )}
+          </MapView>
+
+          {/* Card posição */}
+          <View style={styles.positionCard}>
+            <View style={styles.positionIconWrap}>
+              <Text style={styles.positionIcon}>➤</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statIcon}>🕐</Text>
-              <Text style={styles.statLabel}>Tempo est.</Text>
-              <Text style={styles.statValue}>{MOCK_ROUTE_INFO.time}</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statIcon}>↑</Text>
-              <Text style={styles.statLabel}>Elevação</Text>
-              <Text style={[styles.statValue, { color: "#F59E0B" }]}>
-                {MOCK_ROUTE_INFO.elevation}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.positionLabel}>Você está em</Text>
+              <Text style={styles.positionCity}>
+                {cityName
+                  ? `${cityName} — RS`
+                  : acquiring
+                    ? "Localizando..."
+                    : "Fora da rota"}
               </Text>
             </View>
+            <Pressable
+              style={[
+                styles.filterBtn,
+                categoryFilter.size > 0 && styles.filterBtnActive,
+              ]}
+              onPress={openModal}
+            >
+              <Text style={styles.filterBtnIcon}>⚙️</Text>
+              {categoryFilter.size > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>
+                    {categoryFilter.size}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
           </View>
 
-          <Text style={styles.sectionTitle}>PRÓXIMOS PONTOS DE APOIO</Text>
-          {gpsLoading ? (
-            <ActivityIndicator color="#2563EB" style={{ marginVertical: 12 }} />
-          ) : nearbyPoints.length === 0 ? (
-            <Text style={styles.emptyText}>
-              Nenhum ponto de apoio encontrado próximo.
-            </Text>
-          ) : (
-            nearbyPoints.map((ap) => (
-              <View key={ap.id} style={styles.anchorRow}>
-                <Text style={styles.anchorRowIcon}>📍</Text>
-                <Text style={styles.anchorRowName} numberOfLines={1}>
-                  {ap.name}
-                </Text>
-                <Text style={styles.anchorRowDist}>{formatDist(ap.distM)}</Text>
-              </View>
-            ))
+          {viewingCity && cityTarget && (
+            <View style={styles.cityBanner}>
+              <Text style={styles.cityBannerText}>Visualizando cidade</Text>
+              <Pressable
+                onPress={handleDismissCity}
+                style={styles.cityBannerClose}
+              >
+                <Text style={styles.cityBannerCloseText}>✕</Text>
+              </Pressable>
+            </View>
           )}
-        </ScrollView>
-      </Animated.View>
+
+          {acquiring && (
+            <View style={styles.acquiringBanner}>
+              <ActivityIndicator size="small" color="#2563EB" />
+              <Text style={styles.acquiringText}>Refinando GPS...</Text>
+            </View>
+          )}
+
+          {!following && !viewingCity && (
+            <TouchableOpacity
+              style={styles.recenterBtn}
+              onPress={handleRecenter}
+            >
+              <Text style={styles.recenterText}>📍</Text>
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+
+        {/* ── Bottom Sheet ── */}
+        <Animated.View style={[styles.sheet, { height: sheetAnim }]}>
+          {/* Handle de drag */}
+          <View {...panResponder.panHandlers} style={styles.handleArea}>
+            <View style={styles.handle} />
+          </View>
+
+          {/* Header clicável */}
+          <Pressable onPress={toggleSheet} style={styles.sheetHeader}>
+            <View>
+              <Text style={styles.sheetLabel}>{MOCK_ROUTE_INFO.label}</Text>
+              <Text style={styles.sheetRoute}>
+                {cityName ? `Você está em ${cityName}` : "ROTA CRIC"}
+              </Text>
+            </View>
+            <Animated.Text
+              style={[
+                styles.sheetChevron,
+                { transform: [{ rotate: chevronRotate }] },
+              ]}
+            >
+              ▲
+            </Animated.Text>
+          </Pressable>
+
+          {/* Conteúdo */}
+          <ScrollView
+            style={styles.sheetScroll}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+          >
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statIcon}>🚴</Text>
+                <Text style={styles.statLabel}>Distância</Text>
+                <Text style={styles.statValue}>{MOCK_ROUTE_INFO.distance}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statIcon}>🕐</Text>
+                <Text style={styles.statLabel}>Tempo est.</Text>
+                <Text style={styles.statValue}>{MOCK_ROUTE_INFO.time}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statIcon}>↑</Text>
+                <Text style={styles.statLabel}>Elevação</Text>
+                <Text style={[styles.statValue, { color: "#F59E0B" }]}>
+                  {MOCK_ROUTE_INFO.elevation}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>PRÓXIMOS PONTOS DE APOIO</Text>
+            {gpsLoading ? (
+              <ActivityIndicator
+                color="#2563EB"
+                style={{ marginVertical: 12 }}
+              />
+            ) : nearbyPoints.length === 0 ? (
+              <Text style={styles.emptyText}>
+                Nenhum ponto de apoio encontrado próximo.
+              </Text>
+            ) : (
+              nearbyPoints.map((ap) => {
+                const IconComponent = ap.category?.icon_name
+                  ? ICON_MAP[ap.category.icon_name]
+                  : null;
+
+                return (
+                  <Pressable
+                    key={ap.id}
+                    style={styles.anchorRow}
+                    onPress={() => {
+                      mapRef.current?.animateToRegion(
+                        {
+                          latitude: ap.lat,
+                          longitude: ap.lng,
+                          latitudeDelta: 0.005,
+                          longitudeDelta: 0.005,
+                        },
+                        500,
+                      );
+                      followingRef.current = false;
+                      setFollowing(false);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.anchorRowIconWrap,
+                        ap.on_route && styles.anchorRowIconOnRoute,
+                      ]}
+                    >
+                      {IconComponent ? (
+                        <IconComponent width={35} height={35} />
+                      ) : (
+                        <Text style={styles.anchorRowIcon}>📍</Text>
+                      )}
+                    </View>
+                    <Text style={styles.anchorRowName} numberOfLines={1}>
+                      {ap.name}
+                    </Text>
+                    <Text style={styles.anchorRowDist}>
+                      {formatDist(ap.distM)}
+                    </Text>
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+        </Animated.View>
+        {showFilterModal && (
+          <Animated.View style={[styles.modalOverlay, { opacity: modalAnim }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeModal} />
+            <Animated.View
+              style={[
+                styles.modalBox,
+                {
+                  transform: [
+                    {
+                      translateY: modalAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-24, 0],
+                      }),
+                    },
+                    {
+                      scale: modalAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.95, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Filtrar categorias</Text>
+                {categoryFilter.size > 0 && (
+                  <Pressable onPress={() => setCategoryFilter(new Set())}>
+                    <Text style={styles.modalClear}>Limpar</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {Object.entries(ICON_MAP).map(([key, IconComponent]) => {
+                const active = categoryFilter.has(key);
+                return (
+                  <Pressable
+                    key={key}
+                    style={[styles.modalItem, active && styles.modalItemActive]}
+                    onPress={() => {
+                      setCategoryFilter((prev) => {
+                        const next = new Set(prev);
+                        next.has(key) ? next.delete(key) : next.add(key);
+                        return next;
+                      });
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.modalItemIcon,
+                        active && styles.modalItemIconActive,
+                      ]}
+                    >
+                      <IconComponent width={22} height={22} />
+                    </View>
+                    <Text
+                      style={[
+                        styles.modalItemText,
+                        active && styles.modalItemTextActive,
+                      ]}
+                    >
+                      {CATEGORY_LABELS[key]}
+                    </Text>
+                    {active && <Text style={styles.modalItemCheck}>✓</Text>}
+                  </Pressable>
+                );
+              })}
+
+              <Pressable style={styles.modalDone} onPress={closeModal}>
+                <Text style={styles.modalDoneText}>
+                  {categoryFilter.size === 0
+                    ? "Mostrar todos"
+                    : `Mostrar ${categoryFilter.size} categoria${categoryFilter.size !== 1 ? "s" : ""}`}
+                </Text>
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F7F8FC" },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#2563EB",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#F7F8FC",
+  },
   mapWrapper: { width: "100%", overflow: "hidden" },
   map: { flex: 1 },
   userDot: {
@@ -662,4 +912,104 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     paddingVertical: 8,
   },
+  anchorRowIconWrap: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    backgroundColor: "rgba(107, 114, 128, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  anchorRowIconOnRoute: {
+    backgroundColor: "rgba(37, 100, 235, 0.45)",
+  },
+  filterBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBtnActive: {
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1.5,
+    borderColor: "#2563EB",
+  },
+  filterBtnIcon: { fontSize: 16 },
+  filterBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadgeText: { fontSize: 10, color: "#fff", fontWeight: "700" },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    paddingTop: 80,
+    paddingHorizontal: 16,
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  modalClear: { fontSize: 13, color: "#EF4444", fontWeight: "600" },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+    backgroundColor: "#F9FAFB",
+  },
+  modalItemActive: {
+    backgroundColor: "#EEF2FF",
+  },
+  modalItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#6B7280",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalItemIconActive: {
+    backgroundColor: "#2563EB",
+  },
+  modalItemText: { flex: 1, fontSize: 14, fontWeight: "500", color: "#374151" },
+  modalItemTextActive: { color: "#2563EB", fontWeight: "700" },
+  modalItemCheck: { fontSize: 14, color: "#2563EB", fontWeight: "700" },
+  modalDone: {
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  modalDoneText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });
