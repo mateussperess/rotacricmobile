@@ -1,98 +1,182 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Rota Cric Mobile API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend em NestJS com Prisma e MySQL.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Principais tecnologias
 
-## Description
+- NestJS
+- Prisma
+- MySQL
+- Docker Compose
+- Jest
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Ambiente
 
-## Project setup
+Arquivos usados:
 
-```bash
-$ npm install
+- `.env`: usado pelo Docker Compose e pelos containers.
+- `.env.local`: usado pelos comandos locais do Prisma.
+
+Variaveis comuns:
+
+```env
+DATABASE_URL=
+MYSQL_DATABASE=
+MYSQL_USER=
+MYSQL_PASSWORD=
+DB_PORT=
+MYSQL_ROOT_PASSWORD=
+JWT_SECRET=
+NODE_ENV=
+API_PORT=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 ```
 
-## Compile and run the project
+## Instalar dependencias
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
+## Rodar com Docker
+
+Subir banco e backend:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Subir recriando a imagem:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+docker compose up -d --build
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Ver logs:
 
-## Resources
+```bash
+docker compose logs -f
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+Parar containers:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+docker compose down
+```
 
-## Support
+O backend expõe a API com prefixo `/api`. Exemplo local:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```txt
+http://localhost:3000/api
+```
 
-## Stay in touch
+## Rodar localmente
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```bash
+npm run start:dev
+```
 
-## License
+Outros scripts:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```bash
+npm run build
+npm run start
+npm run start:prod
+```
+
+## Prisma
+
+Abrir Prisma Studio usando `.env.local`:
+
+```bash
+npx dotenv -e .env.local -- prisma studio
+```
+
+Criar e aplicar migration em desenvolvimento:
+
+```bash
+npx prisma migrate dev --name nome_da_migration
+```
+
+Caso precise garantir o uso do `.env.local`:
+
+```bash
+npx dotenv -e .env.local -- prisma migrate dev --name nome_da_migration
+```
+
+Aplicar migrations pendentes em ambiente ja provisionado:
+
+```bash
+npx prisma migrate deploy
+```
+
+Gerar Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+## Testes
+
+Rodar todos os testes:
+
+```bash
+npm test
+```
+
+Rodar todos os testes em serie:
+
+```bash
+npm test -- --runInBand
+```
+
+Explicando o comando:
+
+- `npm test` executa o script `"test": "jest"` do `package.json`.
+- O primeiro `--` separa argumentos do npm de argumentos do Jest.
+- `--runInBand` manda o Jest rodar os testes um por vez, sem paralelizar workers.
+
+Use `--runInBand` quando quiser depurar melhor, evitar concorrencia entre testes ou ter logs em ordem mais previsivel.
+
+Rodar um teste especifico:
+
+```bash
+npm test -- --runInBand src/utils/geo.utils.spec.ts
+```
+
+Rodar testes em watch:
+
+```bash
+npm run test:watch
+```
+
+Rodar cobertura:
+
+```bash
+npm run test:cov
+```
+
+Rodar e2e:
+
+```bash
+npm run test:e2e
+```
+
+Checar TypeScript sem gerar build:
+
+```bash
+npx tsc -p tsconfig.json --noEmit
+```
+
+## Padrao atual de testes
+
+Os testes unitarios e funcionais ficam em arquivos `*.spec.ts` dentro de `src/`.
+
+Exemplos atuais:
+
+- `src/utils/geo.utils.spec.ts`: teste unitario de funcoes puras.
+- `src/auth/auth.service.functional.spec.ts`: teste funcional do fluxo de login com dependencias mockadas.
+
+Para services que dependem de banco, use mocks do `PrismaService` no `TestingModule`. Para controllers, prefira mockar o service quando a intencao for testar apenas a camada HTTP/controller.
