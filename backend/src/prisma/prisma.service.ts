@@ -19,8 +19,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     const target = process.env.DB_TARGET || 'local';
     let rawUrl = process.env.DATABASE_URL;
 
-    if (target === 'production' && process.env.PROD_DATABASE_URL) {
-      rawUrl = process.env.PROD_DATABASE_URL;
+    if (target === 'production') {
+      if (process.env.PROD_DATABASE_URL && process.env.PROD_DATABASE_URL.trim()) {
+        rawUrl = process.env.PROD_DATABASE_URL.trim();
+      } else {
+        throw new Error(
+          '[PrismaService] DB_TARGET=production foi definido, porém PROD_DATABASE_URL não está configurada no .env!',
+        );
+      }
     }
 
     if (!rawUrl) {

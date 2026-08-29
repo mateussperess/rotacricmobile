@@ -43,16 +43,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - '${API_PORT}:3000'
+    network_mode: 'host'
     environment:
       - NODE_ENV=${NODE_ENV}
       - DB_TARGET=${DB_TARGET:-local}
       - MEDIA_BASE_URL=${MEDIA_BASE_URL}
-      - DATABASE_URL=mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}?allowPublicKeyRetrieval=true
+      - DATABASE_URL=mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@127.0.0.1:3308/${MYSQL_DATABASE}?allowPublicKeyRetrieval=true
       - JWT_SECRET=${JWT_SECRET}
-    networks:
-      - rtcmobile-network
     healthcheck:
       test:
         [

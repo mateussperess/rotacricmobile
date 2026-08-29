@@ -114,7 +114,7 @@ export function ProfileView() {
 
         Alert.alert(
           "Sucesso!",
-          "Informações pessoais salvas com sucesso no banco de dados local da aplicação!",
+          "Informações pessoais salvas com sucesso!",
         );
       } else {
         throw new Error("O servidor não confirmou a atualização dos dados.");

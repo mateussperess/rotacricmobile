@@ -111,7 +111,9 @@ export class UsersService {
       const profileDataToUpdate: any = {};
       if (updateUserDto.birth_date !== undefined) {
         if (updateUserDto.birth_date && updateUserDto.birth_date.trim()) {
-          profileDataToUpdate.birth_date = new Date(updateUserDto.birth_date.trim());
+          const rawDateStr = updateUserDto.birth_date.trim();
+          const cleanDateStr = rawDateStr.includes('T') ? rawDateStr.split('T')[0] : rawDateStr;
+          profileDataToUpdate.birth_date = new Date(`${cleanDateStr}T00:00:00Z`);
         } else {
           profileDataToUpdate.birth_date = null;
         }
