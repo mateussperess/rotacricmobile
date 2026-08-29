@@ -17,14 +17,6 @@ import { RouteSegmentsService } from './route-segments.service';
 export class RouteSegmentsController {
   constructor(private readonly routeSegmentsService: RouteSegmentsService) {}
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  create(
-    @Body() createRouteSegmentDto: CreateRouteSegmentDto,
-  ): Promise<RouteSegmentResponseDto> {
-    return this.routeSegmentsService.create(createRouteSegmentDto);
-  }
-
   /**
    * GET /route-segments?routeId=xxx
    * Lista todos os segmentos de uma rota.

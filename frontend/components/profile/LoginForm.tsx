@@ -2,12 +2,12 @@ import { useAuth } from "@/components/contexts/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { CustomInput } from "./CustomInput";
 import { styles } from "./styles";
 
 interface Props {
@@ -24,72 +24,78 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: Props) {
   const [error, setError] = useState("");
 
   const handleSubmit = async () => {
+    if (!email.trim() || !password) {
+      setError("Por favor, preencha todos os campos");
+      return;
+    }
+
     setError("");
     setLoading(true);
     try {
-      const ok = await login(email, password);
+      const ok = await login(email.trim(), password);
       setLoading(false);
       if (ok) {
         onSuccess();
       } else {
-        setError("Credenciais inválidas");
+        setError("E-mail, usuário ou senha incorretos.");
       }
     } catch (err: any) {
       setLoading(false);
-      const errorMsg = err?.response?.data?.message || "Erro ao fazer login";
+      const errorMsg =
+        err?.response?.data?.message || "Não foi possível realizar o login";
       setError(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
     }
   };
 
   return (
-    <View style={styles.content}>
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>E-mail</Text>
-        <View style={styles.inputContainer}>
-          <MaterialIcons name="email" size={20} color="#9CA3AF" />
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="seu@email.com"
-            style={styles.input}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
+    <View style={{ flex: 1 }}>
+      {/* Mensagem de Erro com Ícone */}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <MaterialIcons name="error-outline" size={20} color="#DC2626" />
+          <Text style={styles.errorText}>{error}</Text>
         </View>
-      </View>
+      ) : null}
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Senha</Text>
-        <View style={styles.inputContainer}>
-          <MaterialIcons name="lock" size={20} color="#9CA3AF" />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPass}
-            placeholder="••••••••"
-            style={[styles.input, { paddingRight: 40 }]}
-          />
-          <TouchableOpacity onPress={() => setShowPass(!showPass)}>
-            <MaterialIcons
-              name={showPass ? "visibility" : "visibility-off"}
-              size={20}
-              color="#9CA3AF"
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Campo E-mail / Username */}
+      <CustomInput
+        label="E-mail ou Usuário"
+        iconName="person-outline"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="seu_usuario ou email@exemplo.com"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        autoComplete="username"
+      />
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {/* Campo Senha */}
+      <CustomInput
+        label="Senha"
+        iconName="lock-outline"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry={!showPass}
+        placeholder="Digite sua senha"
+        autoComplete="current-password"
+        rightIconName={showPass ? "visibility" : "visibility-off"}
+        onRightIconPress={() => setShowPass(!showPass)}
+      />
 
+      {/* Botão Primário Entrar */}
       <TouchableOpacity
-        style={styles.buttonPrimary}
+        style={[
+          styles.buttonPrimary,
+          loading && styles.buttonPrimaryDisabled,
+        ]}
         onPress={handleSubmit}
         disabled={loading}
+        activeOpacity={0.8}
       >
         {loading ? (
-          <ActivityIndicator color="white" />
+          <ActivityIndicator color="white" size="small" />
         ) : (
-          <Text style={styles.buttonText}>Entrar</Text>
+          <Text style={styles.buttonText}>Entrar na Rota</Text>
         )}
       </TouchableOpacity>
     </View>

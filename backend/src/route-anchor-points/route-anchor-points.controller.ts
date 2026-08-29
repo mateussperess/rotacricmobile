@@ -20,14 +20,6 @@ export class RouteAnchorPointsController {
     private readonly routeAnchorPointsService: RouteAnchorPointsService,
   ) {}
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  create(
-    @Body() createRouteAnchorPointDto: CreateRouteAnchorPointDto,
-  ): Promise<RouteAnchorPointResponseDto> {
-    return this.routeAnchorPointsService.create(createRouteAnchorPointDto);
-  }
-
   @Get()
   findAll() {
     return this.routeAnchorPointsService.findAll();
@@ -36,18 +28,5 @@ export class RouteAnchorPointsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.routeAnchorPointsService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateRouteAnchorPointDto: UpdateRouteAnchorPointDto,
-  ) {
-    return this.routeAnchorPointsService.update(id, updateRouteAnchorPointDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.routeAnchorPointsService.remove(id);
   }
 }

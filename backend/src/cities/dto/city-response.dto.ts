@@ -1,4 +1,11 @@
-import { City } from '../entities/city.entity';
+function formatImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = process.env.MEDIA_BASE_URL || 'https://rota-cric.charqueadas.ifsul.edu.br/media/';
+  const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `${cleanBase}${cleanPath}`;
+}
 
 export class CityResponseDto {
   id: string;
@@ -13,16 +20,16 @@ export class CityResponseDto {
   created_at: Date;
   updated_at: Date;
 
-  constructor(city: City) {
-    this.id = city.id;
+  constructor(city: any) {
+    this.id = city.id?.toString() ?? '';
     this.name = city.name;
-    this.about = city.about;
-    this.lat = city.lat;
-    this.lng = city.lng;
+    this.about = city.about ?? null;
+    this.lat = city.latitude !== undefined ? Number(city.latitude) : Number(city.lat ?? 0);
+    this.lng = city.longitude !== undefined ? Number(city.longitude) : Number(city.lng ?? 0);
     this.zoom = city.zoom;
-    this.banner_image = city.banner_image;
-    this.visible = city.visible;
-    this.active = city.active;
+    this.banner_image = formatImageUrl(city.banner_image);
+    this.visible = Boolean(city.visible);
+    this.active = Boolean(city.active);
     this.created_at = city.created_at;
     this.updated_at = city.updated_at;
   }

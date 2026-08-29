@@ -22,6 +22,11 @@ export interface AnchorPoint {
 }
 
 export const AnchorPointsService = {
+  findAll: async (): Promise<AnchorPoint[]> => {
+    const { data } = await api.get("/anchor-points");
+    return data;
+  },
+
   findAllByCity: async (city_id: string): Promise<AnchorPoint[]> => {
     const { data } = await api.get(`/anchor-points/city/${city_id}`);
     return data;
