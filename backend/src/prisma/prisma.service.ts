@@ -11,6 +11,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '@prisma/client';
+import * as mariadb from 'mariadb';
 import 'dotenv/config';
 
 @Injectable()
@@ -35,11 +36,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
     console.log(`[PrismaService] Connecting to database target: ${target.toUpperCase()}`);
 
-    let dbUrl = rawUrl.replace('mysql://', 'mariadb://');
-    if (!dbUrl.includes('allowPublicKeyRetrieval')) {
-      dbUrl += dbUrl.includes('?') ? '&allowPublicKeyRetrieval=true' : '?allowPublicKeyRetrieval=true';
-    }
-    const adapter = new PrismaMariaDb(dbUrl);
+    const parsedUrl = new URL(rawUrl);
+    const poolConfig: mariadb.PoolConfig = {
+      host: parsedUrl.hostname || '127.0.0.1',
+      port: parsedUrl.port ? parseInt(parsedUrl.port, 10) : 3306,
+      user: decodeURIComponent(parsedUrl.username),
+      password: decodeURIComponent(parsedUrl.password),
+      database: parsedUrl.pathname.replace(/^\//, ''),
+      allowPublicKeyRetrieval: true,
+      connectTimeout: 10000,
+    };
+
+    const adapter = new PrismaMariaDb(poolConfig);
     super({ adapter });
   }
 

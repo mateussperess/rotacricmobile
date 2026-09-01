@@ -34,6 +34,7 @@ services:
       - .env
     volumes:
       - ./src:/api/src
+      - ./dist:/api/dist
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,9 +47,10 @@ services:
     network_mode: 'host'
     environment:
       - NODE_ENV=${NODE_ENV}
-      - DB_TARGET=${DB_TARGET:-local}
+      - DB_TARGET=${DB_TARGET}
+      - PROD_DATABASE_URL=${PROD_DATABASE_URL}
       - MEDIA_BASE_URL=${MEDIA_BASE_URL}
-      - DATABASE_URL=mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@127.0.0.1:3308/${MYSQL_DATABASE}?allowPublicKeyRetrieval=true
+      - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
     healthcheck:
       test:

@@ -1,5 +1,5 @@
-import { Tabs, useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import { Tabs } from "expo-router";
+import React from "react";
 
 import { useAuth } from "@/components/contexts/AuthContext";
 import { HapticTab } from "@/components/haptic-tab";
@@ -27,13 +27,6 @@ function ScanTabButton({ onPress, children }: any) {
 
 export default function TabLayout() {
   const { token, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !token) {
-      router.replace("/(tabs)/profile");
-    }
-  }, [token, loading, router]);
 
   if (loading) {
     return (

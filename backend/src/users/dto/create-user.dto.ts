@@ -10,8 +10,8 @@ import {
 export class CreateUserDto {
   @IsString({ message: 'Username deve ser uma string' })
   @IsNotEmpty({ message: 'Username é obrigatório' })
-  @Matches(/^[a-zA-Z0-9_-]+$/, {
-    message: 'Username pode conter apenas letras, números, underscore e hífen',
+  @Matches(/^[a-zA-Z0-9._-]+$/, {
+    message: 'Username pode conter apenas letras, números, ponto, underscore e hífen',
   })
   @Transform(({ value }: { value: string }) => value.trim())
   username!: string;
@@ -33,8 +33,8 @@ export class CreateUserDto {
 
   @IsString({ message: 'Senha deve ser uma string' })
   @IsNotEmpty({ message: 'Senha é obrigatória' })
-  @MinLength(8, {
-    message: 'Senha deve ter no mínimo 8 caracteres',
+  @MinLength(6, {
+    message: 'Senha deve ter no mínimo 6 caracteres',
   })
   pass!: string;
 }
