@@ -25,7 +25,7 @@ echo "✅ IP retornado do MySQL em produção: $REMOTE_IP"
 # 3. Abrir o túnel SSH em background
 echo "[3/4] Abrindo túnel SSH (Local: 3307 -> Remoto: $REMOTE_IP:3306)..."
 echo "👉 Digite a senha de rotacric@200.132.47.33 novamente para iniciar o túnel:"
-ssh -f -N -L 3307:${REMOTE_IP}:3306 rotacric@200.132.47.33
+ssh -f -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -L 3307:${REMOTE_IP}:3306 rotacric@200.132.47.33
 
 sleep 2
 
