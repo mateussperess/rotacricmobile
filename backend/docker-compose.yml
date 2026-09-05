@@ -15,6 +15,7 @@ services:
       - '${DB_PORT}:3306'
     volumes:
       - mysql_data:/var/lib/mysql
+      - /home/mateus/Downloads/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
     healthcheck:
       test:
         [
@@ -33,23 +34,24 @@ services:
       - .env
     volumes:
       - ./src:/api/src
+      - ./dist:/api/dist
     build:
       context: .
       dockerfile: Dockerfile
     container_name: api-backend-new
     restart: unless-stopped
-    command: sh -c "npx prisma migrate deploy && npm run start:dev"
+    command: node dist/src/main.js
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - '${API_PORT}:3000'
+    network_mode: 'host'
     environment:
       - NODE_ENV=${NODE_ENV}
-      - DATABASE_URL=mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      - DB_TARGET=${DB_TARGET}
+      - PROD_DATABASE_URL=${PROD_DATABASE_URL}
+      - MEDIA_BASE_URL=${MEDIA_BASE_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
-    networks:
-      - rtcmobile-network
     healthcheck:
       test:
         [

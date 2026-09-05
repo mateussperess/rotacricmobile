@@ -1,12 +1,21 @@
-// src/contexts/AuthContext.tsx
 import api from "@/services/api";
 import { tokenStorage } from "@/services/tokenStorage";
+import { getUserProfile, UserProfileResponse } from "@/services/users/userService";
 import { createContext, useContext, useEffect, useState } from "react";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  birth_date?: string | null;
+  document?: string | null;
+  document_type?: string | null;
+  social_network?: string | null;
+  social_network_type?: string | null;
+  profile_picture_path?: string | null;
   stampsCount?: number;
 }
 
@@ -17,13 +26,14 @@ interface AuthContextType {
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<boolean>; // mantém compatibilidade
-  signOut: () => Promise<void>; // mantém compatibilidade
+  refreshUser: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function decodeToken(token: string): User | null {
+function decodeToken(token: string): Partial<User> | null {
   try {
     const base64Url = token.split(".")[1];
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
@@ -39,7 +49,7 @@ function decodeToken(token: string): User | null {
       id: payload.sub || payload.id,
       email: email,
       name: payload.name || email.split("@")[0],
-      stampsCount: payload.stampsCount || 0,
+      username: payload.username,
     };
   } catch (error) {
     console.error("Erro ao decodificar token:", error);
@@ -52,17 +62,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchFullProfile = async (userId: string, baseUser: Partial<User>) => {
+    try {
+      const profile: UserProfileResponse = await getUserProfile(userId);
+      const fullName = [profile.first_name, profile.last_name]
+        .filter(Boolean)
+        .join(" ");
+
+      setUser({
+        id: profile.id,
+        email: profile.email || baseUser.email || "",
+        name: fullName || baseUser.name || "Ciclista",
+        username: profile.username || baseUser.username,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        birth_date: profile.birth_date,
+        document: profile.document,
+        document_type: profile.document_type,
+        social_network: profile.social_network,
+        social_network_type: profile.social_network_type,
+        profile_picture_path: profile.profile_picture_path,
+        stampsCount: 0,
+      });
+    } catch (err) {
+      console.warn("Falha ao buscar perfil completo, usando dados do token:", err);
+      setUser({
+        id: userId,
+        email: baseUser.email || "",
+        name: baseUser.name || "Ciclista",
+        username: baseUser.username,
+      });
+    }
+  };
+
+  const refreshUser = async () => {
+    if (user?.id) {
+      await fetchFullProfile(user.id, user);
+    }
+  };
+
   useEffect(() => {
     const initAuth = async () => {
       try {
         const saved = await tokenStorage.get();
         if (saved) {
-          const userData = decodeToken(saved);
-          if (userData) {
+          const decoded = decodeToken(saved);
+          if (decoded && decoded.id) {
             setToken(saved);
-            setUser(userData);
+            await fetchFullProfile(decoded.id, decoded);
           } else {
-            // Token inválido, limpar
             await tokenStorage.delete();
           }
         }
@@ -86,15 +134,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      const userData = decodeToken(tokenToUse);
-      if (!userData) {
+      const decoded = decodeToken(tokenToUse);
+      if (!decoded || !decoded.id) {
         console.error("Login: falha ao decodificar token");
         return false;
       }
 
       await tokenStorage.save(tokenToUse);
       setToken(tokenToUse);
-      setUser(userData);
+      await fetchFullProfile(decoded.id, decoded);
       return true;
     } catch (error) {
       console.error("Erro ao fazer login:", error);
@@ -108,7 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  // Manter compatibilidade com nomes antigos
   const signIn = login;
   const signOut = logout;
 
@@ -119,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoggedIn: !!token && !!user,
     login,
     logout,
+    refreshUser,
     signIn,
     signOut,
   };

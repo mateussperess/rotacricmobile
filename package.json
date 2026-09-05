@@ -17,5 +17,9 @@
     "docker:up": "docker compose -f backend/docker-compose.yml up -d",
     "docker:down": "docker compose -f backend/docker-compose.yml down",
     "docker:logs": "docker compose -f backend/docker-compose.yml logs -f"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   }
 }

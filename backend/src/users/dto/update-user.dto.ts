@@ -39,4 +39,24 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
     message: 'Senha deve ter no mínimo 8 caracteres',
   })
   pass?: string;
+
+  @IsOptional()
+  @IsString()
+  birth_date?: string;
+
+  @IsOptional()
+  @IsString()
+  document?: string;
+
+  @IsOptional()
+  @IsString()
+  document_type?: string;
+
+  @IsOptional()
+  @IsString()
+  social_network?: string;
+
+  @IsOptional()
+  @IsString()
+  social_network_type?: string;
 }
