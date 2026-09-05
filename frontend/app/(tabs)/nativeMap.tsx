@@ -199,8 +199,9 @@ export default function NativeMap() {
     }).start(() => setShowFilterModal(false));
   }, [modalAnim]);
 
-  // states do filtro das categorias dos anchoir points
+  // states do filtro das categorias dos anchor points e rotas
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [includeEventRoutes, setIncludeEventRoutes] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   const animateSheet = (open: boolean) => {
@@ -257,6 +258,9 @@ export default function NativeMap() {
 
   useEffect(() => {
     RoutesService.findAll().then(setRoutes);
+    AnchorPointsService.findAll().then((pts) => {
+      if (pts) setAnchorPoints(pts);
+    });
   }, []);
 
   useEffect(() => {
@@ -279,8 +283,7 @@ export default function NativeMap() {
   }, [lat, lng, t, zoom]);
 
   useEffect(() => {
-    if (!location || anchorFetchedRef.current) return;
-    anchorFetchedRef.current = true;
+    if (!location) return;
     const { latitude, longitude } = location.coords;
     (async () => {
       const [place] = await Location.reverseGeocodeAsync({
@@ -289,31 +292,28 @@ export default function NativeMap() {
       });
       const name = place?.city ?? place?.subregion ?? null;
       setCityName(name);
-      if (!name) return;
-      const city = await CitiesService.findByName(name);
-      if (!city) return;
-      const points = await AnchorPointsService.findAllByCity(city.id);
-      setAnchorPoints(points);
     })();
   }, [location]);
 
-  const routeCoordinates = useMemo(
-    () =>
-      routes.map((route) => ({
-        id: route.id,
-        color: route.color ?? "#2563EB",
-        coordinates: (() => {
-          try {
-            return polyline
-              .decode(route.polyline)
-              .map(([la, lo]) => ({ latitude: la, longitude: lo }));
-          } catch {
-            return [];
-          }
-        })(),
-      })),
-    [routes],
-  );
+  const routeCoordinates = useMemo(() => {
+    const activeRoutes = includeEventRoutes
+      ? routes
+      : routes.filter((r) => !r.is_event_route);
+
+    return activeRoutes.map((route) => ({
+      id: route.id,
+      color: route.color ?? "#2563EB",
+      coordinates: (() => {
+        try {
+          return polyline
+            .decode(route.polyline)
+            .map(([la, lo]) => ({ latitude: la, longitude: lo }));
+        } catch {
+          return [];
+        }
+      })(),
+    }));
+  }, [routes, includeEventRoutes]);
 
   const animateToLocation = useCallback((loc: Location.LocationObject) => {
     if (!followingRef.current || !mapRef.current || viewingCityRef.current)
@@ -714,12 +714,35 @@ export default function NativeMap() {
                 );
               })}
 
-              <Pressable style={styles.modalDone} onPress={closeModal}>
-                <Text style={styles.modalDoneText}>
-                  {categoryFilter.size === 0
-                    ? "Mostrar todos"
-                    : `Mostrar ${categoryFilter.size} categoria${categoryFilter.size !== 1 ? "s" : ""}`}
+              <View style={[styles.modalHeader, { marginTop: 12 }]}>
+                <Text style={styles.modalTitle}>Filtro de Rotas</Text>
+              </View>
+
+              <Pressable
+                style={[styles.modalItem, includeEventRoutes && styles.modalItemActive]}
+                onPress={() => setIncludeEventRoutes((prev) => !prev)}
+              >
+                <View
+                  style={[
+                    styles.modalItemIcon,
+                    includeEventRoutes && styles.modalItemIconActive,
+                  ]}
+                >
+                  <Text style={{ fontSize: 16 }}>🚩</Text>
+                </View>
+                <Text
+                  style={[
+                    styles.modalItemText,
+                    includeEventRoutes && styles.modalItemTextActive,
+                  ]}
+                >
+                  Exibir rotas de eventos
                 </Text>
+                {includeEventRoutes && <Text style={styles.modalItemCheck}>✓</Text>}
+              </Pressable>
+
+              <Pressable style={styles.modalDone} onPress={closeModal}>
+                <Text style={styles.modalDoneText}>Concluído</Text>
               </Pressable>
             </Animated.View>
           </Animated.View>

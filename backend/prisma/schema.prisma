@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,260 +6,127 @@ datasource db {
   provider = "mysql"
 }
 
-// Definição do modelo de Usuário
-model User {
-  id         String   @id @default(uuid())
-  username   String   @unique
-  first_name String
-  last_name  String
-  email      String   @unique
-  pass       String
-  activities Activity[]
-  user_stamps UserStamp[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("users")
-}
-
-// Definição do modelo de Rota
-model Route {
-  id         String    @id @default(uuid())
-  name       String
-  polyline   String    @db.Text
-  strava_id  String?
-  color      String?
-  distance   Float
-  active     Boolean   @default(true)
-  
-  city_routes CityRoute[]
-  activities  Activity[]
-  user_stamps UserStamp[]
-  segments RouteSegment[]
-  route_anchorpoints RouteAnchorPoint[]
-  
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
-
-  @@map("routes")
-}
-
-// Definição do modelo de Cidade
 model City {
-  id           String    @id @default(uuid())
-  name         String
-  about        String?   @db.Text
-  lat          Float
-  lng          Float
+  id           BigInt   @id @default(autoincrement())
+  name         String   @db.VarChar(255)
+  banner_image String   @db.VarChar(100)
+  latitude     Decimal  @db.Decimal(9, 6)
+  longitude    Decimal  @db.Decimal(9, 6)
+  active       Boolean  @db.TinyInt
+  visible      Boolean  @db.TinyInt
   zoom         Int
-  banner_image String?
-  visible      Boolean   @default(true)
-  active       Boolean   @default(true)
+  created_at   DateTime @db.DateTime(6)
+  updated_at   DateTime @db.DateTime(6)
+
+  city_images   CityImage[]
+  city_routes   CityRoute[]
+  anchor_points AnchorPoint[]
+
+  @@map("city")
+}
+
+model CityImage {
+  id         BigInt  @id @default(autoincrement())
+  image_path String  @db.VarChar(100)
+  title      String? @db.VarChar(255)
+  subtitle   String? @db.VarChar(255)
+  city_id    BigInt
+
+  city City @relation(fields: [city_id], references: [id])
+
+  @@map("city_image")
+}
+
+model Route {
+  id                 BigInt   @id @default(autoincrement())
+  external_strava_id String?  @unique(map: "external_strava_id") @db.VarChar(50)
+  name               String?  @db.VarChar(255)
+  polyline           String?  @db.LongText
+  color              String   @db.VarChar(18)
+  distance           String?  @db.VarChar(500)
+  active             Boolean  @db.TinyInt
+  is_event_route     Boolean  @db.TinyInt
 
   city_routes CityRoute[]
-  city_anchorpoints CityAnchorpoint[]
-  segmentsAsOrigin RouteSegment[] @relation("SegmentOrigin")
-  segmentsAsDestination RouteSegment[] @relation("SegmentDestination")
-  city_images CityImage[]
 
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-  deleted_at   DateTime?
-
-  @@map("cities")
+  @@map("route")
 }
 
-// Definição do modelo de Ponto de Apoio
-model AnchorPoint {
-  id             String    @id @default(uuid())
-  name           String
-  lat            Float
-  lng            Float
-  business_hours String?
-  phone          String?
-  image          String?
-  active         Boolean   @default(true)
-
-  category_id       String?
-  category          AnchorPointCategory? @relation(fields: [category_id], references: [id])
-
-  city_anchorpoints   CityAnchorpoint[]
-  user_stamps         UserStamp[]
-  route_anchorpoints  RouteAnchorPoint[]
-  anchor_point_images AnchorPointImage[]
-
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  deleted_at     DateTime?
-
-  @@map("anchor_points")
-}
-
-// Definição do modelo de relação entre Cidade e Rota
 model CityRoute {
-  id         String    @id @default(uuid())
-  city_id    String
-  route_id   String
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
+  id       BigInt @id @default(autoincrement())
+  city_id  BigInt
+  route_id BigInt
 
   city  City  @relation(fields: [city_id], references: [id])
   route Route @relation(fields: [route_id], references: [id])
 
-  @@map("city_routes")
-}
-
-// Definição do modelo de relação entre Cidade e Ponto de Apoio
-model CityAnchorpoint {
-  id              String    @id @default(uuid())
-  city_id         String
-  anchor_point_id String
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
-  deleted_at      DateTime?
-
-  city            City        @relation(fields: [city_id], references: [id])
-  anchor_point    AnchorPoint @relation(fields: [anchor_point_id], references: [id])
-
-  @@map("city_anchorpoints")
-}
-
-// Definição do modelo de Atividade
-model Activity {
-  id             String    @id @default(uuid())
-  user_id        String
-  route_id       String?
-  total_distance Float
-  start_time     DateTime
-  end_time       DateTime
-  user  User   @relation(fields: [user_id], references: [id])
-  route Route? @relation(fields: [route_id], references: [id])
-  waypoints ActivityWaypoint[]
-
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  deleted_at     DateTime?
-
-  @@map("activities")
-}
-
-// Definição do modelo de Waypoint de Atividade (responsável por armazenar os pontos de localização durante a atividade)
-model ActivityWaypoint {
-  id          String    @id @default(uuid())
-  activity_id String
-  lat         Float
-  lng         Float
-  timestamp   DateTime
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
-  deleted_at  DateTime?
-
-  activity Activity @relation(fields: [activity_id], references: [id])
-
-  @@map("activity_waypoints")
-}
-
-// Definição do modelo de Carimbo de Usuário (responsável por armazenar os carimbos ganhos pelos usuários ao completar rotas ou visitar pontos de apoio)
-model UserStamp {
-  id              String    @id @default(uuid())
-  user_id         String
-  anchor_point_id String?
-  route_id        String?
-  earned_at       DateTime
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
-  deleted_at      DateTime?
-
-  user         User        @relation(fields: [user_id], references: [id])
-  anchor_point AnchorPoint? @relation(fields: [anchor_point_id], references: [id])
-  route        Route?       @relation(fields: [route_id], references: [id])
-
-  @@map("user_stamps")
+  @@unique([city_id, route_id], map: "city_route_city_id_route_id_0d0cd56f_uniq")
+  @@map("city_route")
 }
 
 model AnchorPointCategory {
-  id         String    @id @default(uuid())
-  name       String
-  icon_name  String
-  icon_image String?
-  active     Boolean   @default(true)
-  
+  id         BigInt   @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  icon_name  String   @unique(map: "icon_name") @db.VarChar(100)
+  is_active  Boolean  @db.TinyInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
   anchor_points AnchorPoint[]
 
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
-
-  @@map("anchor_point_categories")
+  @@map("anchorpoint_category")
 }
 
-model RouteSegment {
-  id           String @id @default(uuid())
-  route_id     String
-  from_city_id String
-  to_city_id   String
-  distance     Float?
-  
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
+model AnchorPoint {
+  id                      BigInt   @id @default(autoincrement())
+  name                    String?  @db.VarChar(255)
+  latitude                Decimal? @db.Decimal(9, 6)
+  longitude               Decimal? @db.Decimal(9, 6)
+  business_hours          String?  @db.VarChar(120)
+  phone                   String?  @db.VarChar(30)
+  image                   String   @db.VarChar(100)
+  address                 String?  @db.VarChar(255)
+  is_event_anchorpoint    Boolean  @db.TinyInt
+  active                  Boolean  @db.TinyInt
+  anchorpoint_category_id BigInt
+  city_id                 BigInt?
 
-  route     Route @relation(fields: [route_id], references: [id])
-  from_city City  @relation("SegmentOrigin", fields: [from_city_id], references: [id])
-  to_city   City  @relation("SegmentDestination", fields: [to_city_id], references: [id])
+  category AnchorPointCategory @relation(fields: [anchorpoint_category_id], references: [id])
+  city     City?               @relation(fields: [city_id], references: [id])
 
-  @@map("route_segments")
+  @@map("anchorpoint")
 }
 
-model RouteAnchorPoint {
-  id              String  @id @default(uuid())
-  route_id        String
-  anchor_point_id String
-  on_route        Boolean @default(false)  // faz parte do trajeto principal da rota?
+model AuthUser {
+  id           Int       @id @default(autoincrement())
+  password     String    @db.VarChar(128)
+  last_login   DateTime? @db.DateTime(6)
+  is_superuser Boolean   @db.TinyInt
+  username     String    @unique(map: "username") @db.VarChar(150)
+  first_name   String    @db.VarChar(150)
+  last_name    String    @db.VarChar(150)
+  email        String    @db.VarChar(254)
+  is_staff     Boolean   @db.TinyInt
+  is_active    Boolean   @db.TinyInt
+  date_joined  DateTime  @db.DateTime(6)
 
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
+  profile UserProfile?
 
-  route        Route       @relation(fields: [route_id], references: [id])
-  anchor_point AnchorPoint @relation(fields: [anchor_point_id], references: [id])
-
-  @@map("route_anchor_points")
+  @@map("auth_user")
 }
 
-model CityImage {
-  id         String    @id @default(uuid())
-  city_id    String
-  url        String
-  caption    String?   // legenda opcional
-  order      Int       @default(0) // pra ordenar as fotos na galeria
-  active     Boolean   @default(true)
+model UserProfile {
+  user_id              Int       @id
+  birth_date           DateTime? @db.Date
+  document             String?   @db.VarChar(20)
+  document_type        String?   @db.VarChar(3)
+  social_network       String?   @db.VarChar(255)
+  social_network_type  String?   @db.VarChar(12)
+  profile_picture_path String?   @db.VarChar(100)
+  created_at           DateTime  @db.DateTime(6)
+  updated_at           DateTime  @db.DateTime(6)
 
-  city       City      @relation(fields: [city_id], references: [id])
+  user AuthUser @relation(fields: [user_id], references: [id])
 
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
-
-  @@map("city_images")
-}
-
-model AnchorPointImage {
-  id              String    @id @default(uuid())
-  anchor_point_id String
-  url             String
-  caption         String?
-  order           Int       @default(0)
-  active          Boolean   @default(true)
-
-  anchor_point    AnchorPoint @relation(fields: [anchor_point_id], references: [id])
-
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
-
-  @@map("anchor_point_images")
+  @@map("user_profile")
 }

@@ -16,13 +16,6 @@ import { UpdateAnchorPointDto } from './dto/update-anchor-point.dto';
 export class AnchorPointsController {
   constructor(private readonly anchorPointsService: AnchorPointsService) {}
 
-  @Post()
-  create(
-    @Body() createAnchorPointDto: CreateAnchorPointDto,
-  ): Promise<AnchorPointResponseDto> {
-    return this.anchorPointsService.create(createAnchorPointDto);
-  }
-
   @Get()
   findAll() {
     return this.anchorPointsService.findAll();
@@ -36,18 +29,5 @@ export class AnchorPointsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.anchorPointsService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateAnchorPointDto: UpdateAnchorPointDto,
-  ) {
-    return this.anchorPointsService.update(id, updateAnchorPointDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.anchorPointsService.remove(id);
   }
 }

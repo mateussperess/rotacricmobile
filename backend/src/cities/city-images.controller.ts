@@ -13,7 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { CreateCityImageDto } from '../cloudinary/create-city-image.dto';
-import { CityImagesService } from './ city-images.service';
+import { CityImagesService } from './city-images.service';
 
 @Controller('cities/:cityId/images')
 export class CityImagesController {

@@ -1,5 +1,3 @@
-import { RouteAnchorPoint as PrismaRouteAnchorPoint } from '@prisma/client';
-
 export class RouteAnchorPointResponseDto {
   id: string;
   route_id: string;
@@ -8,12 +6,12 @@ export class RouteAnchorPointResponseDto {
   created_at: Date;
   updated_at: Date;
 
-  constructor(routeAnchorPoint: PrismaRouteAnchorPoint) {
-    this.id = routeAnchorPoint.id;
-    this.route_id = routeAnchorPoint.route_id;
-    this.anchor_point_id = routeAnchorPoint.anchor_point_id;
-    this.on_route = routeAnchorPoint.on_route;
-    this.created_at = routeAnchorPoint.created_at;
-    this.updated_at = routeAnchorPoint.updated_at;
+  constructor(rap: any) {
+    this.id = rap.id?.toString() ?? '';
+    this.route_id = rap.route_id?.toString() ?? '';
+    this.anchor_point_id = rap.anchor_point_id?.toString() ?? '';
+    this.on_route = Boolean(rap.on_route);
+    this.created_at = rap.created_at ?? new Date();
+    this.updated_at = rap.updated_at ?? new Date();
   }
 }

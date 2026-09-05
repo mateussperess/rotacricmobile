@@ -1,5 +1,3 @@
-import { AnchorPointCategory } from '../entities/anchor-point-category.entity';
-
 export class AnchorPointCategoryResponseDto {
   id: string;
   name: string;
@@ -9,13 +7,13 @@ export class AnchorPointCategoryResponseDto {
   created_at: Date;
   updated_at: Date;
 
-  constructor(anchorPointCategory: AnchorPointCategory) {
-    this.id = anchorPointCategory.id;
-    this.name = anchorPointCategory.name;
-    this.icon_name = anchorPointCategory.icon_name;
-    this.icon_image = anchorPointCategory.icon_image;
-    this.active = anchorPointCategory.active;
-    this.created_at = anchorPointCategory.created_at;
-    this.updated_at = anchorPointCategory.updated_at;
+  constructor(cat: any) {
+    this.id = cat.id?.toString() ?? '';
+    this.name = cat.name ?? '';
+    this.icon_name = cat.icon_name ?? '';
+    this.icon_image = null;
+    this.active = Boolean(cat.is_active ?? cat.active ?? true);
+    this.created_at = cat.created_at ?? new Date();
+    this.updated_at = cat.updated_at ?? new Date();
   }
 }

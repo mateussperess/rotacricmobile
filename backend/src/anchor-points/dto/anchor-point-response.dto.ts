@@ -1,4 +1,11 @@
-import { AnchorPoint } from '../entities/anchor-point.entity';
+function formatImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = process.env.MEDIA_BASE_URL || 'https://rota-cric.charqueadas.ifsul.edu.br/media/';
+  const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `${cleanBase}${cleanPath}`;
+}
 
 export class AnchorPointResponseDto {
   id: string;
@@ -13,17 +20,17 @@ export class AnchorPointResponseDto {
   created_at: Date;
   updated_at: Date;
 
-  constructor(anchorPoint: AnchorPoint) {
-    this.id = anchorPoint.id;
-    this.name = anchorPoint.name;
-    this.lat = anchorPoint.lat;
-    this.lng = anchorPoint.lng;
-    this.business_hours = anchorPoint.business_hours;
-    this.phone = anchorPoint.phone;
-    this.image = anchorPoint.image;
-    this.active = anchorPoint.active;
-    this.category_id = anchorPoint.category_id;
-    this.created_at = anchorPoint.created_at;
-    this.updated_at = anchorPoint.updated_at;
+  constructor(ap: any) {
+    this.id = ap.id?.toString() ?? '';
+    this.name = ap.name ?? '';
+    this.lat = ap.latitude !== undefined ? Number(ap.latitude) : Number(ap.lat ?? 0);
+    this.lng = ap.longitude !== undefined ? Number(ap.longitude) : Number(ap.lng ?? 0);
+    this.business_hours = ap.business_hours ?? null;
+    this.phone = ap.phone ?? null;
+    this.image = formatImageUrl(ap.image);
+    this.active = Boolean(ap.active);
+    this.category_id = ap.anchorpoint_category_id?.toString() ?? ap.category_id?.toString() ?? null;
+    this.created_at = ap.created_at ?? new Date();
+    this.updated_at = ap.updated_at ?? new Date();
   }
 }

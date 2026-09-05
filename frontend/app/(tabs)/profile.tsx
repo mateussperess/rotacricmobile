@@ -3,9 +3,10 @@ import { LoginForm } from "@/components/profile/LoginForm";
 import { ProfileView } from "@/components/profile/ProfileView";
 import { RegisterForm } from "@/components/profile/RegisterForm";
 import { styles } from "@/components/profile/styles";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -22,9 +23,17 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView
-        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#F8FAFC",
+        }}
       >
-        <Text>Carregando...</Text>
+        <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={{ marginTop: 12, color: "#64748B", fontWeight: "500" }}>
+          Carregando perfil...
+        </Text>
       </SafeAreaView>
     );
   }
@@ -36,16 +45,26 @@ export default function ProfileScreen() {
   return (
     <SafeAreaProvider>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1, backgroundColor: "#F9FAFB" }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1, backgroundColor: "#F8FAFC" }}
       >
-        <ScrollView bounces={false} contentContainerStyle={{ flexGrow: 1 }}>
-          {/* SafeAreaView só no topo, para o header azul respeitar a status bar */}
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          {/* Header Hero com Gradiente Azul e Branding */}
           <SafeAreaView edges={["top"]} style={{ backgroundColor: "#1D4ED8" }}>
             <View style={styles.headerBlue}>
-              <View style={styles.iconCircle}>
-                <FontAwesome5 name="bicycle" size={30} color="white" />
+              <View style={styles.badgeContainer}>
+                <MaterialIcons name="directions-bike" size={14} color="#E0E7FF" />
+                <Text style={styles.badgeText}>PORTAL DO CICLISTA</Text>
               </View>
+
+              <View style={styles.iconCircle}>
+                <FontAwesome5 name="bicycle" size={32} color="#FFFFFF" />
+              </View>
+
               <Text style={styles.title}>ROTA CRIC</Text>
               <Text style={styles.subtitle}>
                 Cicloturismo na Região Carbonífera
@@ -53,12 +72,15 @@ export default function ProfileScreen() {
             </View>
           </SafeAreaView>
 
+          {/* Card Flutuante de Autenticação */}
           <View style={styles.content}>
+            {/* Pill Tab Switcher */}
             <View style={styles.toggleContainer}>
               {(["login", "register"] as const).map((m) => (
                 <TouchableOpacity
                   key={m}
                   onPress={() => setMode(m)}
+                  activeOpacity={0.8}
                   style={[
                     styles.toggleButton,
                     mode === m && styles.toggleButtonActive,
@@ -76,6 +98,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
             {mode === "login" ? (
               <LoginForm
                 onSuccess={() => {}}

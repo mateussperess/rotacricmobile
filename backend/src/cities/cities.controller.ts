@@ -19,12 +19,6 @@ import { UpdateCityDto } from './dto/update-city.dto';
 export class CitiesController {
   constructor(private readonly citiesService: CitiesService) {}
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  create(@Body() createCityDto: CreateCityDto): Promise<CityResponseDto> {
-    return this.citiesService.create(createCityDto);
-  }
-
   @Get()
   @HttpCode(HttpStatus.OK)
   findAll(@Query('name') name?: string) {
@@ -37,22 +31,5 @@ export class CitiesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.citiesService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCityDto: UpdateCityDto) {
-    return this.citiesService.update(id, updateCityDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.citiesService.remove(id);
-  }
-
-  @Get(':id/route-distance')
-  @HttpCode(HttpStatus.OK)
-  getRouteDistance(@Param('id') id: string, @Query('radius') radius?: string) {
-    const radiusKm = radius ? parseFloat(radius) : 8;
-    return this.citiesService.getRouteDistanceThruCity(id, radiusKm);
   }
 }

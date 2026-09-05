@@ -18,15 +18,6 @@ export class AnchorPointCategoriesController {
     private readonly anchorPointCategoriesService: AnchorPointCategoriesService,
   ) {}
 
-  @Post()
-  create(
-    @Body() createAnchorPointCategoryDto: CreateAnchorPointCategoryDto,
-  ): Promise<AnchorPointCategoryResponseDto> {
-    return this.anchorPointCategoriesService.create(
-      createAnchorPointCategoryDto,
-    );
-  }
-
   @Get()
   findAll() {
     return this.anchorPointCategoriesService.findAll();
@@ -35,21 +26,5 @@ export class AnchorPointCategoriesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.anchorPointCategoriesService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateAnchorPointCategoryDto: UpdateAnchorPointCategoryDto,
-  ) {
-    return this.anchorPointCategoriesService.update(
-      id,
-      updateAnchorPointCategoryDto,
-    );
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.anchorPointCategoriesService.remove(id);
   }
 }

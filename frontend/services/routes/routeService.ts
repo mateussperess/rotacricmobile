@@ -7,6 +7,7 @@ export interface Route {
   strava_id: string | null;
   color: string | null;
   distance: number;
+  is_event_route?: boolean;
   active: boolean;
   created_at: string;
   updated_at: string;

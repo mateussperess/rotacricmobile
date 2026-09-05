@@ -16,28 +16,17 @@ export class CityImagesService {
     file: Express.Multer.File,
     dto: CreateCityImageDto,
   ): Promise<CityImageResponseDto> {
-    // Verifica se cidade existe
-    const city = await this.prisma.city.findFirst({
-      where: { id: cityId, deleted_at: null },
-    });
-
-    if (!city) {
-      throw new NotFoundException('Cidade não encontrada');
-    }
-
-    // Faz upload para o Cloudinary na pasta da cidade
+    const numericCityId = BigInt(cityId);
     const uploaded = await this.cloudinary.uploadImage(
       file,
       `rota-cric/cities/${cityId}`,
     );
 
-    // Salva a URL no banco
     const image = await this.prisma.cityImage.create({
       data: {
-        city_id: cityId,
-        url: uploaded.secure_url,
-        caption: dto.caption,
-        order: dto.order ?? 0,
+        city_id: numericCityId,
+        image_path: uploaded.secure_url,
+        title: dto.caption ?? null,
       },
     });
 
@@ -45,35 +34,32 @@ export class CityImagesService {
   }
 
   async findAllByCityId(cityId: string): Promise<CityImageResponseDto[]> {
-    const city = await this.prisma.city.findFirst({
-      where: { id: cityId, deleted_at: null },
-    });
-
-    if (!city) {
-      throw new NotFoundException('Cidade não encontrada');
+    let numericCityId: bigint;
+    try {
+      numericCityId = BigInt(cityId);
+    } catch {
+      return [];
     }
 
     const images = await this.prisma.cityImage.findMany({
-      where: { city_id: cityId, deleted_at: null, active: true },
-      orderBy: { order: 'asc' },
+      where: { city_id: numericCityId },
     });
 
     return images.map((img) => new CityImageResponseDto(img));
   }
 
   async remove(cityId: string, imageId: string): Promise<void> {
+    const numericImageId = BigInt(imageId);
     const image = await this.prisma.cityImage.findFirst({
-      where: { id: imageId, city_id: cityId, deleted_at: null },
+      where: { id: numericImageId },
     });
 
     if (!image) {
       throw new NotFoundException('Imagem não encontrada');
     }
 
-    // Soft delete
-    await this.prisma.cityImage.update({
-      where: { id: imageId },
-      data: { deleted_at: new Date() },
+    await this.prisma.cityImage.delete({
+      where: { id: numericImageId },
     });
   }
 }
