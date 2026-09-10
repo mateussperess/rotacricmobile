@@ -11,12 +11,11 @@ echo "[1/4] Liberando porta local 3307..."
 fuser -k 3307/tcp 2>/dev/null || true
 
 # 2. Descobrir o IP do container database na nuvem
-echo "[2/4] Consultando IP do container MySQL na nuvem..."
-echo "👉 Digite a senha de rotacric@200.132.47.33 se solicitado:"
-REMOTE_IP=$(ssh rotacric@200.132.47.33 "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' database 2>/dev/null || true")
+REMOTE_USER_HOST="${PROD_SERVER_HOST:-user@server-ip}"
+REMOTE_IP=$(ssh "$REMOTE_USER_HOST" "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' database 2>/dev/null || true")
 
 if [ -z "$REMOTE_IP" ]; then
-    echo "⚠️ Não foi possível obter o IP via container 'database'. Tentando IP genérico do Docker (172.19.0.3)..."
+    echo "⚠️ Não foi possível obter o IP via container 'database'. Tentando IP genérico do Docker..."
     REMOTE_IP="172.19.0.3"
 fi
 
@@ -24,8 +23,8 @@ echo "✅ IP retornado do MySQL em produção: $REMOTE_IP"
 
 # 3. Abrir o túnel SSH em background
 echo "[3/4] Abrindo túnel SSH (Local: 3307 -> Remoto: $REMOTE_IP:3306)..."
-echo "👉 Digite a senha de rotacric@200.132.47.33 novamente para iniciar o túnel:"
-ssh -f -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -L 3307:${REMOTE_IP}:3306 rotacric@200.132.47.33
+echo "👉 Digite a senha se solicitado:"
+ssh -f -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -L 3307:${REMOTE_IP}:3306 "$REMOTE_USER_HOST"
 
 sleep 2
 

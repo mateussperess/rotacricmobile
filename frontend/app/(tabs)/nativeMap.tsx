@@ -8,7 +8,9 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
+import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
   AnchorPoint,
   AnchorPointsService,
@@ -150,11 +152,14 @@ const UserMarker = React.memo(
 UserMarker.displayName = "UserMarker";
 
 export default function NativeMap() {
-  const { lat, lng, zoom, t } = useLocalSearchParams<{
+  const { primaryColor } = useAuth();
+  const { lat, lng, zoom, t, apId, apName } = useLocalSearchParams<{
     lat?: string;
     lng?: string;
     zoom?: string;
     t?: string;
+    apId?: string;
+    apName?: string;
   }>();
 
   const cityTarget =
@@ -167,6 +172,8 @@ export default function NativeMap() {
       : null;
 
   const [viewingCity, setViewingCity] = useState(!!cityTarget);
+  const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(null);
+  const [singleApName, setSingleApName] = useState<string | null>(null);
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
   const [following, setFollowing] = useState(!cityTarget);
@@ -281,6 +288,28 @@ export default function NativeMap() {
     }, 300);
     return () => clearTimeout(timer);
   }, [lat, lng, t, zoom]);
+
+  useEffect(() => {
+    if (apId) {
+      setSelectedSingleApId(apId);
+      setSingleApName(apName || null);
+      if (lat && lng) {
+        const latitude = parseFloat(lat);
+        const longitude = parseFloat(lng);
+        viewingCityRef.current = true;
+        setViewingCity(true);
+        followingRef.current = false;
+        setFollowing(false);
+        const timer = setTimeout(() => {
+          mapRef.current?.animateToRegion(
+            { latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 },
+            600
+          );
+        }, 350);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [apId, apName, lat, lng, t]);
 
   useEffect(() => {
     if (!location) return;
@@ -401,12 +430,15 @@ export default function NativeMap() {
       };
 
   const visibleAnchorPoints = useMemo(() => {
+    if (selectedSingleApId) {
+      return anchorPoints.filter((ap) => ap.id.toString() === selectedSingleApId);
+    }
     if (categoryFilter.size === 0) return anchorPoints;
     return anchorPoints.filter(
       (ap) =>
         ap.category?.icon_name && categoryFilter.has(ap.category.icon_name),
     );
-  }, [anchorPoints, categoryFilter]);
+  }, [anchorPoints, categoryFilter, selectedSingleApId]);
 
   const nearbyPoints = useMemo(() => {
     if (!latitude || !longitude || visibleAnchorPoints.length === 0) return [];
@@ -430,7 +462,7 @@ export default function NativeMap() {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
         {/* ── Mapa ── */}
         <Animated.View style={[styles.mapWrapper, { height: mapHeight }]}>
@@ -506,16 +538,37 @@ export default function NativeMap() {
             </Pressable>
           </View>
 
-          {viewingCity && cityTarget && (
-            <View style={styles.cityBanner}>
-              <Text style={styles.cityBannerText}>Visualizando cidade</Text>
+          {selectedSingleApId ? (
+            <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+              <Text style={styles.cityBannerText}>
+                Visualizando {singleApName || "ponto de apoio"}
+              </Text>
               <Pressable
-                onPress={handleDismissCity}
+                onPress={() => {
+                  setSelectedSingleApId(null);
+                  setSingleApName(null);
+                  setViewingCity(false);
+                  followingRef.current = true;
+                  setFollowing(true);
+                  if (location) animateToLocation(location);
+                }}
                 style={styles.cityBannerClose}
               >
                 <Text style={styles.cityBannerCloseText}>✕</Text>
               </Pressable>
             </View>
+          ) : (
+            viewingCity && cityTarget && (
+              <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+                <Text style={styles.cityBannerText}>Visualizando cidade</Text>
+                <Pressable
+                  onPress={handleDismissCity}
+                  style={styles.cityBannerClose}
+                >
+                  <Text style={styles.cityBannerCloseText}>✕</Text>
+                </Pressable>
+              </View>
+            )
           )}
 
           {acquiring && (

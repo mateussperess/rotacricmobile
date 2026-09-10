@@ -1,3 +1,4 @@
+import { useAuth } from "@/components/contexts/AuthContext";
 import { CityCard } from "@/components/CityCard";
 import { useTotalDistance } from "@/hooks/use-total-distance";
 import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
@@ -105,6 +106,7 @@ const CITY_ORDER: Record<
 type CityWithMeta = City & { anchorCount: number };
 
 export default function Cidades() {
+  const { primaryColor } = useAuth();
   const [cities, setCities] = useState<CityWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -142,11 +144,11 @@ export default function Cidades() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.hero} />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+        <View style={[styles.hero, { backgroundColor: primaryColor }]} />
         <ActivityIndicator
           size="large"
-          color={CRIC_BLUE}
+          color={primaryColor}
           style={{ flex: 1, marginTop: 40 }}
         />
       </SafeAreaView>
@@ -154,7 +156,7 @@ export default function Cidades() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <Animated.View
         style={{ flex: 1, opacity: fadeAnim, backgroundColor: "#F3F4F6" }}
       >
@@ -165,7 +167,7 @@ export default function Cidades() {
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <View>
-              <View style={styles.hero}>
+              <View style={[styles.hero, { backgroundColor: primaryColor }]}>
                 <Text style={styles.brand}>ROTA CRIC</Text>
                 <Text style={styles.heroTitle}>Cidades da Rota</Text>
                 <Text style={styles.heroSub}>

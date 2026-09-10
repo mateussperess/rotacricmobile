@@ -1,3 +1,4 @@
+import { useAuth } from "@/components/contexts/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef, useState } from "react";
@@ -14,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const CRIC_BLUE = "#2563EB";
 
 export default function EscanearScreen() {
+  const { primaryColor } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState<string | null>(null);
@@ -22,15 +24,15 @@ export default function EscanearScreen() {
   // ── Loading de permissão ──
   if (!permission) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
         <View style={styles.screen}>
-          <View style={styles.hero}>
+          <View style={[styles.hero, { backgroundColor: primaryColor }]}>
             <Text style={styles.brand}>ROTA CRIC</Text>
             <Text style={styles.heroTitle}>Escanear Código</Text>
           </View>
           <ActivityIndicator
             size="large"
-            color={CRIC_BLUE}
+            color={primaryColor}
             style={{ flex: 1 }}
           />
         </View>
@@ -41,9 +43,9 @@ export default function EscanearScreen() {
   // ── Sem permissão de câmera ──
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
         <View style={styles.screen}>
-          <View style={styles.hero}>
+          <View style={[styles.hero, { backgroundColor: primaryColor }]}>
             <Text style={styles.brand}>ROTA CRIC</Text>
             <Text style={styles.heroTitle}>Escanear Código</Text>
             <Text style={styles.heroSub}>
@@ -121,9 +123,9 @@ export default function EscanearScreen() {
 
   // ── Com câmera ──
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.screen}>
-        <View style={styles.hero}>
+        <View style={[styles.hero, { backgroundColor: primaryColor }]}>
           <Text style={styles.brand}>ROTA CRIC</Text>
           <Text style={styles.heroTitle}>Escanear Código</Text>
           <Text style={styles.heroSub}>
