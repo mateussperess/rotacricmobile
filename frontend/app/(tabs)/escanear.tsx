@@ -22,11 +22,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const CRIC_BLUE = "#2563EB";
-const RADIUS_LIMIT_METERS = 5; // Raio máximo de 5 metros para permitir a coleta do carimbo
+const RADIUS_LIMIT_METERS = 15; // Raio de 15m ideal para compensar margem de erro do GPS de smartphones em áreas rurais/serranas sem A-GPS
 
 const SHEET_COLLAPSED = 95;
-const SHEET_IDLE_EXPANDED = 210; // Altura compacta para exibir apenas o card de instrução sem desperdiçar espaço de câmera
-const SHEET_SCANNED_EXPANDED = 480; // Altura completa para exibir detalhes do carimbo, GPS, vizinhos e ações
+const SHEET_IDLE_EXPANDED = 210; // Altura sob medida no estado em repouso
+const SHEET_SCANNED_EXPANDED = 490; // Altura completa para os detalhes do carimbo
 
 function haversineMeters(
   lat1: number,
@@ -91,7 +91,8 @@ interface ScannedValidationResult {
   collectedAt?: string | null;
   distMeters?: number | null;
   distText?: string;
-  isWithin5m?: boolean;
+  isWithinRadius?: boolean;
+  isOnline?: boolean;
   totalStampsCount?: number;
   collectedStampsCount?: number;
   neighborPoints?: NeighborPoint[];
@@ -107,6 +108,7 @@ export default function EscanearScreen() {
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
   const [citiesMap, setCitiesMap] = useState<Map<string, string>>(new Map());
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
   const [scanned, setScanned] = useState(false);
   const [scanResult, setScanResult] = useState<ScannedValidationResult | null>(null);
@@ -117,13 +119,31 @@ export default function EscanearScreen() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
-  // Bottom Sheet deslizante & Chevron idêntico ao mapa nativo
+  // Bottom Sheet deslizante & Chevron do mapa
   const sheetAnim = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
   const chevronAnim = useRef(new Animated.Value(0)).current;
   const sheetOpen = useRef(false);
   const dragStart = useRef(0);
 
-  // Calcular a altura de expansão dinamicamente com base no estado de escaneamento
+  // Verificar se há conexão ativa de rede
+  const checkConnectivity = async (): Promise<boolean> => {
+    if (typeof navigator !== "undefined" && "onLine" in navigator) {
+      return navigator.onLine;
+    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch("https://clients3.google.com/generate_204", {
+        method: "HEAD",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return res.ok || res.status === 204;
+    } catch {
+      return false;
+    }
+  };
+
   const getMaxExpandedHeight = () => (scanned ? SHEET_SCANNED_EXPANDED : SHEET_IDLE_EXPANDED);
 
   const animateSheet = (open: boolean, forceScannedExpanded?: boolean) => {
@@ -171,7 +191,6 @@ export default function EscanearScreen() {
     })
   ).current;
 
-  // Interpolador de rotação do chevron idêntico ao mapa nativo (▲ -> ▼)
   const chevronRotate = chevronAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "180deg"],
@@ -181,6 +200,9 @@ export default function EscanearScreen() {
   const loadData = async () => {
     try {
       setLoadingCatalog(true);
+
+      const onlineStatus = await checkConnectivity();
+      setIsOnline(onlineStatus);
 
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -246,11 +268,13 @@ export default function EscanearScreen() {
   }, [scanned]);
 
   // Manipular escaneamento de QR Code
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
     const cleanData = (data || "").trim();
+    const currentOnline = await checkConnectivity();
+    setIsOnline(currentOnline);
 
     // Buscar no catálogo de carimbos
     const matchedStamp = stamps.find(
@@ -281,6 +305,7 @@ export default function EscanearScreen() {
       setScanResult({
         isValid: false,
         rawToken: cleanData,
+        isOnline: currentOnline,
       });
       animateSheet(true, true);
       return;
@@ -322,8 +347,8 @@ export default function EscanearScreen() {
       );
     }
 
-    // Validação estrita do raio de 5 metros
-    const isWithin5m = distMeters !== null && distMeters <= RADIUS_LIMIT_METERS;
+    // Validação do raio de proximidade (15 metros)
+    const isWithinRadius = distMeters !== null && distMeters <= RADIUS_LIMIT_METERS;
 
     // Calcular Pontos de Apoio Próximos Vizinhos
     let neighborPoints: NeighborPoint[] = [];
@@ -367,13 +392,13 @@ export default function EscanearScreen() {
       collectedAt,
       distMeters,
       distText: formatDistance(distMeters),
-      isWithin5m,
+      isWithinRadius,
+      isOnline: currentOnline,
       totalStampsCount,
       collectedStampsCount,
       neighborPoints,
     });
 
-    // Subir automaticamente para a altura completa de resultado escaneado
     animateSheet(true, true);
   };
 
@@ -403,7 +428,6 @@ export default function EscanearScreen() {
     }
   };
 
-  // Sem permissão de câmera
   if (!permission || !permission.granted) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
@@ -436,15 +460,23 @@ export default function EscanearScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.screen}>
-        {/* Header Superior Fixo */}
+        {/* Header Superior Fixo com indicador de Conectividade */}
         <View style={[styles.headerHero, { backgroundColor: primaryColor }]}>
           <View style={styles.headerTopRow}>
             <Text style={styles.brand}>ROTA CRIC • SCANNER</Text>
-            {loadingCatalog && (
-              <View style={styles.syncBadge}>
-                <ActivityIndicator size="small" color="#fff" />
-              </View>
-            )}
+            <View style={styles.headerRightBadges}>
+              {!isOnline && (
+                <View style={styles.offlineHeaderPill}>
+                  <Feather name="wifi-off" size={11} color="#FBBF24" />
+                  <Text style={styles.offlineHeaderPillText}>OFF-LINE</Text>
+                </View>
+              )}
+              {loadingCatalog && (
+                <View style={styles.syncBadge}>
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              )}
+            </View>
           </View>
           <Text style={styles.headerTitle}>Escanear Carimbo</Text>
           <Text style={styles.headerSub}>
@@ -495,7 +527,7 @@ export default function EscanearScreen() {
           </Animated.View>
         </View>
 
-        {/* 📑 BOTTOM SHEET DESLIZANTE (MENU COM ALTURA DINÂMICA COMPACTA EM REPOUSO) */}
+        {/* 📑 BOTTOM SHEET DESLIZANTE SOB MEDIDA */}
         <Animated.View style={[styles.sheet, { height: sheetAnim }]}>
           {/* Handle de Dragging */}
           <View {...panResponder.panHandlers} style={styles.handleArea}>
@@ -530,14 +562,14 @@ export default function EscanearScreen() {
             </Animated.Text>
           </Pressable>
 
-          {/* Conteúdo Expansível em ScrollView */}
+          {/* Conteúdo Expansível */}
           <ScrollView
             style={styles.sheetScroll}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
           >
             {!scanned ? (
-              /* ESTADO PADRÃO QUANDO NÃO ESCANEADO: EXPANDE NA MEDIDA EXATA DO CONTEÚDO (APROVEITA O ESPAÇO) */
+              /* ESTADO PADRÃO QUANDO NÃO ESCANEADO */
               <View style={styles.idleInstructionCard}>
                 <View style={styles.instructionHeaderRow}>
                   <View style={styles.instructionIconWrap}>
@@ -547,7 +579,7 @@ export default function EscanearScreen() {
                 </View>
 
                 <Text style={styles.instructionBody}>
-                  Centralize o QR Code da placa física na mira. Ao identificar um código válido a menos de 5m do Ponto de Apoio, os dados da rota serão exibidos aqui.
+                  Centralize o QR Code da placa física na mira. Ao identificar um código válido a menos de {RADIUS_LIMIT_METERS}m do Ponto de Apoio, a validação de presença e da conexão será exibida aqui.
                 </Text>
               </View>
             ) : !scanResult?.isValid ? (
@@ -569,26 +601,41 @@ export default function EscanearScreen() {
                 </Pressable>
               </View>
             ) : (
-              /* ✅ ESTADO VÁLIDO - CARIMBO & DETALHES DO PONTO */
+              /* ✅ ESTADO VÁLIDO - SINALIZAÇÃO DE PRESENÇA E CONEXÃO */
               <View style={styles.validContainer}>
-                {/* 1. BADGE DE RAIO DE DISTÂNCIA GPS (< 5m) */}
-                {scanResult.isWithin5m ? (
-                  <View style={styles.gpsSuccessBadge}>
-                    <Feather name="check-circle" size={16} color="#059669" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.gpsSuccessTitle}>Presença Confirmada (Raio {'<'} 5m)</Text>
-                      <Text style={styles.gpsSuccessSub}>
-                        Você está a apenas {scanResult.distText} do Ponto de Apoio.
-                      </Text>
+                {/* 1. SINALIZAÇÃO DAS 3 SITUAÇÕES DE BADGE (ONLINE / OFFLINE / FORA DO RAIO) */}
+                {scanResult.isWithinRadius ? (
+                  scanResult.isOnline ? (
+                    /* SITUAÇÃO A: DENTRO DO RAIO + COM INTERNET (BADGE VERDE 🟢) */
+                    <View style={styles.gpsSuccessBadge}>
+                      <Feather name="wifi" size={18} color="#059669" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.gpsSuccessTitle}>Presença Confirmada • Conexão Online 🟢</Text>
+                        <Text style={styles.gpsSuccessSub}>
+                          Você está a {scanResult.distText} do local e conectado. O carimbo será sincronizado instantaneamente.
+                        </Text>
+                      </View>
                     </View>
-                  </View>
+                  ) : (
+                    /* SITUAÇÃO B: DENTRO DO RAIO + SEM INTERNET (BADGE AMARELO 🟡) */
+                    <View style={styles.gpsWarningBadge}>
+                      <Feather name="wifi-off" size={18} color="#D97706" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.gpsWarningTitle}>Presença Confirmada • Modo Off-line 🟡</Text>
+                        <Text style={styles.gpsWarningSub}>
+                          Você está a {scanResult.distText} do local. O carimbo será salvo no aplicativo e sincronizado automaticamente ao reconectar.
+                        </Text>
+                      </View>
+                    </View>
+                  )
                 ) : (
+                  /* SITUAÇÃO C: FORA DO RAIO DE COLETA (BADGE VERMELHO 🔴) */
                   <View style={styles.gpsDangerBadge}>
-                    <Feather name="alert-circle" size={16} color="#DC2626" />
+                    <Feather name="alert-circle" size={18} color="#DC2626" />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.gpsDangerTitle}>Fora do Raio de Coleta (Raio limite: 5m)</Text>
+                      <Text style={styles.gpsDangerTitle}>Fora do Raio de Coleta 🔴 (Limite: {RADIUS_LIMIT_METERS}m)</Text>
                       <Text style={styles.gpsDangerSub}>
-                        Sua distância atual é de {scanResult.distText}. Aproxime-se a menos de 5m do local para liberar a coleta.
+                        Sua distância atual é de {scanResult.distText}. Aproxime-se a menos de {RADIUS_LIMIT_METERS}m do Ponto de Apoio para liberar a coleta.
                       </Text>
                     </View>
                   </View>
@@ -602,7 +649,6 @@ export default function EscanearScreen() {
                     📍 {scanResult.anchorPoint?.name} • {scanResult.cityName}
                   </Text>
 
-                  {/* Informações adicionais do estabelecimento */}
                   {scanResult.anchorPoint?.business_hours || scanResult.anchorPoint?.phone ? (
                     <View style={styles.detailsBox}>
                       {scanResult.anchorPoint?.business_hours ? (
@@ -663,7 +709,9 @@ export default function EscanearScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.successBannerTitle}>Carimbo Registrado com Sucesso! 🎉</Text>
                       <Text style={styles.successBannerSub}>
-                        Seu avanço foi atualizado no passaporte digital da Rota CRIC.
+                        {scanResult.isOnline
+                          ? "Sincronizado instantaneamente no servidor."
+                          : "Salvo localmente no app. Será enviado ao servidor assim que reconectar."}
                       </Text>
                     </View>
                   </View>
@@ -690,19 +738,24 @@ export default function EscanearScreen() {
                     <Pressable
                       style={({ pressed }) => [
                         styles.collectBtn,
-                        (!scanResult.isWithin5m || collecting) && styles.btnDisabled,
-                        pressed && scanResult.isWithin5m && styles.btnPressed,
+                        scanResult.isOnline ? styles.collectBtnOnline : styles.collectBtnOffline,
+                        (!scanResult.isWithinRadius || collecting) && styles.btnDisabled,
+                        pressed && scanResult.isWithinRadius && styles.btnPressed,
                       ]}
                       onPress={handleCollectStamp}
-                      disabled={!scanResult.isWithin5m || collecting}
+                      disabled={!scanResult.isWithinRadius || collecting}
                     >
                       {collecting ? (
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
                         <>
-                          <Feather name="check" size={18} color="#fff" />
+                          <Feather name={scanResult.isOnline ? "check" : "save"} size={18} color="#fff" />
                           <Text style={styles.collectBtnText}>
-                            {scanResult.isWithin5m ? "Coletar Carimbo" : "Fora do Raio (< 5m)"}
+                            {scanResult.isWithinRadius
+                              ? scanResult.isOnline
+                                ? "Coletar Carimbo (Online)"
+                                : "Coletar Carimbo (Off-line)"
+                              : `Fora do Raio (< ${RADIUS_LIMIT_METERS}m)`}
                           </Text>
                         </>
                       )}
@@ -761,6 +814,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  headerRightBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   brand: {
     fontSize: 10,
     fontWeight: "800",
@@ -778,6 +836,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.8)",
     marginTop: 2,
+  },
+  offlineHeaderPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.4)",
+  },
+  offlineHeaderPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#FBBF24",
+    letterSpacing: 0.5,
   },
   syncBadge: {
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -894,7 +969,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  /* Estado Idle Limpo (Instrução Compacta sob medida) */
+  /* Estado Idle Limpo */
   idleInstructionCard: {
     backgroundColor: "#F8FAFC",
     padding: 12,
@@ -950,10 +1025,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  /* Estado Válido & GPS */
+  /* Estado Válido & Sinalizações de Badge (Situções A, B e C) */
   validContainer: {
     paddingTop: 4,
   },
+  /* 🟢 Situação A: Presença + Online */
   gpsSuccessBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -973,8 +1049,33 @@ const styles = StyleSheet.create({
   gpsSuccessSub: {
     fontSize: 11,
     color: "#047857",
+    lineHeight: 15,
   },
 
+  /* 🟡 Situação B: Presença + Off-line */
+  gpsWarningBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FEF3C7",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    marginBottom: 12,
+  },
+  gpsWarningTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#92400E",
+  },
+  gpsWarningSub: {
+    fontSize: 11,
+    color: "#B45309",
+    lineHeight: 15,
+  },
+
+  /* 🔴 Situação C: Fora do Raio */
   gpsDangerBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1147,9 +1248,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: CRIC_BLUE,
     paddingVertical: 12,
     borderRadius: 12,
+  },
+  collectBtnOnline: {
+    backgroundColor: CRIC_BLUE,
+  },
+  collectBtnOffline: {
+    backgroundColor: "#D97706",
   },
   collectBtnText: {
     fontSize: 14,
