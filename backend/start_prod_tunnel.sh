@@ -10,8 +10,15 @@ echo "================================================="
 echo "[1/4] Liberando porta local 3307..."
 fuser -k 3307/tcp 2>/dev/null || true
 
+# Carregar variáveis do .env se existir
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 # 2. Descobrir o IP do container database na nuvem
-REMOTE_USER_HOST="${PROD_SERVER_HOST:-user@server-ip}"
+REMOTE_USER_HOST="${PROD_SERVER_HOST:-rotacric@200.132.47.33}"
 REMOTE_IP=$(ssh "$REMOTE_USER_HOST" "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' database 2>/dev/null || true")
 
 if [ -z "$REMOTE_IP" ]; then
