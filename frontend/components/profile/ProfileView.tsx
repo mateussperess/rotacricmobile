@@ -3,6 +3,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { updateUserProfile } from "@/services/users/userService";
 import { MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,7 +22,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const CRIC_BLUE = "#2563EB";
 
 export function ProfileView() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, primaryColor, isAdmin } = useAuth();
+  const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -147,10 +149,10 @@ export function ProfileView() {
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
-        {/* Header Hero Blue */}
-        <View style={styles.headerBlue}>
+        {/* Header Hero Dynamic Theme */}
+        <View style={[styles.headerBlue, { backgroundColor: primaryColor }]}>
           <View style={styles.userInfoRow}>
             <View style={styles.iconCircle}>
               <Text style={styles.avatarText}>
@@ -158,7 +160,14 @@ export function ProfileView() {
               </Text>
             </View>
             <View style={styles.userInfoText}>
-              <Text style={styles.brand}>ROTA CRIC</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.brand}>ROTA CRIC</Text>
+                {isAdmin && (
+                  <View style={styles.adminBadgeTag}>
+                    <Text style={styles.adminBadgeTagText}>ADMIN</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.title}>{user?.name || "Ciclista"}</Text>
               <Text style={styles.subtitle}>{user?.email}</Text>
 
@@ -198,7 +207,7 @@ export function ProfileView() {
           {/* Card: Informações Pessoais (Matching Web Django) */}
           <View style={styles.infoCard}>
             <View style={styles.infoCardHeader}>
-              <MaterialIcons name="badge" size={20} color={CRIC_BLUE} />
+              <MaterialIcons name="badge" size={20} color={primaryColor} />
               <Text style={styles.infoCardTitle}>Informações Pessoais</Text>
             </View>
 
@@ -238,6 +247,27 @@ export function ProfileView() {
               </Text>
             </View>
           </View>
+
+          {/* Card: Painel de Administração (Exclusivo Staff/Admin) */}
+          {(user?.is_staff || user?.is_superuser) && (
+            <View style={styles.adminCard}>
+              <View style={styles.adminCardHeader}>
+                <MaterialIcons name="admin-panel-settings" size={22} color={primaryColor} />
+                <Text style={[styles.adminCardTitle, { color: primaryColor }]}>Painel Administrativo</Text>
+              </View>
+              <Text style={styles.adminCardSubtitle}>
+                Acesso aos recursos de cadastro e gestão de Pontos de Apoio e Carimbos.
+              </Text>
+              <TouchableOpacity
+                style={[styles.btnAdminPanel, { backgroundColor: primaryColor }]}
+                onPress={() => router.push("/(tabs)/admin")}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="tune" size={18} color="#FFFFFF" />
+                <Text style={styles.btnAdminPanelText}>Gerenciar Pontos & Carimbos</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Botão Sair */}
           <TouchableOpacity style={styles.buttonLogout} onPress={logout}>
@@ -497,6 +527,21 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     marginBottom: 2,
   },
+  adminBadgeTag: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    marginBottom: 2,
+  },
+  adminBadgeTagText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
   title: {
     color: "white",
     fontSize: 20,
@@ -603,6 +648,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#0F172A",
     fontWeight: "600",
+  },
+  adminCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 16,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+  },
+  adminCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  adminCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  adminCardSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  btnAdminPanel: {
+    backgroundColor: CRIC_BLUE,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  btnAdminPanelText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
   buttonLogout: {
     marginTop: 20,

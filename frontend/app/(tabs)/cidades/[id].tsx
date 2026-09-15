@@ -9,6 +9,8 @@ import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 import { CityImageCarousel } from "@/components/CityImageCarousel";
 import { WeatherCard } from "@/components/WeatherCard";
+import { useAuth } from "@/components/contexts/AuthContext";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCityImages } from "@/hooks/use-city-images";
 import { useCityRouteDistance } from "@/hooks/use-city-route-distance";
 
@@ -37,6 +39,8 @@ type ApoioFilter = "all" | "on_route" | "off_route";
 
 export default function CidadeDetalhe() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user, primaryColor } = useAuth();
+  const isAdmin = Boolean(user?.is_staff || user?.is_superuser);
   const [city, setCity] = useState<City | null>(null);
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
   const [loadingCity, setLoadingCity] = useState(true);
@@ -131,11 +135,11 @@ export default function CidadeDetalhe() {
 
   if (loadingCity) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
         <View style={styles.container}>
           <ActivityIndicator
             size="large"
-            color={CRIC_BLUE}
+            color={primaryColor}
             style={{ flex: 1 }}
           />
         </View>
@@ -145,7 +149,7 @@ export default function CidadeDetalhe() {
 
   if (!city) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
         <View style={styles.container}>
           <View style={styles.centered}>
             <Text style={styles.errorText}>Cidade não encontrada.</Text>
@@ -177,10 +181,10 @@ export default function CidadeDetalhe() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
         {/* ── Header ── */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: primaryColor }]}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <Text style={styles.backArrow}>‹</Text>
             <Text style={styles.backLabel}>Cidades</Text>
@@ -337,6 +341,18 @@ export default function CidadeDetalhe() {
             {/* ── ABA: PONTOS DE APOIO ── */}
             {activeTab === "apoio" && (
               <>
+                {isAdmin && (
+                  <Pressable
+                    style={styles.adminApoioBtn}
+                    onPress={() => router.push("/(tabs)/admin")}
+                  >
+                    <IconSymbol size={18} name="plus.circle.fill" color="#FFFFFF" />
+                    <Text style={styles.adminApoioBtnText}>
+                      Painel Admin: Gerenciar Pontos & Carimbos
+                    </Text>
+                  </Pressable>
+                )}
+
                 {/* Filtros */}
                 <View style={styles.filterRow}>
                   {APOIO_FILTERS.map((f) => (
@@ -671,5 +687,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#2563EB",
+  },
+  adminApoioBtn: {
+    backgroundColor: CRIC_BLUE,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: CRIC_BLUE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  adminApoioBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

@@ -1,226 +1,463 @@
 import { useAuth } from "@/components/contexts/AuthContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
+import { CitiesService } from "@/services/cities/citiesService";
+import { Stamp, StampService } from "@/services/stamps/stampService";
+import * as Location from "expo-location";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const CRIC_BLUE = "#2563EB";
 
-const allStamps = [
-  {
-    id: "ap1",
-    name: "Ponto 1 — Início da Rota",
-    local: "Charqueadas - RS",
-    color: "#3B82F6",
-    icon: "🚴",
-    collectedAt: "10/04/2025 09:15",
-    collected: true,
-  },
-  {
-    id: "ap2",
-    name: "Ponto 2 — Ciclovia 3 de Outubro",
-    local: "Charqueadas - RS",
-    color: "#3B82F6",
-    icon: "🛣️",
-    collectedAt: "10/04/2025 10:30",
-    collected: true,
-  },
-  {
-    id: "ap3",
-    name: "Ponto 3 — Mina do Butiá",
-    local: "Butiá - RS",
-    color: "#F59E0B",
-    icon: "⛏️",
-    collectedAt: null,
-    collected: false,
-  },
-  {
-    id: "ap7",
-    name: "Ponto 7 — São Jerônimo",
-    local: "São Jerônimo - RS",
-    color: "#EF4444",
-    icon: "🏁",
-    collectedAt: null,
-    collected: false,
-  },
-];
+function haversineMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(meters?: number | null): string | null {
+  if (meters === undefined || meters === null || isNaN(meters)) return null;
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function formatScannedDate(dateString?: string | null): string {
+  if (!dateString) return "";
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${day}/${month}/${year} às ${hours}:${minutes}`;
+  } catch {
+    return dateString;
+  }
+}
 
 function StampCard({ stamp }: { stamp: any }) {
+  const { primaryColor } = useAuth();
+  const handleOpenOnMap = () => {
+    if (stamp.apLat !== null && stamp.apLng !== null) {
+      router.push({
+        pathname: "/(tabs)/nativeMap",
+        params: {
+          apId: stamp.anchorPointId,
+          apName: stamp.name,
+          lat: stamp.apLat.toString(),
+          lng: stamp.apLng.toString(),
+          t: Date.now().toString(),
+        },
+      });
+    }
+  };
+
   return (
     <View style={[styles.card, !stamp.collected && styles.cardLocked]}>
-      <View
-        style={[
-          styles.stampIconContainer,
-          { backgroundColor: stamp.collected ? stamp.color : "#E5E7EB" },
-        ]}
-      >
-        {stamp.collected ? (
-          <Text style={{ fontSize: 24 }}>{stamp.icon}</Text>
-        ) : (
-          <IconSymbol name="lock.fill" size={24} color="#9CA3AF" />
-        )}
-        {stamp.collected && (
-          <View style={styles.checkBadge}>
-            <IconSymbol name="checkmark.circle.fill" size={12} color="white" />
-          </View>
-        )}
-      </View>
-      <View style={styles.cardContent}>
-        <Text
-          style={[styles.stampName, !stamp.collected && styles.textDisabled]}
+      <View style={styles.cardHeaderRow}>
+        <View
+          style={[
+            styles.stampIconContainer,
+            { backgroundColor: stamp.collected ? primaryColor : "#F1F5F9" },
+          ]}
         >
-          {stamp.name}
-        </Text>
-        <View style={styles.row}>
-          <IconSymbol
-            name="mappin.and.ellipse"
-            size={12}
-            color={stamp.collected ? "#9CA3AF" : "#D1D5DB"}
-          />
-          <Text style={styles.localText}>{stamp.local}</Text>
+          {stamp.collected ? (
+            <IconSymbol name="star.fill" size={24} color="#FFFFFF" />
+          ) : (
+            <IconSymbol name="lock.fill" size={22} color="#94A3B8" />
+          )}
+          {stamp.collected && (
+            <View style={[styles.checkBadge, { backgroundColor: primaryColor }]}>
+              <IconSymbol
+                name="checkmark.circle.fill"
+                size={12}
+                color="white"
+              />
+            </View>
+          )}
         </View>
-        {stamp.collected ? (
+
+        <View style={styles.cardContent}>
+          <Text
+            style={[
+              styles.stampName,
+              !stamp.collected && styles.textLockedTitle,
+            ]}
+          >
+            {stamp.name}
+          </Text>
+
           <View style={styles.row}>
-            <IconSymbol name="clock.fill" size={10} color={CRIC_BLUE} />
-            <Text style={styles.dateText}>{stamp.collectedAt}</Text>
+            <IconSymbol name="mappin.and.ellipse" size={12} color="#64748B" />
+            <Text style={styles.localText}>{stamp.local}</Text>
           </View>
+
+          {/* Badge de Distância GPS visível em TODOS os carimbos */}
+          {stamp.distText ? (
+            <View style={[styles.distBadge, { borderColor: primaryColor + "30", backgroundColor: primaryColor + "10" }]}>
+              <IconSymbol name="mappin.circle.fill" size={11} color={primaryColor} />
+              <Text style={[styles.distBadgeText, { color: primaryColor }]}>
+                A {stamp.distText} de você
+              </Text>
+            </View>
+          ) : null}
+
+          {stamp.collected ? (
+            <View style={styles.row}>
+              <IconSymbol name="clock.fill" size={10} color={primaryColor} />
+              <Text style={[styles.dateText, { color: primaryColor }]}>{stamp.collectedAt}</Text>
+            </View>
+          ) : (
+            <Text style={styles.lockedLabel}>Bloqueado — Não coletado</Text>
+          )}
+        </View>
+
+        {stamp.collected ? (
+          <IconSymbol name="award.fill" size={22} color={primaryColor} />
         ) : (
-          <Text style={styles.lockedLabel}>Ainda não coletado</Text>
+          <IconSymbol name="lock.fill" size={18} color="#94A3B8" />
         )}
       </View>
-      {stamp.collected ? (
-        <IconSymbol name="award.fill" size={20} color={CRIC_BLUE} />
-      ) : (
-        <IconSymbol name="lock.fill" size={16} color="#D1D5DB" />
+
+      {/* Botão Ver no Mapa ativo e clicável em TODOS os carimbos */}
+      {stamp.apLat !== null && stamp.apLng !== null && (
+        <View style={styles.cardFooterAction}>
+          <Pressable style={[styles.btnViewOnMap, { borderColor: primaryColor + "40", backgroundColor: primaryColor + "10" }]} onPress={handleOpenOnMap}>
+            <IconSymbol name="map.fill" size={14} color={primaryColor} />
+            <Text style={[styles.btnViewOnMapText, { color: primaryColor }]}>
+              {stamp.collected
+                ? "Ver Ponto no Mapa"
+                : "Localizar Ponto no Mapa"}
+            </Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
 }
 
 export default function CarimbosScreen() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, primaryColor, isAdmin } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [displayStamps, setDisplayStamps] = useState<any[]>([]);
+  const [stats, setStats] = useState({ collected: 0, total: 0, progress: 0 });
 
-  const collected = allStamps.filter((s) => s.collected).length;
-  const total = allStamps.length;
-  const progress = (collected / total) * 100;
+  const loadStamps = async () => {
+    try {
+      setLoading(true);
 
-  // ── State: não logado ──
-  if (!isLoggedIn) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.headerBlue}>
-          <Text style={styles.brand}>ROTA CRIC</Text>
-          <Text style={styles.heroTitle}>Meus Carimbos</Text>
-          <Text style={styles.heroSub}>
-            Colete carimbos nos pontos da rota e ganhe seu certificado oficial.
-          </Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{total}</Text>
-              <Text style={styles.statLabel}>Pontos</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>180 km</Text>
-              <Text style={styles.statLabel}>Extensão</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>1</Text>
-              <Text style={styles.statLabel}>Certificado</Text>
-            </View>
-          </View>
-        </View>
+      // Tentar obter a localização GPS atual em segundo plano
+      let userLocation: Location.LocationObject | null = null;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          userLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+        }
+      } catch (e) {
+        console.log("GPS não disponível para cálculo de distância:", e);
+      }
 
-        <View style={styles.content}>
-          <View style={styles.loginContainer}>
-            <View style={styles.lockCircle}>
-              <IconSymbol name="lock.fill" size={36} color="#9CA3AF" />
-            </View>
-            <Text style={styles.loginTitle}>Acesso restrito</Text>
-            <Text style={styles.loginSub}>
-              Faça login para visualizar seus carimbos e acompanhar seu
-              progresso na rota.
-            </Text>
-            <View style={styles.gamificationCard}>
-              <View style={styles.row}>
-                <IconSymbol name="trophy.fill" size={18} color={CRIC_BLUE} />
-                <Text style={styles.gamificationTitle}>
-                  Sistema de gamificação
-                </Text>
-              </View>
-              <Text style={styles.gamificationText}>
-                Escaneie QR Codes nos pontos da rota, colecione carimbos e
-                complete o percurso!
-              </Text>
-              <View style={[styles.row, { marginTop: 12, gap: 8 }]}>
-                {["🚴", "⛏️", "💧", "🏁"].map((icon, i) => (
-                  <View key={i} style={styles.miniIcon}>
-                    <Text>{icon}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.primaryButton}
-              onPress={() => router.push("/profile")}
-            >
-              <Text style={styles.primaryButtonText}>Fazer login</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
+      const [anchorPointsData, stampsData, userStampsData, citiesData] =
+        await Promise.all([
+          AnchorPointsService.findAll().catch(() => []),
+          StampService.findAll().catch(() => []),
+          isLoggedIn
+            ? StampService.getUserStamps().catch(() => [])
+            : Promise.resolve([]),
+          CitiesService.findAll().catch(() => []),
+        ]);
 
-  // ── State: logado ──
+      const cityMap = new Map<string, string>();
+      (citiesData || []).forEach((c) => cityMap.set(c.id.toString(), c.name));
+
+      // Mapear apenas carimbos ativos no catálogo estritamente por anchor_point_id
+      const stampByApMap = new Map<string, Stamp>();
+      (stampsData || []).forEach((s: Stamp) => {
+        if (s.active !== false && s.anchor_point_id) {
+          stampByApMap.set(s.anchor_point_id.toString(), s);
+        }
+      });
+
+      // Mapear carimbos coletados pelo usuário por stamp_id e anchor_point_id
+      const collectedMap = new Map<string, any>();
+      (userStampsData || []).forEach((us: any) => {
+        if (us.stamp_id) collectedMap.set(us.stamp_id.toString(), us);
+        if (us.anchor_point_id)
+          collectedMap.set(`ap-${us.anchor_point_id}`, us);
+      });
+
+      let items: any[] = [];
+
+      if (anchorPointsData && anchorPointsData.length > 0) {
+        const linkedAnchorPoints = anchorPointsData.filter((ap: any) =>
+          stampByApMap.has(ap.id.toString()),
+        );
+
+        items = linkedAnchorPoints.map((ap: any) => {
+          const apIdStr = ap.id.toString();
+          const linkedStamp = stampByApMap.get(apIdStr);
+
+          const collectedEntry =
+            collectedMap.get(`ap-${apIdStr}`) ||
+            (linkedStamp ? collectedMap.get(linkedStamp.id.toString()) : null);
+
+          const isCollected = Boolean(collectedEntry);
+
+          const rawLat = ap.lat ?? ap.latitude;
+          const rawLng = ap.lng ?? ap.longitude;
+          const apLat =
+            rawLat !== undefined && rawLat !== null && !isNaN(Number(rawLat))
+              ? Number(rawLat)
+              : null;
+          const apLng =
+            rawLng !== undefined && rawLng !== null && !isNaN(Number(rawLng))
+              ? Number(rawLng)
+              : null;
+
+          let distMeters: number | null = null;
+          if (userLocation && apLat !== null && apLng !== null) {
+            distMeters = haversineMeters(
+              userLocation.coords.latitude,
+              userLocation.coords.longitude,
+              apLat,
+              apLng,
+            );
+          }
+
+          const cityId = (ap as any).city_id?.toString() || ap.category_id;
+          const cityName =
+            cityId && cityMap.has(cityId) ? cityMap.get(cityId) : "Rota CRIC";
+          const localText = `${ap.name} • ${cityName}`;
+
+          return {
+            id: apIdStr,
+            anchorPointId: apIdStr,
+            name: linkedStamp?.name || `Carimbo ${ap.name}`,
+            local: localText,
+            apLat,
+            apLng,
+            distText: formatDistance(distMeters),
+            collected: isCollected,
+            collectedAt: isCollected
+              ? formatScannedDate(collectedEntry.scanned_at)
+              : null,
+          };
+        });
+      } else {
+        items = (stampsData || []).map((stamp: Stamp) => {
+          const stampKey = stamp.id.toString();
+          const apKey = stamp.anchor_point_id
+            ? `ap-${stamp.anchor_point_id}`
+            : null;
+          const collectedEntry =
+            collectedMap.get(stampKey) ||
+            (apKey ? collectedMap.get(apKey) : null);
+          const isCollected = Boolean(collectedEntry);
+
+          const ap = stamp.anchor_point;
+          const rawLat = ap?.lat ?? ap?.latitude;
+          const rawLng = ap?.lng ?? ap?.longitude;
+          const apLat =
+            rawLat !== undefined && rawLat !== null && !isNaN(Number(rawLat))
+              ? Number(rawLat)
+              : null;
+          const apLng =
+            rawLng !== undefined && rawLng !== null && !isNaN(Number(rawLng))
+              ? Number(rawLng)
+              : null;
+
+          let distMeters: number | null = null;
+          if (userLocation && apLat !== null && apLng !== null) {
+            distMeters = haversineMeters(
+              userLocation.coords.latitude,
+              userLocation.coords.longitude,
+              apLat,
+              apLng,
+            );
+          }
+
+          const cityId = ap?.city_id ? ap.city_id.toString() : null;
+          const cityName =
+            cityId && cityMap.has(cityId) ? cityMap.get(cityId) : "Rota CRIC";
+          const localText = ap?.name ? `${ap.name} • ${cityName}` : cityName;
+
+          return {
+            id: stamp.id.toString(),
+            anchorPointId: ap?.id
+              ? ap.id.toString()
+              : stamp.anchor_point_id?.toString(),
+            name: stamp.name || ap?.name || "Carimbo Oficial",
+            local: localText,
+            apLat,
+            apLng,
+            distText: formatDistance(distMeters),
+            collected: isCollected,
+            collectedAt: isCollected
+              ? formatScannedDate(collectedEntry.scanned_at)
+              : null,
+          };
+        });
+      }
+
+      setDisplayStamps(items);
+
+      const collectedCount = items.filter((i) => i.collected).length;
+      const totalCount = items.length;
+      const progressPercent =
+        totalCount > 0 ? (collectedCount / totalCount) * 100 : 0;
+
+      setStats({
+        collected: collectedCount,
+        total: totalCount,
+        progress: progressPercent,
+      });
+    } catch (err) {
+      console.error("Erro ao carregar carimbos dinâmicos:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStamps();
+  }, [isLoggedIn]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadStamps();
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
-        <View style={styles.headerBlue}>
-          <Text style={styles.brand}>ROTA CRIC</Text>
+        <View style={[styles.headerBlue, { backgroundColor: primaryColor }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={styles.brand}>ROTA CRIC</Text>
+            {isAdmin && (
+              <View style={styles.adminPill}>
+                <Text style={styles.adminPillText}>MODO ADMIN</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.heroTitle}>Meus Carimbos</Text>
           <Text style={styles.heroSub}>
             Colete carimbos nos pontos da rota, ganhe seu certificado oficial e
-            desconto especiais nos pontos de apoio parceiros.
+            descontos especiais nos pontos de apoio parceiros.
           </Text>
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{collected}</Text>
+              <Text style={styles.statValue}>{stats.collected}</Text>
               <Text style={styles.statLabel}>Coletados</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{total - collected}</Text>
+              <Text style={styles.statValue}>
+                {stats.total - stats.collected}
+              </Text>
               <Text style={styles.statLabel}>Restantes</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{Math.round(progress)}%</Text>
+              <Text style={styles.statValue}>
+                {Math.round(stats.progress)}%
+              </Text>
               <Text style={styles.statLabel}>Progresso</Text>
             </View>
           </View>
           <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+            <View
+              style={[styles.progressBarFill, { width: `${stats.progress}%` }]}
+            />
           </View>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[primaryColor]}
+            />
+          }
         >
-          <Text style={styles.sectionLabel}>PONTOS DA ROTA</Text>
-          {allStamps.map((stamp) => (
-            <StampCard key={stamp.id} stamp={stamp} />
-          ))}
+          {!isLoggedIn && (
+            <View style={styles.guestBanner}>
+              <View style={styles.guestBannerHeader}>
+                <IconSymbol name="lock.fill" size={20} color="#2563EB" />
+                <Text style={styles.guestBannerTitle}>Modo Visitante</Text>
+              </View>
+              <Text style={styles.guestBannerText}>
+                Você está visualizando todos os pontos de carimbo da Rota CRIC.
+                Faça login na sua conta para registrá-los e acompanhar suas
+                conquistas.
+              </Text>
+              <TouchableOpacity
+                style={styles.guestBannerButton}
+                onPress={() => router.push("/profile")}
+              >
+                <Text style={styles.guestBannerButtonText}>Fazer Login</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={styles.sectionLabel}>
+            PONTOS DA ROTA ({stats.collected}/{stats.total})
+          </Text>
+
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="large" color={CRIC_BLUE} />
+              <Text style={styles.loadingText}>
+                Calculando distâncias e carregando carimbos...
+              </Text>
+            </View>
+          ) : displayStamps.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <IconSymbol name="star.fill" size={36} color="#94A3B8" />
+              <Text style={styles.emptyTitle}>Nenhum carimbo cadastrado</Text>
+              <Text style={styles.emptySub}>
+                Os administradores do RotaCRIC em breve cadastrarão carimbos
+                digitais nos pontos de apoio da rota.
+              </Text>
+            </View>
+          ) : (
+            displayStamps.map((stamp) => (
+              <StampCard key={stamp.id} stamp={stamp} />
+            ))
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -234,7 +471,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8FAFC",
   },
   headerBlue: {
     backgroundColor: CRIC_BLUE,
@@ -295,7 +532,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
     padding: 20,
@@ -304,19 +541,17 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#9CA3AF",
+    color: "#94A3B8",
     letterSpacing: 1.5,
     marginBottom: 12,
   },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#EBF5FF",
+    borderColor: "#E2E8F0",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -324,12 +559,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardLocked: {
-    opacity: 0.6,
-    borderColor: "transparent",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   stampIconContainer: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -340,25 +579,107 @@ const styles = StyleSheet.create({
     right: -4,
     backgroundColor: CRIC_BLUE,
     borderRadius: 10,
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "#fff",
   },
   cardContent: { flex: 1, marginLeft: 12 },
-  stampName: { fontSize: 14, fontWeight: "600", color: "#1F2937" },
-  textDisabled: { color: "#9CA3AF" },
-  row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
-  localText: { fontSize: 12, color: "#6B7280" },
-  dateText: { fontSize: 10, color: CRIC_BLUE },
+  stampName: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  textLockedTitle: { color: "#334155", fontWeight: "700" },
+  row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
+  localText: { fontSize: 12, color: "#64748B" },
+  distBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFF6FF",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+  },
+  distBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  dateText: { fontSize: 11, color: CRIC_BLUE, fontWeight: "600" },
   lockedLabel: {
-    fontSize: 10,
-    color: "#9CA3AF",
+    fontSize: 11,
+    color: "#64748B",
     fontStyle: "italic",
     marginTop: 4,
   },
+
+  cardFooterAction: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  btnViewOnMap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  btnViewOnMapText: {
+    color: "#2563EB",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  guestBanner: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+  },
+  guestBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  guestBannerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E40AF",
+  },
+  guestBannerText: {
+    fontSize: 12,
+    color: "#3B82F6",
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  guestBannerButton: {
+    backgroundColor: CRIC_BLUE,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  guestBannerButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
   loginContainer: {
     flex: 1,
     alignItems: "center",
@@ -426,4 +747,50 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   primaryButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+
+  loadingBox: {
+    padding: 40,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#64748B",
+    fontSize: 13,
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 10,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  adminPill: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  adminPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
 });
