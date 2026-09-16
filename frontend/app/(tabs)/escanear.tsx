@@ -2,6 +2,10 @@ import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPoint, AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { Stamp, StampService } from "@/services/stamps/stampService";
+import {
+  StampsOfflineRepository,
+  SyncQueueRepository,
+} from "@/services/database/offlineRepositories";
 import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
@@ -73,7 +77,7 @@ function formatDate(dateStr?: string | null): string {
 interface NeighborPoint {
   id: string;
   name: string;
-  cityName: string;
+  cityName?: string;
   distMeters: number;
   lat: number;
   lng: number;
@@ -416,7 +420,32 @@ export default function EscanearScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
     try {
-      await new Promise((res) => setTimeout(res, 600));
+      if (scanResult.stamp.id || scanResult.anchorPoint?.id) {
+        await StampsOfflineRepository.markAsCollected(
+          scanResult.stamp.id,
+          scanResult.anchorPoint?.id
+        );
+
+        const clientUuid = `mobile-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        await SyncQueueRepository.enqueueAction("COLLECT_STAMP", {
+          stamp_id: scanResult.stamp.id,
+          anchor_point_id:
+            scanResult.anchorPoint?.id || scanResult.stamp.anchor_point_id,
+          client_uuid: clientUuid,
+          scanned_at: new Date().toISOString(),
+          latitude:
+            userLocation?.coords.latitude ||
+            scanResult.anchorPoint?.lat ||
+            null,
+          longitude:
+            userLocation?.coords.longitude ||
+            scanResult.anchorPoint?.lng ||
+            null,
+        });
+
+        StampService.processSyncQueue();
+      }
+      await new Promise((res) => setTimeout(res, 500));
 
       setCollectSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -573,7 +602,7 @@ export default function EscanearScreen() {
               <View style={styles.idleInstructionCard}>
                 <View style={styles.instructionHeaderRow}>
                   <View style={styles.instructionIconWrap}>
-                    <Feather name="qr-code" size={18} color={CRIC_BLUE} />
+                    <Feather name="code" size={18} color={CRIC_BLUE} />
                   </View>
                   <Text style={styles.instructionTitle}>Como escanear seu carimbo</Text>
                 </View>

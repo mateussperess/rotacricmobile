@@ -42,6 +42,8 @@ const MAPPING = {
   "xmark.circle.fill": "cancel",
   qrcode: "qr-code",
   magnifyingglass: "search",
+  "wifi.slash": "wifi-off",
+  "cloud.sync": "sync",
 } as const;
 
 /**

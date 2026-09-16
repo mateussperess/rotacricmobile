@@ -8,6 +8,7 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
+import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -19,6 +20,7 @@ import { CitiesService } from "@/services/cities/citiesService";
 import { Route, RoutesService } from "@/services/routes/routeService";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
+import NetInfo from "@react-native-community/netinfo";
 import { useLocalSearchParams } from "expo-router";
 import React, {
   useCallback,
@@ -260,13 +262,16 @@ export default function NativeMap() {
   const followingRef = useRef(!cityTarget);
   const viewingCityRef = useRef(!!cityTarget);
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const geocodedRef = useRef<boolean>(false);
   const acquiredRef = useRef(false);
   const anchorFetchedRef = useRef(false);
 
   useEffect(() => {
-    RoutesService.findAll().then(setRoutes);
-    AnchorPointsService.findAll().then((pts) => {
-      if (pts) setAnchorPoints(pts);
+    BootstrapOfflineService.syncBootstrapData().finally(() => {
+      RoutesService.findAll().then(setRoutes);
+      AnchorPointsService.findAll().then((pts) => {
+        if (pts) setAnchorPoints(pts);
+      });
     });
   }, []);
 
@@ -312,17 +317,42 @@ export default function NativeMap() {
   }, [apId, apName, lat, lng, t]);
 
   useEffect(() => {
-    if (!location) return;
+    if (!location || geocodedRef.current) return;
+
+    if (
+      cityName &&
+      cityName !== "Localizando..." &&
+      cityName !== "Erro ao obter localização" &&
+      cityName !== "Rota CRIC"
+    ) {
+      geocodedRef.current = true;
+      return;
+    }
+
     const { latitude, longitude } = location.coords;
     (async () => {
-      const [place] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-      const name = place?.city ?? place?.subregion ?? null;
-      setCityName(name);
+      try {
+        const netState = await NetInfo.fetch();
+        if (!netState.isConnected) return;
+
+        const results = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        }).catch(() => null);
+
+        if (results && results.length > 0) {
+          const place = results[0];
+          const name = place?.city ?? place?.subregion ?? null;
+          if (name) {
+            setCityName(name);
+            geocodedRef.current = true;
+          }
+        }
+      } catch {
+        // Geocodificação reversa exige internet. Ignorar silenciosamente offline.
+      }
     })();
-  }, [location]);
+  }, [location, cityName]);
 
   const routeCoordinates = useMemo(() => {
     const activeRoutes = includeEventRoutes

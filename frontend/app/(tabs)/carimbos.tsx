@@ -191,100 +191,70 @@ export default function CarimbosScreen() {
         await Promise.all([
           AnchorPointsService.findAll().catch(() => []),
           StampService.findAll().catch(() => []),
-          isLoggedIn
-            ? StampService.getUserStamps().catch(() => [])
-            : Promise.resolve([]),
+          StampService.getUserStamps().catch(() => []),
           CitiesService.findAll().catch(() => []),
         ]);
 
       const cityMap = new Map<string, string>();
       (citiesData || []).forEach((c) => cityMap.set(c.id.toString(), c.name));
 
-      // Mapear apenas carimbos ativos no catálogo estritamente por anchor_point_id
-      const stampByApMap = new Map<string, Stamp>();
+      const apMap = new Map<string, any>();
+      (anchorPointsData || []).forEach((ap: any) => {
+        apMap.set(ap.id.toString(), ap);
+      });
+
+      // Mapear carimbos coletados pelo usuário separando ID do carimbo e ID do ponto de apoio
+      const collectedByStampId = new Map<string, any>();
+      const collectedByApId = new Map<string, any>();
+      (userStampsData || []).forEach((us: any) => {
+        const sId = (us.stamp_id || us.stamp?.id)?.toString();
+        const apId = (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString();
+        if (sId) collectedByStampId.set(sId, us);
+        if (apId) collectedByApId.set(apId, us);
+      });
+
+      // Mapear catálogo de carimbos ativos
+      const stampsListMap = new Map<string, any>();
       (stampsData || []).forEach((s: Stamp) => {
-        if (s.active !== false && s.anchor_point_id) {
-          stampByApMap.set(s.anchor_point_id.toString(), s);
+        if (s.active !== false && s.id) {
+          stampsListMap.set(s.id.toString(), s);
         }
       });
 
-      // Mapear carimbos coletados pelo usuário por stamp_id e anchor_point_id
-      const collectedMap = new Map<string, any>();
+      // Incluir na lista visual qualquer carimbo que o usuário tenha coletado off-line/localmente
       (userStampsData || []).forEach((us: any) => {
-        if (us.stamp_id) collectedMap.set(us.stamp_id.toString(), us);
-        if (us.anchor_point_id)
-          collectedMap.set(`ap-${us.anchor_point_id}`, us);
+        const sId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
+        if (sId && !stampsListMap.has(sId)) {
+          stampsListMap.set(sId, {
+            id: sId,
+            anchor_point_id: (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString(),
+            name: us.stamp?.name || us.name || "Carimbo Coletado",
+            active: true,
+          });
+        }
       });
 
       let items: any[] = [];
+      const validStampsList = Array.from(stampsListMap.values());
 
-      if (anchorPointsData && anchorPointsData.length > 0) {
-        const linkedAnchorPoints = anchorPointsData.filter((ap: any) =>
-          stampByApMap.has(ap.id.toString()),
-        );
-
-        items = linkedAnchorPoints.map((ap: any) => {
-          const apIdStr = ap.id.toString();
-          const linkedStamp = stampByApMap.get(apIdStr);
+      if (validStampsList.length > 0) {
+        items = validStampsList.map((stamp: any) => {
+          const stampIdStr = stamp.id.toString();
+          const apIdStr = stamp.anchor_point_id ? stamp.anchor_point_id.toString() : null;
 
           const collectedEntry =
-            collectedMap.get(`ap-${apIdStr}`) ||
-            (linkedStamp ? collectedMap.get(linkedStamp.id.toString()) : null);
+            collectedByStampId.get(stampIdStr) ||
+            (apIdStr ? collectedByApId.get(apIdStr) : null);
 
           const isCollected = Boolean(collectedEntry);
 
-          const rawLat = ap.lat ?? ap.latitude;
-          const rawLng = ap.lng ?? ap.longitude;
-          const apLat =
-            rawLat !== undefined && rawLat !== null && !isNaN(Number(rawLat))
-              ? Number(rawLat)
-              : null;
-          const apLng =
-            rawLng !== undefined && rawLng !== null && !isNaN(Number(rawLng))
-              ? Number(rawLng)
-              : null;
-
-          let distMeters: number | null = null;
-          if (userLocation && apLat !== null && apLng !== null) {
-            distMeters = haversineMeters(
-              userLocation.coords.latitude,
-              userLocation.coords.longitude,
-              apLat,
-              apLng,
-            );
-          }
-
-          const cityId = (ap as any).city_id?.toString() || ap.category_id;
+          const ap = apIdStr ? apMap.get(apIdStr) : stamp.anchor_point;
+          const apName = ap?.name || stamp.name || "Ponto de Apoio";
+          const cityId = ap?.city_id?.toString() || ap?.category_id;
           const cityName =
             cityId && cityMap.has(cityId) ? cityMap.get(cityId) : "Rota CRIC";
-          const localText = `${ap.name} • ${cityName}`;
+          const localText = `${apName} • ${cityName}`;
 
-          return {
-            id: apIdStr,
-            anchorPointId: apIdStr,
-            name: linkedStamp?.name || `Carimbo ${ap.name}`,
-            local: localText,
-            apLat,
-            apLng,
-            distText: formatDistance(distMeters),
-            collected: isCollected,
-            collectedAt: isCollected
-              ? formatScannedDate(collectedEntry.scanned_at)
-              : null,
-          };
-        });
-      } else {
-        items = (stampsData || []).map((stamp: Stamp) => {
-          const stampKey = stamp.id.toString();
-          const apKey = stamp.anchor_point_id
-            ? `ap-${stamp.anchor_point_id}`
-            : null;
-          const collectedEntry =
-            collectedMap.get(stampKey) ||
-            (apKey ? collectedMap.get(apKey) : null);
-          const isCollected = Boolean(collectedEntry);
-
-          const ap = stamp.anchor_point;
           const rawLat = ap?.lat ?? ap?.latitude;
           const rawLng = ap?.lng ?? ap?.longitude;
           const apLat =
@@ -306,24 +276,17 @@ export default function CarimbosScreen() {
             );
           }
 
-          const cityId = ap?.city_id ? ap.city_id.toString() : null;
-          const cityName =
-            cityId && cityMap.has(cityId) ? cityMap.get(cityId) : "Rota CRIC";
-          const localText = ap?.name ? `${ap.name} • ${cityName}` : cityName;
-
           return {
-            id: stamp.id.toString(),
-            anchorPointId: ap?.id
-              ? ap.id.toString()
-              : stamp.anchor_point_id?.toString(),
-            name: stamp.name || ap?.name || "Carimbo Oficial",
+            id: stampIdStr,
+            anchorPointId: apIdStr,
+            name: stamp.name || `Carimbo ${apName}`,
             local: localText,
             apLat,
             apLng,
             distText: formatDistance(distMeters),
             collected: isCollected,
             collectedAt: isCollected
-              ? formatScannedDate(collectedEntry.scanned_at)
+              ? formatScannedDate(collectedEntry.scanned_at || collectedEntry.created_at)
               : null,
           };
         });

@@ -1,4 +1,5 @@
 import api from "../api";
+import { CitiesOfflineRepository } from "../database/offlineRepositories";
 
 export interface City {
   id: string;
@@ -6,6 +7,8 @@ export interface City {
   about: string | null;
   lat: number;
   lng: number;
+  latitude?: number;
+  longitude?: number;
   zoom: number;
   banner_image: string | null;
   visible: boolean;
@@ -27,25 +30,33 @@ export const CitiesService = {
   findByName: async (name: string): Promise<City | null> => {
     try {
       const { data } = await api.get(
-        `/cities?name=${encodeURIComponent(name)}`,
+        `/cities?name=${encodeURIComponent(name)}`
       );
       return data;
     } catch {
-      return null;
+      const all = await CitiesOfflineRepository.getAll();
+      return (
+        all.find(
+          (c) => c.name.toLowerCase() === name.toLowerCase()
+        ) || null
+      );
     }
   },
 
   findAll: async (): Promise<City[] | null> => {
     try {
       const { data } = await api.get("/cities");
-      const orderedData = [...data].sort((a: City, b: City) =>
-        a.name.localeCompare(b.name),
-      );
-      return orderedData;
+      if (data && Array.isArray(data)) {
+        await CitiesOfflineRepository.saveAll(data);
+        const orderedData = [...data].sort((a: City, b: City) =>
+          a.name.localeCompare(b.name)
+        );
+        return orderedData;
+      }
     } catch (error) {
-      console.error("Error fetching cities:", error);
-      return null;
+      console.log("Offline mode: Carregando cidades da base SQLite local");
     }
+    return CitiesOfflineRepository.getAll();
   },
 
   findOne: async (id: string): Promise<City | null> => {
@@ -53,8 +64,8 @@ export const CitiesService = {
       const { data } = await api.get(`/cities/${id}`);
       return data;
     } catch (error) {
-      console.error("Error fetching city:", error);
-      return null;
+      console.log("Offline mode: Carregando detalhes da cidade do SQLite local");
+      return CitiesOfflineRepository.getOne(id);
     }
   },
 
@@ -63,7 +74,7 @@ export const CitiesService = {
       const { data } = await api.get(`/cities/${cityId}/images`);
       return data;
     } catch (error) {
-      console.error("Error fetching city images:", error);
+      console.log("Offline mode: Imagens remotas indisponíveis");
       return [];
     }
   },
