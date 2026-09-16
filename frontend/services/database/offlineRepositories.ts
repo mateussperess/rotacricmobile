@@ -1,6 +1,6 @@
 import api from "../api";
 import { AnchorPoint } from "../anchorpoints/anchorPointService";
-import { City } from "../cities/citiesService";
+import { City, CityImage } from "../cities/citiesService";
 import { Route } from "../routes/routeService";
 import { Stamp } from "../stamps/stampService";
 import { getDatabase } from "./database";
@@ -723,6 +723,115 @@ export const SyncQueueRepository = {
   },
 };
 
+export const CityImagesOfflineRepository = {
+  saveAll: async (cityId: string, images: CityImage[]) => {
+    try {
+      const db = await getDatabase();
+      if (!db) return;
+      for (const img of images) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO city_images (id, city_id, url, caption, order_index, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            img.id.toString(),
+            cityId.toString(),
+            img.url,
+            img.caption || null,
+            img.order || 0,
+            img.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    } catch (e) {
+      console.warn("Erro ao salvar imagens da cidade no SQLite:", e);
+    }
+  },
+
+  getByCity: async (cityId: string): Promise<CityImage[]> => {
+    try {
+      const db = await getDatabase();
+      if (!db) return [];
+      const rows = await db.getAllAsync<any>(
+        "SELECT * FROM city_images WHERE city_id = ? ORDER BY order_index ASC",
+        [cityId]
+      );
+      if (rows && rows.length > 0) {
+        return rows.map((r) => ({
+          id: r.id,
+          city_id: r.city_id,
+          url: r.url,
+          caption: r.caption,
+          order: r.order_index,
+          created_at: r.created_at,
+        }));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+};
+
+export const WeatherOfflineRepository = {
+  saveWeather: async (key: string, data: any) => {
+    try {
+      const db = await getDatabase();
+      if (!db) return;
+      try {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO weather_cache (key, data, updated_at) VALUES (?, ?, ?)`,
+          [key, JSON.stringify(data), Date.now()]
+        );
+      } catch (err: any) {
+        // Se falhou por incompatibilidade de colunas na tabela antiga, recriar a tabela
+        await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS weather_cache (
+            key TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        `);
+        await db.runAsync(
+          `INSERT OR REPLACE INTO weather_cache (key, data, updated_at) VALUES (?, ?, ?)`,
+          [key, JSON.stringify(data), Date.now()]
+        );
+      }
+    } catch (e) {
+      console.warn("Erro ao salvar previsão do tempo no SQLite:", e);
+    }
+  },
+
+  getWeather: async (key: string): Promise<any | null> => {
+    try {
+      const db = await getDatabase();
+      if (!db) return null;
+      try {
+        const row = await db.getFirstAsync<any>(
+          "SELECT data FROM weather_cache WHERE key = ?",
+          [key]
+        );
+        if (row?.data) {
+          return JSON.parse(row.data);
+        }
+      } catch (err: any) {
+        // Se a coluna antiga estiver corrompida, tratar silenciosamente
+        await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS weather_cache (
+            key TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        `);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+};
+
 export const BootstrapOfflineService = {
   syncBootstrapData: async () => {
     try {
@@ -730,6 +839,28 @@ export const BootstrapOfflineService = {
       if (data) {
         if (data.cities && Array.isArray(data.cities)) {
           await CitiesOfflineRepository.saveAll(data.cities);
+          // Pré-carregar imagens e clima de cada cidade quando online
+          for (const city of data.cities) {
+            try {
+              const res = await api.get(`/cities/${city.id}/images`);
+              if (res.data && Array.isArray(res.data)) {
+                await CityImagesOfflineRepository.saveAll(city.id, res.data);
+              }
+            } catch {
+              // Ignorar falhas individuais de imagem
+            }
+
+            try {
+              const latVal = Number(city.lat ?? (city as any).latitude);
+              const lngVal = Number(city.lng ?? (city as any).longitude);
+              if (!isNaN(latVal) && !isNaN(lngVal) && (latVal !== 0 || lngVal !== 0)) {
+                const { fetchAndSaveWeather } = require("@/hooks/use-weather");
+                await fetchAndSaveWeather(latVal, lngVal);
+              }
+            } catch {
+              // Ignorar falhas de pré-carregamento do clima
+            }
+          }
         }
         if (data.routes && Array.isArray(data.routes)) {
           await RoutesOfflineRepository.saveAll(data.routes);

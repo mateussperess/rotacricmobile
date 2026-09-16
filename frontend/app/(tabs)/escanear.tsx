@@ -415,33 +415,48 @@ export default function EscanearScreen() {
   };
 
   const handleCollectStamp = async () => {
-    if (!scanResult || !scanResult.stamp) return;
+    if (!scanResult || !scanResult.stamp || scanResult.isCollected) return;
     setCollecting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
     try {
-      if (scanResult.stamp.id || scanResult.anchorPoint?.id) {
+      const stampId = scanResult.stamp.id?.toString();
+      const apId = (scanResult.anchorPoint?.id || scanResult.stamp.anchor_point_id)?.toString();
+
+      if (stampId || apId) {
         await StampsOfflineRepository.markAsCollected(
-          scanResult.stamp.id,
-          scanResult.anchorPoint?.id
+          stampId || "",
+          apId || ""
         );
 
-        const clientUuid = `mobile-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        await SyncQueueRepository.enqueueAction("COLLECT_STAMP", {
-          stamp_id: scanResult.stamp.id,
-          anchor_point_id:
-            scanResult.anchorPoint?.id || scanResult.stamp.anchor_point_id,
-          client_uuid: clientUuid,
-          scanned_at: new Date().toISOString(),
-          latitude:
-            userLocation?.coords.latitude ||
-            scanResult.anchorPoint?.lat ||
-            null,
-          longitude:
-            userLocation?.coords.longitude ||
-            scanResult.anchorPoint?.lng ||
-            null,
+        // Verificar se a ação já existe na fila para evitar enfileiramento duplicado
+        const pendingQueue = await SyncQueueRepository.getPendingActions();
+        const isAlreadyEnqueued = pendingQueue.some((action) => {
+          if (action.action_type !== "COLLECT_STAMP") return false;
+          const p = action.payload || {};
+          return (
+            (stampId && p.stamp_id?.toString() === stampId) ||
+            (apId && p.anchor_point_id?.toString() === apId)
+          );
         });
+
+        if (!isAlreadyEnqueued) {
+          const clientUuid = `mobile-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          await SyncQueueRepository.enqueueAction("COLLECT_STAMP", {
+            stamp_id: stampId,
+            anchor_point_id: apId,
+            client_uuid: clientUuid,
+            scanned_at: new Date().toISOString(),
+            latitude:
+              userLocation?.coords.latitude ||
+              scanResult.anchorPoint?.lat ||
+              null,
+            longitude:
+              userLocation?.coords.longitude ||
+              scanResult.anchorPoint?.lng ||
+              null,
+          });
+        }
 
         StampService.processSyncQueue();
       }

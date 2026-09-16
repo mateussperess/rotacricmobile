@@ -1,5 +1,8 @@
 import api from "../api";
-import { CitiesOfflineRepository } from "../database/offlineRepositories";
+import {
+  CitiesOfflineRepository,
+  CityImagesOfflineRepository,
+} from "../database/offlineRepositories";
 
 export interface City {
   id: string;
@@ -62,6 +65,9 @@ export const CitiesService = {
   findOne: async (id: string): Promise<City | null> => {
     try {
       const { data } = await api.get(`/cities/${id}`);
+      if (data) {
+        await CitiesOfflineRepository.saveAll([data]);
+      }
       return data;
     } catch (error) {
       console.log("Offline mode: Carregando detalhes da cidade do SQLite local");
@@ -72,10 +78,13 @@ export const CitiesService = {
   findImages: async (cityId: string): Promise<CityImage[]> => {
     try {
       const { data } = await api.get(`/cities/${cityId}/images`);
-      return data;
+      if (data && Array.isArray(data)) {
+        await CityImagesOfflineRepository.saveAll(cityId, data);
+        return data;
+      }
     } catch (error) {
-      console.log("Offline mode: Imagens remotas indisponíveis");
-      return [];
+      console.log("Offline mode: Buscando imagens salvas no SQLite local");
     }
+    return CityImagesOfflineRepository.getByCity(cityId);
   },
 };

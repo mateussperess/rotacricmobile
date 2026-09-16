@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import NetInfo from "@react-native-community/netinfo";
+import { useEffect, useState, useCallback } from "react";
+import { WeatherOfflineRepository } from "@/services/database/offlineRepositories";
 
 const WMO_CODES: Record<number, { label: string; emoji: string }> = {
   0: { label: "Céu limpo", emoji: "☀️" },
@@ -25,7 +27,7 @@ const WMO_CODES: Record<number, { label: string; emoji: string }> = {
 };
 
 export interface DayForecast {
-  date: string; // "seg", "ter", ...
+  date: string;
   maxTemp: number;
   minTemp: number;
   weatherCode: number;
@@ -44,24 +46,114 @@ export interface WeatherData {
   label: string;
   forecast: DayForecast[];
   fetchedAt: number;
+  isCachedOffline?: boolean;
 }
 
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutos
-const cache: Record<string, WeatherData> = {};
-
+const memoryCache: Record<string, WeatherData> = {};
 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+export function getWeatherKey(lat: number, lng: number): string {
+  if (isNaN(lat) || isNaN(lng)) return "0.00,0.00";
+  return `${Number(lat).toFixed(2)},${Number(lng).toFixed(2)}`;
+}
+
+export async function fetchAndSaveWeather(lat: number, lng: number): Promise<WeatherData | null> {
+  if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return null;
+  const key = getWeatherKey(lat, lng);
+
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lng}` +
+    `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum` +
+    `&timezone=America%2FSao_Paulo` +
+    `&forecast_days=5`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+
+    const json = await response.json();
+    if (!json || !json.current) {
+      throw new Error("Formato inválido de resposta do clima");
+    }
+
+    const c = json.current;
+    const d = json.daily || {};
+
+    const weatherCode = c.weather_code ?? c.weathercode ?? 0;
+    const temp = c.temperature_2m ?? 0;
+    const feelsLike = c.apparent_temperature ?? temp;
+    const windspeed = c.wind_speed_10m ?? c.windspeed_10m ?? 0;
+
+    const wmo = WMO_CODES[weatherCode] ?? { label: "Estável", emoji: "🌤️" };
+
+    const forecast: DayForecast[] = Array.isArray(d.time)
+      ? d.time.map((dateStr: string, i: number) => {
+          const day = new Date(dateStr + "T12:00:00");
+          const dayCode = (d.weather_code || d.weathercode || [])[i] ?? 0;
+          const wmoDay = WMO_CODES[dayCode] ?? {
+            label: "—",
+            emoji: "🌡️",
+          };
+          return {
+            date: DAY_NAMES[day.getDay()],
+            maxTemp: Math.round((d.temperature_2m_max || [])[i] ?? temp),
+            minTemp: Math.round((d.temperature_2m_min || [])[i] ?? temp),
+            weatherCode: dayCode,
+            emoji: wmoDay.emoji,
+            label: wmoDay.label,
+            precipitation: (d.precipitation_sum || [])[i] ?? 0,
+          };
+        })
+      : [];
+
+    const result: WeatherData = {
+      temperature: Math.round(temp),
+      feelsLike: Math.round(feelsLike),
+      windspeed: Math.round(windspeed),
+      precipitation: c.precipitation ?? 0,
+      weatherCode,
+      emoji: wmo.emoji,
+      label: wmo.label,
+      forecast,
+      fetchedAt: Date.now(),
+      isCachedOffline: false,
+    };
+
+    memoryCache[key] = result;
+    await WeatherOfflineRepository.saveWeather(key, result);
+    return result;
+  } catch (err) {
+    console.warn(`[Clima] Erro ao buscar API remota para (${key}):`, err);
+    return null;
+  }
+}
 
 export function useWeather(lat: number, lng: number) {
   const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-    const cached = cache[key];
+  const loadWeather = useCallback(async () => {
+    if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+      setLoading(false);
+      return;
+    }
 
-    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
-      setData(cached);
+    const key = getWeatherKey(lat, lng);
+    const cachedMem = memoryCache[key];
+
+    if (cachedMem && Date.now() - cachedMem.fetchedAt < CACHE_TTL) {
+      setData(cachedMem);
       setLoading(false);
       return;
     }
@@ -69,62 +161,56 @@ export function useWeather(lat: number, lng: number) {
     setLoading(true);
     setError(null);
 
-    const url =
-      `https://api.open-meteo.com/v1/forecast` +
-      `?latitude=${lat}&longitude=${lng}` +
-      `&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m,precipitation` +
-      `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum` +
-      `&timezone=America%2FSao_Paulo` +
-      `&forecast_days=5`;
+    // Tentar primeiro buscar online
+    const remoteResult = await fetchAndSaveWeather(lat, lng);
 
-    fetch(url)
-      .then((r) => r.json())
-      .then((json) => {
-        const c = json.current;
-        const d = json.daily;
+    if (remoteResult) {
+      setData(remoteResult);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
-        const wmo = WMO_CODES[c.weathercode] ?? { label: "—", emoji: "🌡️" };
-
-        const forecast: DayForecast[] = (d.time as string[]).map(
-          (dateStr: string, i: number) => {
-            const day = new Date(dateStr + "T12:00:00");
-            const wmoDay = WMO_CODES[d.weathercode[i]] ?? {
-              label: "—",
-              emoji: "🌡️",
-            };
-            return {
-              date: DAY_NAMES[day.getDay()],
-              maxTemp: Math.round(d.temperature_2m_max[i]),
-              minTemp: Math.round(d.temperature_2m_min[i]),
-              weatherCode: d.weathercode[i],
-              emoji: wmoDay.emoji,
-              label: wmoDay.label,
-              precipitation: d.precipitation_sum[i] ?? 0,
-            };
-          },
-        );
-
-        const result: WeatherData = {
-          temperature: Math.round(c.temperature_2m),
-          feelsLike: Math.round(c.apparent_temperature),
-          windspeed: Math.round(c.windspeed_10m),
-          precipitation: c.precipitation ?? 0,
-          weatherCode: c.weathercode,
-          emoji: wmo.emoji,
-          label: wmo.label,
-          forecast,
-          fetchedAt: Date.now(),
-        };
-
-        cache[key] = result;
-        setData(result);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError("Não foi possível carregar o clima.");
-        setLoading(false);
-      });
+    // Se a busca remota falhou (offline ou reconexão pendente), ler do SQLite local
+    try {
+      const offlineResult = await WeatherOfflineRepository.getWeather(key);
+      if (offlineResult) {
+        setData({ ...offlineResult, isCachedOffline: true });
+        setError(null);
+      } else {
+        setError("Modo off-line: sem previsão em cache.");
+      }
+    } catch {
+      setError("Não foi possível carregar o clima.");
+    } finally {
+      setLoading(false);
+    }
   }, [lat, lng]);
+
+  useEffect(() => {
+    loadWeather();
+  }, [loadWeather]);
+
+  // Listener para recarregar o clima automaticamente quando o dispositivo reconecta com a internet
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      if (NetInfo && typeof NetInfo.addEventListener === "function") {
+        unsubscribe = NetInfo.addEventListener((state) => {
+          if (state.isConnected === true && state.isInternetReachable !== false) {
+            loadWeather();
+          }
+        });
+      }
+    } catch {
+      // Ignorar ambiente onde NetInfo não esteja montado
+    }
+    return () => {
+      try {
+        unsubscribe();
+      } catch {}
+    };
+  }, [loadWeather]);
 
   return { data, loading, error };
 }

@@ -8,7 +8,11 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
-import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
+import {
+  BootstrapOfflineService,
+  AnchorPointsOfflineRepository,
+  RoutesOfflineRepository,
+} from "@/services/database/offlineRepositories";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -21,7 +25,7 @@ import { Route, RoutesService } from "@/services/routes/routeService";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
 import NetInfo from "@react-native-community/netinfo";
-import { useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -266,14 +270,60 @@ export default function NativeMap() {
   const acquiredRef = useRef(false);
   const anchorFetchedRef = useRef(false);
 
-  useEffect(() => {
-    BootstrapOfflineService.syncBootstrapData().finally(() => {
-      RoutesService.findAll().then(setRoutes);
-      AnchorPointsService.findAll().then((pts) => {
-        if (pts) setAnchorPoints(pts);
-      });
-    });
+  const loadMapData = useCallback(async () => {
+    try {
+      const netState = await NetInfo.fetch();
+      const isStable =
+        netState.isConnected === true && netState.isInternetReachable !== false;
+
+      if (isStable) {
+        await BootstrapOfflineService.syncBootstrapData();
+        const [pts, rts] = await Promise.all([
+          AnchorPointsService.findAll().catch(() => []),
+          RoutesService.findAll().catch(() => []),
+        ]);
+        if (pts && pts.length > 0) setAnchorPoints(pts);
+        if (rts && rts.length > 0) setRoutes(rts);
+      } else {
+        // Conexão instável ou offline: carregar estritamente do SQLite local
+        const localPts = await AnchorPointsOfflineRepository.getAll();
+        const localRoutes = await RoutesOfflineRepository.getAll();
+        if (localPts) setAnchorPoints(localPts);
+        if (localRoutes) setRoutes(localRoutes);
+      }
+    } catch {
+      const localPts = await AnchorPointsOfflineRepository.getAll();
+      const localRoutes = await RoutesOfflineRepository.getAll();
+      if (localPts) setAnchorPoints(localPts);
+      if (localRoutes) setRoutes(localRoutes);
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadMapData();
+    }, [loadMapData])
+  );
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      if (NetInfo && typeof NetInfo.addEventListener === "function") {
+        unsubscribe = NetInfo.addEventListener((state) => {
+          const isStable =
+            state.isConnected === true && state.isInternetReachable === true;
+          if (isStable) {
+            loadMapData();
+          }
+        });
+      }
+    } catch {}
+    return () => {
+      try {
+        unsubscribe();
+      } catch {}
+    };
+  }, [loadMapData]);
 
   useEffect(() => {
     if (!lat || !lng) return;

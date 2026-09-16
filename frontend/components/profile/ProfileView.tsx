@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,8 +27,20 @@ export function ProfileView() {
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date(2000, 0, 1));
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshUser();
+    } catch {
+      // Ignorar falha silenciosa no refresh
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Modal Form state
   const [editForm, setEditForm] = useState({
@@ -203,6 +216,13 @@ export function ProfileView() {
           style={styles.content}
           contentContainerStyle={styles.scrollPadding}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[primaryColor]}
+            />
+          }
         >
           {/* Card: Informações Pessoais (Matching Web Django) */}
           <View style={styles.infoCard}>

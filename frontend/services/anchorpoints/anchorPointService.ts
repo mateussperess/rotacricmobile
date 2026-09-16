@@ -63,6 +63,9 @@ export const AnchorPointsService = {
   }): Promise<AnchorPoint> => {
     try {
       const { data } = await api.post("/anchor-points", payload);
+      if (data) {
+        await AnchorPointsOfflineRepository.saveAll([data]);
+      }
       return data;
     } catch {
       const localId = `local-${Date.now()}`;
@@ -77,6 +80,7 @@ export const AnchorPointsService = {
         active: true,
         on_route: true,
         category_id: payload.category_id || null,
+        city_id: payload.city_id || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

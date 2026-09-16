@@ -34,7 +34,14 @@ export function WeatherCard({ lat, lng }: WeatherCardProps) {
       {/* ── Topo: condição atual ── */}
       <View style={styles.topRow}>
         <View>
-          <Text style={styles.sectionLabel}>CLIMA AGORA</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={styles.sectionLabel}>CLIMA AGORA</Text>
+            {data.isCachedOffline && (
+              <Text style={{ fontSize: 10, color: "#D97706", fontWeight: "700" }}>
+                • Off-line
+              </Text>
+            )}
+          </View>
           <Text style={styles.tempMain}>{data.temperature}°C</Text>
           <Text style={styles.conditionLabel}>
             {data.emoji} {data.label}

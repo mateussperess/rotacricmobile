@@ -77,7 +77,30 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
             created_at TEXT NOT NULL,
             status TEXT DEFAULT 'pending'
           );
+
+          CREATE TABLE IF NOT EXISTS city_images (
+            id TEXT PRIMARY KEY,
+            city_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            caption TEXT,
+            order_index INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT
+          );
+
+          CREATE TABLE IF NOT EXISTS weather_cache (
+            key TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
         `);
+
+        // Migration para garantir coluna 'data' se a tabela já existia com schema antigo
+        try {
+          await db.execAsync(`ALTER TABLE weather_cache ADD COLUMN data TEXT;`);
+        } catch {
+          // Coluna data já existe
+        }
+
         return db;
       } catch (e) {
         console.error("Erro ao inicializar banco de dados SQLite:", e);
