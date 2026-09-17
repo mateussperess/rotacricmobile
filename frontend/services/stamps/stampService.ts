@@ -99,7 +99,13 @@ export const StampService = {
   },
 
   deleteStamp: async (id: string): Promise<any> => {
-    const { data } = await api.delete(`/stamps/${id}`);
-    return data;
+    try {
+      const { data } = await api.delete(`/stamps/${id}`);
+      await StampsOfflineRepository.delete(id);
+      return data;
+    } catch (e) {
+      await StampsOfflineRepository.delete(id);
+      throw e;
+    }
   },
 };

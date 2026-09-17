@@ -1,5 +1,8 @@
 import api from "../api";
-import { AnchorPointsOfflineRepository } from "../database/offlineRepositories";
+import {
+  AnchorPointsOfflineRepository,
+  StampsOfflineRepository,
+} from "../database/offlineRepositories";
 
 export interface AnchorPoint {
   id: string;
@@ -99,6 +102,12 @@ export const AnchorPointsService = {
   },
 
   deleteAnchorPoint: async (id: string): Promise<void> => {
-    await api.delete(`/anchor-points/${id}`);
+    try {
+      await api.delete(`/anchor-points/${id}`);
+    } catch (e) {
+      console.warn("Exclusão offline/erro no servidor ao remover ponto de apoio:", e);
+    }
+    await AnchorPointsOfflineRepository.delete(id);
+    await StampsOfflineRepository.deleteByAnchorPoint(id);
   },
 };

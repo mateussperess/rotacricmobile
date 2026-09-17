@@ -266,6 +266,21 @@ export const AnchorPointsOfflineRepository = {
     try {
       const db = await getDatabase();
       if (!db) return;
+      if (Array.isArray(pts) && pts.length > 0) {
+        const validIds = pts.map((ap) => ap.id.toString());
+        const placeholders = validIds.map(() => "?").join(",");
+        try {
+          await db.runAsync(
+            `DELETE FROM anchor_points WHERE id NOT IN (${placeholders})`,
+            validIds
+          );
+          await db.runAsync(
+            `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
+          );
+        } catch {
+          // Ignorar se tabela estiver vazia
+        }
+      }
       for (const ap of pts) {
         const latVal = Number(ap.lat ?? (ap as any).latitude ?? 0);
         const lngVal = Number(ap.lng ?? (ap as any).longitude ?? 0);
@@ -296,6 +311,18 @@ export const AnchorPointsOfflineRepository = {
       }
     } catch (e) {
       console.warn("Erro ao salvar pontos de apoio no SQLite:", e);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const db = await getDatabase();
+      if (!db) return;
+      const strId = id.toString();
+      await db.runAsync("DELETE FROM anchor_points WHERE id = ?", [strId]);
+      await db.runAsync("DELETE FROM stamps WHERE anchor_point_id = ?", [strId]);
+    } catch (e) {
+      console.warn("Erro ao excluir ponto de apoio e carimbos vinculados do SQLite:", e);
     }
   },
 
@@ -392,10 +419,54 @@ export const AnchorPointsOfflineRepository = {
 };
 
 export const StampsOfflineRepository = {
+  deleteByAnchorPoint: async (anchorPointId: string) => {
+    try {
+      const db = await getDatabase();
+      if (!db) return;
+      await db.runAsync("DELETE FROM stamps WHERE anchor_point_id = ?", [
+        anchorPointId.toString(),
+      ]);
+    } catch (e) {
+      console.warn("Erro ao excluir carimbos por ponto de apoio do SQLite:", e);
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      const db = await getDatabase();
+      if (!db) return;
+      await db.runAsync("DELETE FROM stamps WHERE id = ?", [id.toString()]);
+    } catch (e) {
+      console.warn("Erro ao excluir carimbo do SQLite:", e);
+    }
+  },
+
   saveAll: async (stamps: Stamp[]) => {
     try {
       const db = await getDatabase();
       if (!db) return;
+
+      if (Array.isArray(stamps) && stamps.length > 0) {
+        const validIds = stamps.map((s) => s.id.toString());
+        const placeholders = validIds.map(() => "?").join(",");
+        try {
+          await db.runAsync(
+            `DELETE FROM stamps WHERE collected = 0 AND id NOT IN (${placeholders})`,
+            validIds
+          );
+        } catch {
+          // Ignorar erro se tabela estiver vazia
+        }
+      }
+
+      try {
+        await db.runAsync(
+          `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
+        );
+      } catch {
+        // Ignorar
+      }
+
       for (const s of stamps) {
         await db.runAsync(
           `INSERT INTO stamps (id, anchor_point_id, qr_code_token, name, badge_image, active)

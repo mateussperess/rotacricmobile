@@ -1,12 +1,7 @@
 import { useAuth } from "@/components/contexts/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { CustomInput } from "./CustomInput";
 import { styles } from "./styles";
 
@@ -84,10 +79,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: Props) {
 
       {/* Botão Primário Entrar */}
       <TouchableOpacity
-        style={[
-          styles.buttonPrimary,
-          loading && styles.buttonPrimaryDisabled,
-        ]}
+        style={[styles.buttonPrimary, loading && styles.buttonPrimaryDisabled]}
         onPress={handleSubmit}
         disabled={loading}
         activeOpacity={0.8}
@@ -95,7 +87,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: Props) {
         {loading ? (
           <ActivityIndicator color="white" size="small" />
         ) : (
-          <Text style={styles.buttonText}>Entrar na Rota</Text>
+          <Text style={styles.buttonText}>Entrar</Text>
         )}
       </TouchableOpacity>
     </View>

@@ -4,7 +4,7 @@ import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService"
 import { CitiesService } from "@/services/cities/citiesService";
 import { Stamp, StampService } from "@/services/stamps/stampService";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -213,21 +213,32 @@ export default function CarimbosScreen() {
         if (apId) collectedByApId.set(apId, us);
       });
 
-      // Mapear catálogo de carimbos ativos
+      // Mapear catálogo de carimbos ativos vinculados a pontos de apoio válidos
       const stampsListMap = new Map<string, any>();
       (stampsData || []).forEach((s: Stamp) => {
-        if (s.active !== false && s.id) {
+        const apId = s.anchor_point_id ? s.anchor_point_id.toString() : null;
+        const ap = apId ? apMap.get(apId) : null;
+        // Excluir carimbos inativos ou órfãos (cujo ponto de apoio foi removido ou não existe)
+        const hasValidAnchorPoint = !apId || Boolean(ap);
+
+        if (s.active !== false && s.id && hasValidAnchorPoint) {
           stampsListMap.set(s.id.toString(), s);
         }
       });
 
-      // Incluir na lista visual qualquer carimbo que o usuário tenha coletado off-line/localmente
+      // Incluir na lista visual apenas carimbos que o usuário realmente coletou off-line/localmente
       (userStampsData || []).forEach((us: any) => {
         const sId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
+        const apId = (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString();
+        const ap = apId ? apMap.get(apId) : null;
+
+        // Se o carimbo estava vinculado a um ponto de apoio que foi excluído, ignorar
+        if (apId && !ap) return;
+
         if (sId && !stampsListMap.has(sId)) {
           stampsListMap.set(sId, {
             id: sId,
-            anchor_point_id: (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString(),
+            anchor_point_id: apId,
             name: us.stamp?.name || us.name || "Carimbo Coletado",
             active: true,
           });
@@ -312,9 +323,11 @@ export default function CarimbosScreen() {
     }
   };
 
-  useEffect(() => {
-    loadStamps();
-  }, [isLoggedIn]);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadStamps();
+    }, [isLoggedIn])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
