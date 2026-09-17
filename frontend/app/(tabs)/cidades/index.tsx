@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: CRIC_BLUE,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 36,
     paddingBottom: 32,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,

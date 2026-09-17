@@ -43,6 +43,7 @@ const MAPPING = {
   qrcode: "qr-code",
   magnifyingglass: "search",
   "wifi.slash": "wifi-off",
+  wifi: "wifi",
   "cloud.sync": "sync",
 } as const;
 

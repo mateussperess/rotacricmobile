@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
   },
   headerHero: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 36,
     paddingBottom: 16,
     backgroundColor: CRIC_BLUE,
     borderBottomLeftRadius: 20,
