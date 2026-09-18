@@ -76,11 +76,25 @@ export default function AdminScreen() {
     );
   }, [stamps]);
 
-  // Lista filtrada por busca e categoria/carimbo
+  // Contadores de pontos ativos e desativados
+  const activeCount = useMemo(
+    () => anchorPoints.filter((ap) => ap.active).length,
+    [anchorPoints],
+  );
+  const inactiveCount = useMemo(
+    () => anchorPoints.filter((ap) => !ap.active).length,
+    [anchorPoints],
+  );
+
+  // Lista filtrada por busca, status e categoria/carimbo
   const filteredAnchorPoints = useMemo(() => {
     return anchorPoints.filter((ap) => {
-      // 1. Filtro por Categoria ou por ter Carimbo Vinculado
-      if (selectedCategoryFilter === "with_stamp") {
+      // 1. Filtro por Status, Categoria ou Carimbo Vinculado
+      if (selectedCategoryFilter === "active") {
+        if (!ap.active) return false;
+      } else if (selectedCategoryFilter === "inactive") {
+        if (ap.active) return false;
+      } else if (selectedCategoryFilter === "with_stamp") {
         if (!apIdsWithStamps.has(ap.id.toString())) {
           return false;
         }
@@ -304,7 +318,7 @@ export default function AdminScreen() {
       await AnchorPointsService.toggleActive(ap.id.toString());
       Alert.alert(
         "Sucesso",
-        `Ponto de Apoio "${ap.name}" ${ap.active ? "desativado" : "ativado"} com sucesso!`,
+        `Ponto de Apoio "${ap.name}" ${ap.active ? "desativado" : "ativado"} com sucesso!\n\n${ap.active ? "Ele ficou oculto para os usuários, mas pode ser reativado a qualquer momento no filtro de desativados." : "Ele voltou a ficar visível para todos os usuários."}`,
       );
       loadData();
     } catch (err) {
@@ -318,17 +332,17 @@ export default function AdminScreen() {
   // Remover Ponto de Apoio
   const handleDeleteAnchorPoint = (ap: AnchorPoint) => {
     Alert.alert(
-      "Confirmar Exclusão",
-      `Deseja realmente remover o ponto de apoio "${ap.name}"? Esta ação não pode ser desfeita.`,
+      "Excluir Permanentemente",
+      `Deseja realmente EXCLUIR o ponto de apoio "${ap.name}"?\n\nEsta ação removerá o ponto definitivamente do banco de dados. Se você deseja apenas ocultá-lo temporariamente, use a opção "Desativar".`,
       [
         { text: "Cancelar", style: "cancel" },
         {
-          text: "Remover",
+          text: "Excluir Permanentemente",
           style: "destructive",
           onPress: async () => {
             try {
               await AnchorPointsService.deleteAnchorPoint(ap.id.toString());
-              Alert.alert("Sucesso", "Ponto de Apoio removido com sucesso!");
+              Alert.alert("Sucesso", "Ponto de Apoio excluído com sucesso!");
               loadData();
             } catch (err) {
               Alert.alert("Erro", "Não foi possível remover o Ponto de Apoio.");
@@ -464,14 +478,43 @@ export default function AdminScreen() {
       {/* Cards de Métricas */}
       <View style={styles.metricsContainer}>
         <View style={styles.metricCard}>
-          <IconSymbol size={24} name="mappin.circle.fill" color={primaryColor} />
+          <IconSymbol size={20} name="mappin.circle.fill" color={primaryColor} />
           <Text style={styles.metricNumber}>{anchorPoints.length}</Text>
-          <Text style={styles.metricLabel}>Pontos de Apoio</Text>
+          <Text style={styles.metricLabel}>Total Pontos</Text>
         </View>
+
+        <Pressable
+          style={[
+            styles.metricCard,
+            selectedCategoryFilter === "active" && styles.metricCardSelected,
+          ]}
+          onPress={() =>
+            setSelectedCategoryFilter((prev) => (prev === "active" ? "all" : "active"))
+          }
+        >
+          <IconSymbol size={20} name="checkmark.circle.fill" color="#166534" />
+          <Text style={[styles.metricNumber, { color: "#166534" }]}>{activeCount}</Text>
+          <Text style={styles.metricLabel}>Ativos</Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.metricCard,
+            selectedCategoryFilter === "inactive" && styles.metricCardSelectedInactive,
+          ]}
+          onPress={() =>
+            setSelectedCategoryFilter((prev) => (prev === "inactive" ? "all" : "inactive"))
+          }
+        >
+          <IconSymbol size={20} name="slash.circle.fill" color="#EF4444" />
+          <Text style={[styles.metricNumber, { color: "#EF4444" }]}>{inactiveCount}</Text>
+          <Text style={styles.metricLabel}>Desativados</Text>
+        </Pressable>
+
         <View style={styles.metricCard}>
-          <IconSymbol size={24} name="star.fill" color="#F59E0B" />
+          <IconSymbol size={20} name="star.fill" color="#F59E0B" />
           <Text style={styles.metricNumber}>{stamps.length}</Text>
-          <Text style={styles.metricLabel}>Carimbos Ativos</Text>
+          <Text style={styles.metricLabel}>Carimbos</Text>
         </View>
       </View>
 
@@ -486,7 +529,7 @@ export default function AdminScreen() {
         </Pressable>
       </View>
 
-      {/* Barra de Busca por Palavra-Chave & Filtro por Categoria */}
+      {/* Barra de Busca por Palavra-Chave & Filtro por Categoria e Status */}
       <View style={styles.searchFilterContainer}>
         {/* Campo de Busca */}
         <View style={styles.searchBar}>
@@ -505,7 +548,7 @@ export default function AdminScreen() {
           )}
         </View>
 
-        {/* Scroll Horizontal de Filtro de Categorias */}
+        {/* Scroll Horizontal de Filtro de Categorias e Status */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -528,6 +571,52 @@ export default function AdminScreen() {
               ]}
             >
               Todas ({anchorPoints.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.filterCategoryChip,
+              selectedCategoryFilter === "active" &&
+                styles.filterCategoryChipSelected,
+            ]}
+            onPress={() =>
+              setSelectedCategoryFilter((prev) =>
+                prev === "active" ? "all" : "active",
+              )
+            }
+          >
+            <Text
+              style={[
+                styles.filterCategoryChipText,
+                selectedCategoryFilter === "active" &&
+                  styles.filterCategoryChipTextSelected,
+              ]}
+            >
+              Ativos ({activeCount})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.filterCategoryChip,
+              selectedCategoryFilter === "inactive" &&
+                styles.filterCategoryChipSelectedInactive,
+            ]}
+            onPress={() =>
+              setSelectedCategoryFilter((prev) =>
+                prev === "inactive" ? "all" : "inactive",
+              )
+            }
+          >
+            <Text
+              style={[
+                styles.filterCategoryChipText,
+                selectedCategoryFilter === "inactive" &&
+                  styles.filterCategoryChipTextSelectedInactive,
+              ]}
+            >
+              Desativados ({inactiveCount})
             </Text>
           </Pressable>
 
@@ -604,10 +693,14 @@ export default function AdminScreen() {
             <View style={styles.emptyContainer}>
               <IconSymbol size={40} name="magnifyingglass" color="#94A3B8" />
               <Text style={styles.emptyTitle}>
-                Nenhum ponto de apoio encontrado
+                {selectedCategoryFilter === "inactive"
+                  ? "Nenhum ponto desativado"
+                  : "Nenhum ponto de apoio encontrado"}
               </Text>
               <Text style={styles.emptySubtitle}>
-                Tente ajustar sua busca ou selecionar outra categoria.
+                {selectedCategoryFilter === "inactive"
+                  ? "Todos os pontos de apoio cadastrados estão ativos no momento."
+                  : "Tente ajustar sua busca ou selecionar outra categoria."}
               </Text>
               {(searchQuery.length > 0 || selectedCategoryFilter !== "all") && (
                 <Pressable
@@ -1563,6 +1656,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
+  metricCardSelected: {
+    borderColor: "#166534",
+    backgroundColor: "#F0FDF4",
+  },
+  metricCardSelectedInactive: {
+    borderColor: "#EF4444",
+    backgroundColor: "#FEF2F2",
+  },
   categoryFilterScroll: {
     flexDirection: "row",
   },
@@ -1578,12 +1679,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#273273",
     borderColor: "#273273",
   },
+  filterCategoryChipSelectedInactive: {
+    backgroundColor: "#EF4444",
+    borderColor: "#DC2626",
+  },
   filterCategoryChipText: {
     fontSize: 12,
     fontWeight: "500",
     color: "#475569",
   },
   filterCategoryChipTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  filterCategoryChipTextSelectedInactive: {
     color: "#FFFFFF",
     fontWeight: "700",
   },

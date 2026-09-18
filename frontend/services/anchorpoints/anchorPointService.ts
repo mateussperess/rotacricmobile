@@ -93,6 +93,14 @@ export const AnchorPointsService = {
   },
 
   findAllAdmin: async (): Promise<AnchorPoint[]> => {
+    try {
+      const { data } = await api.get("/anchor-points/admin/all");
+      if (data && Array.isArray(data)) {
+        return data;
+      }
+    } catch (e) {
+      console.log("Erro ao buscar todos os pontos de apoio admin:", e);
+    }
     return AnchorPointsService.findAll();
   },
 
