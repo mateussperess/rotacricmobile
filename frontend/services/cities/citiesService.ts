@@ -1,4 +1,8 @@
 import api from "../api";
+import {
+  CitiesOfflineRepository,
+  CityImagesOfflineRepository,
+} from "../database/offlineRepositories";
 
 export interface City {
   id: string;
@@ -6,6 +10,8 @@ export interface City {
   about: string | null;
   lat: number;
   lng: number;
+  latitude?: number;
+  longitude?: number;
   zoom: number;
   banner_image: string | null;
   visible: boolean;
@@ -27,44 +33,58 @@ export const CitiesService = {
   findByName: async (name: string): Promise<City | null> => {
     try {
       const { data } = await api.get(
-        `/cities?name=${encodeURIComponent(name)}`,
+        `/cities?name=${encodeURIComponent(name)}`
       );
       return data;
     } catch {
-      return null;
+      const all = await CitiesOfflineRepository.getAll();
+      return (
+        all.find(
+          (c) => c.name.toLowerCase() === name.toLowerCase()
+        ) || null
+      );
     }
   },
 
   findAll: async (): Promise<City[] | null> => {
     try {
       const { data } = await api.get("/cities");
-      const orderedData = [...data].sort((a: City, b: City) =>
-        a.name.localeCompare(b.name),
-      );
-      return orderedData;
+      if (data && Array.isArray(data)) {
+        await CitiesOfflineRepository.saveAll(data);
+        const orderedData = [...data].sort((a: City, b: City) =>
+          a.name.localeCompare(b.name)
+        );
+        return orderedData;
+      }
     } catch (error) {
-      console.error("Error fetching cities:", error);
-      return null;
+      console.log("Offline mode: Carregando cidades da base SQLite local");
     }
+    return CitiesOfflineRepository.getAll();
   },
 
   findOne: async (id: string): Promise<City | null> => {
     try {
       const { data } = await api.get(`/cities/${id}`);
+      if (data) {
+        await CitiesOfflineRepository.saveAll([data]);
+      }
       return data;
     } catch (error) {
-      console.error("Error fetching city:", error);
-      return null;
+      console.log("Offline mode: Carregando detalhes da cidade do SQLite local");
+      return CitiesOfflineRepository.getOne(id);
     }
   },
 
   findImages: async (cityId: string): Promise<CityImage[]> => {
     try {
       const { data } = await api.get(`/cities/${cityId}/images`);
-      return data;
+      if (data && Array.isArray(data)) {
+        await CityImagesOfflineRepository.saveAll(cityId, data);
+        return data;
+      }
     } catch (error) {
-      console.error("Error fetching city images:", error);
-      return [];
+      console.log("Offline mode: Buscando imagens salvas no SQLite local");
     }
+    return CityImagesOfflineRepository.getByCity(cityId);
   },
 };

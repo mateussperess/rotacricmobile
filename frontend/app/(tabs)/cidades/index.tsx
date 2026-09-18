@@ -1,13 +1,14 @@
+import { useAuth } from "@/components/contexts/AuthContext";
 import { CityCard } from "@/components/CityCard";
 import { useTotalDistance } from "@/hooks/use-total-distance";
 import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -16,7 +17,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const CRIC_BLUE = "#2563EB";
 
-// mock dos dados pra trocar pelos reais dps
 const CITY_ORDER: Record<
   string,
   {
@@ -105,20 +105,23 @@ const CITY_ORDER: Record<
 type CityWithMeta = City & { anchorCount: number };
 
 export default function Cidades() {
+  const { primaryColor } = useAuth();
   const [cities, setCities] = useState<CityWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const { data: distanceData } = useTotalDistance();
-  const totalKm = distanceData ? Math.round(distanceData.totalKm) : "—";
+  const totalKm = distanceData ? Math.round(distanceData.totalKm) : "180";
   const totalCities = cities.length;
+  const totalAnchors = cities.reduce((acc, c) => acc + c.anchorCount, 0);
 
-  useEffect(() => {
-    const fetchCities = async () => {
+  const fetchCities = useCallback(async () => {
+    try {
       const data = await CitiesService.findAll();
       if (!data) {
         setLoading(false);
+        setRefreshing(false);
         return;
       }
 
@@ -130,42 +133,42 @@ export default function Cidades() {
       );
 
       setCities(withMeta);
+    } catch (e) {
+      console.warn("Erro ao buscar cidades:", e);
+    } finally {
       setLoading(false);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-    };
-    fetchCities();
-  }, [fadeAnim]);
+      setRefreshing(false);
+    }
+  }, []);
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.hero} />
-        <ActivityIndicator
-          size="large"
-          color={CRIC_BLUE}
-          style={{ flex: 1, marginTop: 40 }}
-        />
-      </SafeAreaView>
-    );
-  }
+  useEffect(() => {
+    fetchCities();
+  }, [fetchCities]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchCities();
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <Animated.View
-        style={{ flex: 1, opacity: fadeAnim, backgroundColor: "#F3F4F6" }}
-      >
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+      <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
         <FlatList
           data={cities}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[primaryColor]}
+              tintColor="#ffffff"
+            />
+          }
           ListHeaderComponent={
             <View>
-              <View style={styles.hero}>
+              <View style={[styles.hero, { backgroundColor: primaryColor }]}>
                 <Text style={styles.brand}>ROTA CRIC</Text>
                 <Text style={styles.heroTitle}>Cidades da Rota</Text>
                 <Text style={styles.heroSub}>
@@ -174,7 +177,7 @@ export default function Cidades() {
                 </Text>
                 <View style={styles.statsRow}>
                   <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{totalCities}</Text>
+                    <Text style={styles.statValue}>{loading ? "···" : totalCities}</Text>
                     <Text style={styles.statLabel}>Cidades</Text>
                   </View>
                   <View style={styles.statDivider} />
@@ -184,9 +187,7 @@ export default function Cidades() {
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statBox}>
-                    <Text style={styles.statValue}>
-                      {cities.reduce((acc, c) => acc + c.anchorCount, 0)}
-                    </Text>
+                    <Text style={styles.statValue}>{loading ? "···" : totalAnchors}</Text>
                     <Text style={styles.statLabel}>Pontos de apoio</Text>
                   </View>
                 </View>
@@ -194,6 +195,18 @@ export default function Cidades() {
 
               <Text style={styles.sectionLabel}>MUNICÍPIOS</Text>
             </View>
+          }
+          ListEmptyComponent={
+            loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={primaryColor} />
+                <Text style={styles.loadingText}>Carregando cidades da rota...</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
+              </View>
+            )
           }
           renderItem={({ item }) => (
             <CityCard
@@ -203,7 +216,7 @@ export default function Cidades() {
             />
           )}
         />
-      </Animated.View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -219,7 +232,7 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: CRIC_BLUE,
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 36,
     paddingBottom: 32,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -269,5 +282,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7280",
   },
 });

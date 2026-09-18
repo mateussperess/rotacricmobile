@@ -1,4 +1,5 @@
 import api from "@/services/api";
+import { RoutesOfflineRepository } from "@/services/database/offlineRepositories";
 import { useEffect, useState } from "react";
 
 export interface TotalDistanceData {
@@ -15,10 +16,30 @@ export function useTotalDistance() {
       .get("/route-segments/total-distance")
       .then((response) => {
         const json = response.data;
-        setData({ totalKm: json.totalKm, segmentCount: json.segmentCount });
-        setLoading(false);
+        if (json && typeof json.totalKm === "number") {
+          setData({ totalKm: json.totalKm, segmentCount: json.segmentCount || 0 });
+          setLoading(false);
+          return;
+        }
+        throw new Error("Formato inválido");
       })
-      .catch(() => setLoading(false));
+      .catch(async () => {
+        try {
+          const offlineRoutes = await RoutesOfflineRepository.getAll();
+          const sumKm = offlineRoutes.reduce(
+            (acc, r) => acc + Number(r.distance || 0),
+            0
+          );
+          setData({
+            totalKm: sumKm > 0 ? sumKm : 180, // 180 km extensão oficial da Rota CRIC
+            segmentCount: offlineRoutes.length || 9,
+          });
+        } catch {
+          setData({ totalKm: 180, segmentCount: 9 });
+        } finally {
+          setLoading(false);
+        }
+      });
   }, []);
 
   return { data, loading };

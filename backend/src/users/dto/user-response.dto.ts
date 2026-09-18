@@ -4,6 +4,8 @@ export class UserResponseDto {
   first_name: string;
   last_name: string;
   email: string;
+  is_staff: boolean;
+  is_superuser: boolean;
   birth_date: string | null;
   document: string | null;
   document_type: string | null;
@@ -19,6 +21,8 @@ export class UserResponseDto {
     this.first_name = user.first_name ?? '';
     this.last_name = user.last_name ?? '';
     this.email = user.email ?? '';
+    this.is_staff = Boolean(user.is_staff);
+    this.is_superuser = Boolean(user.is_superuser);
 
     const profile = user.profile;
     if (profile?.birth_date) {

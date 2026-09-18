@@ -1,4 +1,5 @@
 import api from "../api";
+import { RoutesOfflineRepository } from "../database/offlineRepositories";
 
 export interface Route {
   id: string;
@@ -15,12 +16,27 @@ export interface Route {
 
 export const RoutesService = {
   findAll: async (): Promise<Route[]> => {
-    const { data } = await api.get("/routes");
-    return data;
+    try {
+      const { data } = await api.get("/routes");
+      if (data && Array.isArray(data)) {
+        await RoutesOfflineRepository.saveAll(data);
+        return data;
+      }
+    } catch (e) {
+      console.log("Offline mode: Carregando rotas da base SQLite local");
+    }
+    return RoutesOfflineRepository.getAll();
   },
 
   findOne: async (id: string): Promise<Route> => {
-    const { data } = await api.get(`/routes/${id}`);
-    return data;
+    try {
+      const { data } = await api.get(`/routes/${id}`);
+      return data;
+    } catch (e) {
+      const all = await RoutesOfflineRepository.getAll();
+      const found = all.find((r) => r.id === id);
+      if (found) return found;
+      throw new Error("Rota não encontrada offline");
+    }
   },
 };
