@@ -6,11 +6,16 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
+import * as SplashScreen from "expo-splash-screen";
 
 import { deactivateKeepAwake } from "expo-keep-awake";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AuthProvider } from "@/components/contexts/AuthContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
+
+// Manter a splash nativa visível até a inicialização inicial
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -18,11 +23,15 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
 
   useEffect(() => {
     try {
       deactivateKeepAwake().catch(() => {});
     } catch {}
+
+    // Oculta a splash nativa estática do sistema para exibir a AnimatedSplashScreen
+    SplashScreen.hideAsync().catch(() => {});
   }, []);
 
   return (
@@ -37,7 +46,13 @@ export default function RootLayout() {
           />
         </Stack>
         <StatusBar style="auto" />
+        {!splashAnimationDone && (
+          <AnimatedSplashScreen
+            onAnimationFinish={() => setSplashAnimationDone(true)}
+          />
+        )}
       </ThemeProvider>
     </AuthProvider>
   );
 }
+

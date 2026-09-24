@@ -217,7 +217,7 @@ export function NetworkStatusInlineBadge({
     outputRange: [
       statusState === "syncing"
         ? "rgba(56, 189, 248, 0.6)"
-        : "rgba(245, 158, 11, 0.6)",
+        : "rgba(2, 132, 199, 0.6)",
       "rgba(16, 185, 129, 0.8)",
     ],
   });
@@ -225,7 +225,7 @@ export function NetworkStatusInlineBadge({
   const dotColor = colorAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [
-      statusState === "syncing" ? "#0284C7" : "#F59E0B",
+      statusState === "syncing" ? "#0284C7" : "#0284C7",
       "#10B981",
     ],
   });
@@ -253,9 +253,9 @@ export function NetworkStatusInlineBadge({
       }}
     >
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         onPress={onPress}
-        style={[styles.inlinePill, { borderColor }]}
+        style={[styles.inlinePill, { borderColor: borderColor as any }]}
       >
         <Animated.View
           style={[
@@ -276,7 +276,7 @@ export function NetworkStatusInlineBadge({
               justifyContent: "center",
             }}
           >
-            {/* Ícone off-line (Wi-Fi cortado em Amarelo) */}
+            {/* Ícone off-line (Wi-Fi cortado em Azul) */}
             <Animated.View
               style={[
                 StyleSheet.absoluteFill,
@@ -287,9 +287,9 @@ export function NetworkStatusInlineBadge({
                 },
               ]}
             >
-              <IconSymbol name="wifi.slash" size={15} color="#D97706" />
+              <IconSymbol name="wifi.slash" size={15} color="#0284C7" />
             </Animated.View>
-            {/* Ícone reconectado (Wi-Fi limpo sem traço em Verde) */}
+            {/* Ícone reconectado (Wi-Fi limpo em Verde) */}
             <Animated.View
               style={[
                 StyleSheet.absoluteFill,
@@ -336,12 +336,12 @@ export function NetworkStatusBanner() {
           Animated.timing(pulseAnim, {
             toValue: 0.4,
             duration: 800,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
             duration: 800,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]),
       );
@@ -365,13 +365,13 @@ export function NetworkStatusBanner() {
     setExpanded(nextState);
     Animated.spring(scaleAnim, {
       toValue: nextState ? 1.03 : 1,
-      useNativeDriver: true,
+      useNativeDriver: false,
       speed: 25,
       bounciness: 6,
     }).start(() => {
       Animated.spring(scaleAnim, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: false,
         speed: 30,
       }).start();
     });
@@ -425,7 +425,7 @@ export function NetworkStatusBanner() {
                       : "arrow.clockwise"
                 }
                 size={13}
-                color={isReconnected ? "#10B981" : isOffline ? "#F59E0B" : "#38BDF8"}
+                color={isReconnected ? "#10B981" : isOffline ? "#38BDF8" : "#38BDF8"}
               />
 
               <Text style={styles.minimalText}>
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
   },
   borderOffline: {
     borderWidth: 1.5,
-    borderColor: "rgba(245, 158, 11, 0.6)",
+    borderColor: "rgba(56, 189, 248, 0.6)",
   },
   borderSyncing: {
     borderWidth: 1.5,
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   dotOffline: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: "#0284C7",
   },
   dotSyncing: {
     backgroundColor: "#38BDF8",
@@ -597,14 +597,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   badgeCount: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: "#0284C7",
     borderRadius: 9,
     paddingHorizontal: 5,
     paddingVertical: 1,
     marginLeft: 2,
   },
   badgeCountText: {
-    color: "#0F172A",
+    color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "900",
   },
@@ -665,15 +665,15 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255, 255, 255, 0.1)",
   },
   pendingChip: {
-    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    backgroundColor: "rgba(2, 132, 199, 0.2)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderColor: "rgba(56, 189, 248, 0.3)",
   },
   pendingChipText: {
-    color: "#FBBF24",
+    color: "#38BDF8",
     fontSize: 10,
     fontWeight: "700",
   },

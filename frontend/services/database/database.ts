@@ -110,3 +110,18 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
   }
   return dbPromise;
 }
+
+let dbLockChain: Promise<any> = Promise.resolve();
+
+export async function runWithTransaction<T>(fn: () => Promise<T>): Promise<T> {
+  const next = dbLockChain.then(async () => {
+    const db = await getDatabase();
+    if (!db) return fn();
+    if (typeof (db as any).withTransactionAsync === "function") {
+      return (db as any).withTransactionAsync(fn);
+    }
+    return fn();
+  });
+  dbLockChain = next.catch(() => {});
+  return next;
+}

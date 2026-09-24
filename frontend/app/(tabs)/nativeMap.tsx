@@ -420,8 +420,15 @@ export default function NativeMap() {
       ? routes
       : routes.filter((r) => !r.is_event_route);
 
-    return activeRoutes.map((route) => ({
-      id: route.id,
+    const uniqueRoutesMap = new Map<string, Route>();
+    (activeRoutes || []).forEach((r) => {
+      if (r && r.id) {
+        uniqueRoutesMap.set(r.id.toString(), r);
+      }
+    });
+
+    return Array.from(uniqueRoutesMap.values()).map((route, idx) => ({
+      id: route.id?.toString() || `route-${idx}`,
       color: route.color ?? "#2563EB",
       coordinates: (() => {
         try {
@@ -526,14 +533,24 @@ export default function NativeMap() {
       };
 
   const visibleAnchorPoints = useMemo(() => {
+    let list: AnchorPoint[] = [];
     if (selectedSingleApId) {
-      return anchorPoints.filter((ap) => ap.id.toString() === selectedSingleApId);
+      list = anchorPoints.filter((ap) => ap.id?.toString() === selectedSingleApId);
+    } else if (categoryFilter.size === 0) {
+      list = anchorPoints;
+    } else {
+      list = anchorPoints.filter(
+        (ap) =>
+          ap.category?.icon_name && categoryFilter.has(ap.category.icon_name),
+      );
     }
-    if (categoryFilter.size === 0) return anchorPoints;
-    return anchorPoints.filter(
-      (ap) =>
-        ap.category?.icon_name && categoryFilter.has(ap.category.icon_name),
-    );
+    const map = new Map<string, AnchorPoint>();
+    (list || []).forEach((ap) => {
+      if (ap && ap.id) {
+        map.set(ap.id.toString(), ap);
+      }
+    });
+    return Array.from(map.values());
   }, [anchorPoints, categoryFilter, selectedSingleApId]);
 
   const nearbyPoints = useMemo(() => {
@@ -573,9 +590,9 @@ export default function NativeMap() {
               setFollowing(false);
             }}
           >
-            {routeCoordinates.map((route) => (
+            {routeCoordinates.map((route, index) => (
               <Polyline
-                key={route.id}
+                key={`route-${route.id}-${index}`}
                 coordinates={route.coordinates}
                 strokeColor={route.color}
                 strokeWidth={4}
@@ -583,8 +600,8 @@ export default function NativeMap() {
               />
             ))}
 
-            {visibleAnchorPoints.map((ap) => (
-              <AnchorMarker key={ap.id} ap={ap} />
+            {visibleAnchorPoints.map((ap, index) => (
+              <AnchorMarker key={`ap-${ap.id}-${index}`} ap={ap} />
             ))}
 
             {latitude && longitude && (

@@ -46,11 +46,19 @@ function formatDistance(meters?: number | null): string | null {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-function formatScannedDate(dateString?: string | null): string {
-  if (!dateString) return "";
+function formatScannedDate(dateVal?: any): string {
+  if (!dateVal) return "Coletado";
+  let target = dateVal;
+  if (typeof dateVal === "object" && !(dateVal instanceof Date)) {
+    if (dateVal.toISOString && typeof dateVal.toISOString === "function") {
+      target = dateVal.toISOString();
+    } else {
+      return "Coletado";
+    }
+  }
   try {
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return dateString;
+    const d = new Date(target);
+    if (isNaN(d.getTime())) return "Coletado";
     const day = String(d.getDate()).padStart(2, "0");
     const month = String(d.getMonth() + 1).padStart(2, "0");
     const year = d.getFullYear();
@@ -58,8 +66,49 @@ function formatScannedDate(dateString?: string | null): string {
     const minutes = String(d.getMinutes()).padStart(2, "0");
     return `${day}/${month}/${year} às ${hours}:${minutes}`;
   } catch {
-    return dateString;
+    return "Coletado";
   }
+}
+
+function resolveCityName(
+  ap: any,
+  citiesList: any[],
+  cityMap: Map<string, string>
+): string {
+  if (!ap) return "Rota CRIC";
+  const explicitCityId = (ap.city_id || ap.city?.id)?.toString();
+  if (explicitCityId && cityMap.has(explicitCityId)) {
+    return cityMap.get(explicitCityId)!;
+  }
+  if (ap.city?.name) {
+    return ap.city.name;
+  }
+  const apLat = Number(ap.lat ?? ap.latitude);
+  const apLng = Number(ap.lng ?? ap.longitude);
+  if (
+    !isNaN(apLat) &&
+    !isNaN(apLng) &&
+    apLat !== 0 &&
+    apLng !== 0 &&
+    citiesList &&
+    citiesList.length > 0
+  ) {
+    let minDistance = Infinity;
+    let closestCityName = "Rota CRIC";
+    for (const city of citiesList) {
+      const cLat = Number(city.lat ?? city.latitude);
+      const cLng = Number(city.lng ?? city.longitude);
+      if (!isNaN(cLat) && !isNaN(cLng) && cLat !== 0 && cLng !== 0) {
+        const dist = haversineMeters(apLat, apLng, cLat, cLng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestCityName = city.name;
+        }
+      }
+    }
+    return closestCityName;
+  }
+  return "Rota CRIC";
 }
 
 function StampCard({ stamp }: { stamp: any }) {
@@ -261,9 +310,7 @@ export default function CarimbosScreen() {
 
           const ap = apIdStr ? apMap.get(apIdStr) : stamp.anchor_point;
           const apName = ap?.name || stamp.name || "Ponto de Apoio";
-          const cityId = ap?.city_id?.toString() || ap?.category_id;
-          const cityName =
-            cityId && cityMap.has(cityId) ? cityMap.get(cityId) : "Rota CRIC";
+          const cityName = resolveCityName(ap, citiesData || [], cityMap);
           const localText = `${apName} • ${cityName}`;
 
           const rawLat = ap?.lat ?? ap?.latitude;

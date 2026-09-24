@@ -223,6 +223,22 @@ export default function AdminScreen() {
     }
   };
 
+  const handleSelectCity = (city: City) => {
+    setApCityId(city.id.toString());
+    setAutoCityDetectedName(null);
+    const cAny = city as any;
+    const rawLat = city.lat ?? cAny.latitude;
+    const rawLng = city.lng ?? cAny.longitude;
+    if (rawLat !== undefined && rawLng !== undefined) {
+      const cityLat = typeof rawLat === "number" ? rawLat : parseFloat(rawLat);
+      const cityLng = typeof rawLng === "number" ? rawLng : parseFloat(rawLng);
+      if (!isNaN(cityLat) && !isNaN(cityLng)) {
+        setApLat(cityLat.toFixed(6));
+        setApLng(cityLng.toFixed(6));
+      }
+    }
+  };
+
   const handleLatChange = (text: string) => {
     setApLat(text);
     const latNum = parseFloat(text);
@@ -947,10 +963,7 @@ export default function AdminScreen() {
                       styles.chip,
                       apCityId === city.id.toString() && styles.chipSelected,
                     ]}
-                    onPress={() => {
-                      setApCityId(city.id.toString());
-                      setAutoCityDetectedName(null);
-                    }}
+                    onPress={() => handleSelectCity(city)}
                   >
                     <Text
                       style={[

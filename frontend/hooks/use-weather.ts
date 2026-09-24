@@ -69,7 +69,7 @@ export async function fetchAndSaveWeather(lat: number, lng: number): Promise<Wea
   }
 
   // Se já houver uma requisição idêntica em andamento, reutiliza a Promise (evita múltiplos fetches simultâneos)
-  if (inFlightRequests[key]) {
+  if (key in inFlightRequests) {
     return inFlightRequests[key];
   }
 

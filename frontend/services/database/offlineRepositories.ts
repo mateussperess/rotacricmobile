@@ -3,7 +3,7 @@ import { AnchorPoint } from "../anchorpoints/anchorPointService";
 import { City, CityImage } from "../cities/citiesService";
 import { Route } from "../routes/routeService";
 import { Stamp } from "../stamps/stampService";
-import { getDatabase } from "./database";
+import { getDatabase, runWithTransaction } from "./database";
 
 // Fallback seed data if DB is totally fresh and phone opens offline for the first time
 const INITIAL_CITIES_SEED: City[] = [
@@ -126,30 +126,32 @@ const INITIAL_ANCHOR_POINTS_SEED: AnchorPoint[] = [
 export const CitiesOfflineRepository = {
   saveAll: async (cities: City[]) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      for (const c of cities) {
-        const latVal = Number(c.lat ?? (c as any).latitude ?? 0);
-        const lngVal = Number(c.lng ?? (c as any).longitude ?? 0);
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        for (const c of cities) {
+          const latVal = Number(c.lat ?? (c as any).latitude ?? 0);
+          const lngVal = Number(c.lng ?? (c as any).longitude ?? 0);
 
-        await db.runAsync(
-          `INSERT OR REPLACE INTO cities (id, name, about, lat, lng, zoom, banner_image, visible, active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            c.id.toString(),
-            c.name || "Cidade",
-            c.about || null,
-            isNaN(latVal) ? 0 : latVal,
-            isNaN(lngVal) ? 0 : lngVal,
-            c.zoom || 12,
-            c.banner_image || null,
-            c.visible ? 1 : 0,
-            c.active ? 1 : 0,
-            c.created_at || null,
-            c.updated_at || null,
-          ]
-        );
-      }
+          await db.runAsync(
+            `INSERT OR REPLACE INTO cities (id, name, about, lat, lng, zoom, banner_image, visible, active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              c.id.toString(),
+              c.name || "Cidade",
+              c.about || null,
+              isNaN(latVal) ? 0 : latVal,
+              isNaN(lngVal) ? 0 : lngVal,
+              c.zoom || 12,
+              c.banner_image || null,
+              c.visible ? 1 : 0,
+              c.active ? 1 : 0,
+              c.created_at || null,
+              c.updated_at || null,
+            ]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao salvar cidades no SQLite:", e);
     }
@@ -215,26 +217,28 @@ export const CitiesOfflineRepository = {
 export const RoutesOfflineRepository = {
   saveAll: async (routes: Route[]) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      for (const r of routes) {
-        await db.runAsync(
-          `INSERT OR REPLACE INTO routes (id, name, polyline, strava_id, color, distance, is_event_route, active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            r.id.toString(),
-            r.name || "Rota",
-            r.polyline || "",
-            r.strava_id || null,
-            r.color || "#2563EB",
-            r.distance || 0,
-            r.is_event_route ? 1 : 0,
-            r.active ? 1 : 0,
-            r.created_at || null,
-            r.updated_at || null,
-          ]
-        );
-      }
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        for (const r of routes) {
+          await db.runAsync(
+            `INSERT OR REPLACE INTO routes (id, name, polyline, strava_id, color, distance, is_event_route, active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              r.id.toString(),
+              r.name || "Rota",
+              r.polyline || "",
+              r.strava_id || null,
+              r.color || "#2563EB",
+              r.distance || 0,
+              r.is_event_route ? 1 : 0,
+              r.active ? 1 : 0,
+              r.created_at || null,
+              r.updated_at || null,
+            ]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao salvar rotas no SQLite:", e);
     }
@@ -262,53 +266,57 @@ export const RoutesOfflineRepository = {
 };
 
 export const AnchorPointsOfflineRepository = {
-  saveAll: async (pts: AnchorPoint[]) => {
+  saveAll: async (pts: AnchorPoint[], replaceAll: boolean = false) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      if (Array.isArray(pts) && pts.length > 0) {
-        const validIds = pts.map((ap) => ap.id.toString());
-        const placeholders = validIds.map(() => "?").join(",");
-        try {
-          await db.runAsync(
-            `DELETE FROM anchor_points WHERE id NOT IN (${placeholders})`,
-            validIds
-          );
-          await db.runAsync(
-            `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
-          );
-        } catch {
-          // Ignorar se tabela estiver vazia
-        }
-      }
-      for (const ap of pts) {
-        const latVal = Number(ap.lat ?? (ap as any).latitude ?? 0);
-        const lngVal = Number(ap.lng ?? (ap as any).longitude ?? 0);
-        const catIcon = ap.category?.icon_name || null;
-        const catName = ap.category?.name || null;
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
 
-        await db.runAsync(
-          `INSERT OR REPLACE INTO anchor_points (id, name, lat, lng, business_hours, phone, image, active, on_route, category_id, city_id, category_icon_name, category_name, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            ap.id.toString(),
-            ap.name || "Ponto de Apoio",
-            isNaN(latVal) ? 0 : latVal,
-            isNaN(lngVal) ? 0 : lngVal,
-            ap.business_hours || null,
-            ap.phone || null,
-            ap.image || null,
-            ap.active ? 1 : 0,
-            ap.on_route ? 1 : 0,
-            ap.category_id ? ap.category_id.toString() : null,
-            (ap as any).city_id ? (ap as any).city_id.toString() : null,
-            catIcon,
-            catName,
-            ap.created_at || null,
-            ap.updated_at || null,
-          ]
-        );
-      }
+        if (replaceAll && Array.isArray(pts) && pts.length > 0) {
+          const validIds = pts.map((ap) => ap.id.toString());
+          const placeholders = validIds.map(() => "?").join(",");
+          try {
+            await db.runAsync(
+              `DELETE FROM anchor_points WHERE id NOT IN (${placeholders})`,
+              validIds
+            );
+            await db.runAsync(
+              `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
+            );
+          } catch {
+            // Ignorar se tabela estiver vazia
+          }
+        }
+
+        for (const ap of pts) {
+          const latVal = Number(ap.lat ?? (ap as any).latitude ?? 0);
+          const lngVal = Number(ap.lng ?? (ap as any).longitude ?? 0);
+          const catIcon = ap.category?.icon_name || null;
+          const catName = ap.category?.name || null;
+
+          await db.runAsync(
+            `INSERT OR REPLACE INTO anchor_points (id, name, lat, lng, business_hours, phone, image, active, on_route, category_id, city_id, category_icon_name, category_name, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              ap.id.toString(),
+              ap.name || "Ponto de Apoio",
+              isNaN(latVal) ? 0 : latVal,
+              isNaN(lngVal) ? 0 : lngVal,
+              ap.business_hours || null,
+              ap.phone || null,
+              ap.image || null,
+              ap.active ? 1 : 0,
+              ap.on_route ? 1 : 0,
+              ap.category_id ? ap.category_id.toString() : null,
+              (ap as any).city_id ? (ap as any).city_id.toString() : null,
+              catIcon,
+              catName,
+              ap.created_at || null,
+              ap.updated_at || null,
+            ]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao salvar pontos de apoio no SQLite:", e);
     }
@@ -443,50 +451,52 @@ export const StampsOfflineRepository = {
 
   saveAll: async (stamps: Stamp[]) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
 
-      if (Array.isArray(stamps) && stamps.length > 0) {
-        const validIds = stamps.map((s) => s.id.toString());
-        const placeholders = validIds.map(() => "?").join(",");
+        if (Array.isArray(stamps) && stamps.length > 0) {
+          const validIds = stamps.map((s) => s.id.toString());
+          const placeholders = validIds.map(() => "?").join(",");
+          try {
+            await db.runAsync(
+              `DELETE FROM stamps WHERE collected = 0 AND id NOT IN (${placeholders})`,
+              validIds
+            );
+          } catch {
+            // Ignorar erro se tabela estiver vazia
+          }
+        }
+
         try {
           await db.runAsync(
-            `DELETE FROM stamps WHERE collected = 0 AND id NOT IN (${placeholders})`,
-            validIds
+            `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
           );
         } catch {
-          // Ignorar erro se tabela estiver vazia
+          // Ignorar
         }
-      }
 
-      try {
-        await db.runAsync(
-          `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
-        );
-      } catch {
-        // Ignorar
-      }
-
-      for (const s of stamps) {
-        await db.runAsync(
-          `INSERT INTO stamps (id, anchor_point_id, qr_code_token, name, badge_image, active)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             anchor_point_id = excluded.anchor_point_id,
-             qr_code_token = excluded.qr_code_token,
-             name = excluded.name,
-             badge_image = excluded.badge_image,
-             active = excluded.active`,
-          [
-            s.id.toString(),
-            s.anchor_point_id ? s.anchor_point_id.toString() : "",
-            s.qr_code_token || "",
-            s.name || "Carimbo",
-            s.badge_image || "",
-            s.active ? 1 : 0,
-          ]
-        );
-      }
+        for (const s of stamps) {
+          await db.runAsync(
+            `INSERT INTO stamps (id, anchor_point_id, qr_code_token, name, badge_image, active)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               anchor_point_id = excluded.anchor_point_id,
+               qr_code_token = excluded.qr_code_token,
+               name = excluded.name,
+               badge_image = excluded.badge_image,
+               active = excluded.active`,
+            [
+              s.id.toString(),
+              s.anchor_point_id ? s.anchor_point_id.toString() : "",
+              s.qr_code_token || "",
+              s.name || "Carimbo",
+              s.badge_image || "",
+              s.active ? 1 : 0,
+            ]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao salvar carimbos no SQLite:", e);
     }
@@ -494,80 +504,82 @@ export const StampsOfflineRepository = {
 
   saveUserStamps: async (userStamps: any[]) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
 
-      const serverStampIds = new Set<string>();
-      const serverApIds = new Set<string>();
+        const serverStampIds = new Set<string>();
+        const serverApIds = new Set<string>();
 
-      for (const us of userStamps) {
-        const stampId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
-        const apId = (us.anchor_point_id || us.anchor_point?.id)?.toString();
-        if (stampId) serverStampIds.add(stampId);
-        if (apId) serverApIds.add(apId);
-      }
-
-      // Preservar itens da fila de sincronização pendente off-line
-      try {
-        const pendingQueue = await SyncQueueRepository.getPendingActions();
-        const pendingStampActions = pendingQueue.filter(
-          (a) => a.action_type === "COLLECT_STAMP"
-        );
-
-        for (const action of pendingStampActions) {
-          const p = action.payload || {};
-          const stampId = p.stamp_id?.toString();
-          const apId = p.anchor_point_id?.toString();
+        for (const us of userStamps) {
+          const stampId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
+          const apId = (us.anchor_point_id || us.anchor_point?.id)?.toString();
           if (stampId) serverStampIds.add(stampId);
           if (apId) serverApIds.add(apId);
         }
-      } catch {
-        // Ignorar se a fila não puder ser lida
-      }
 
-      const allLocalStamps = await db.getAllAsync<any>(
-        "SELECT id, anchor_point_id FROM stamps"
-      );
-
-      for (const localStamp of allLocalStamps) {
-        const sId = localStamp.id?.toString();
-        const apId = localStamp.anchor_point_id?.toString();
-
-        const isStillCollected =
-          (sId && serverStampIds.has(sId)) ||
-          (apId && serverApIds.has(apId));
-
-        if (!isStillCollected && sId) {
-          await db.runAsync(
-            "UPDATE stamps SET collected = 0, scanned_at = NULL WHERE id = ?",
-            [sId]
+        // Preservar itens da fila de sincronização pendente off-line
+        try {
+          const pendingQueue = await SyncQueueRepository.getPendingActions();
+          const pendingStampActions = pendingQueue.filter(
+            (a) => a.action_type === "COLLECT_STAMP"
           );
+
+          for (const action of pendingStampActions) {
+            const p = action.payload || {};
+            const stampId = p.stamp_id?.toString();
+            const apId = p.anchor_point_id?.toString();
+            if (stampId) serverStampIds.add(stampId);
+            if (apId) serverApIds.add(apId);
+          }
+        } catch {
+          // Ignorar se a fila não puder ser lida
         }
-      }
 
-      for (const us of userStamps) {
-        const stampId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
-        const apId = (us.anchor_point_id || us.anchor_point?.id)?.toString();
-        const scannedAt = us.scanned_at || us.created_at || new Date().toISOString();
+        const allLocalStamps = await db.getAllAsync<any>(
+          "SELECT id, anchor_point_id FROM stamps"
+        );
 
-        if (stampId) {
-          const res = await db.runAsync(
-            `UPDATE stamps SET collected = 1, scanned_at = ? WHERE id = ?`,
-            [scannedAt, stampId]
-          );
-          if (res.changes === 0 && apId) {
+        for (const localStamp of allLocalStamps) {
+          const sId = localStamp.id?.toString();
+          const apId = localStamp.anchor_point_id?.toString();
+
+          const isStillCollected =
+            (sId && serverStampIds.has(sId)) ||
+            (apId && serverApIds.has(apId));
+
+          if (!isStillCollected && sId) {
+            await db.runAsync(
+              "UPDATE stamps SET collected = 0, scanned_at = NULL WHERE id = ?",
+              [sId]
+            );
+          }
+        }
+
+        for (const us of userStamps) {
+          const stampId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
+          const apId = (us.anchor_point_id || us.anchor_point?.id)?.toString();
+          const scannedAt = us.scanned_at || us.created_at || new Date().toISOString();
+
+          if (stampId) {
+            const res = await db.runAsync(
+              `UPDATE stamps SET collected = 1, scanned_at = ? WHERE id = ?`,
+              [scannedAt, stampId]
+            );
+            if (res.changes === 0 && apId) {
+              await db.runAsync(
+                `UPDATE stamps SET collected = 1, scanned_at = ? WHERE anchor_point_id = ?`,
+                [scannedAt, apId]
+              );
+            }
+          } else if (apId) {
             await db.runAsync(
               `UPDATE stamps SET collected = 1, scanned_at = ? WHERE anchor_point_id = ?`,
               [scannedAt, apId]
             );
           }
-        } else if (apId) {
-          await db.runAsync(
-            `UPDATE stamps SET collected = 1, scanned_at = ? WHERE anchor_point_id = ?`,
-            [scannedAt, apId]
-          );
         }
-      }
+      });
     } catch (e) {
       console.warn("Erro ao salvar carimbos do usuário no SQLite:", e);
     }
