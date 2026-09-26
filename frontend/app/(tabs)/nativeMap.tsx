@@ -12,6 +12,7 @@ import {
   BootstrapOfflineService,
   AnchorPointsOfflineRepository,
   RoutesOfflineRepository,
+  StampsOfflineRepository,
 } from "@/services/database/offlineRepositories";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
@@ -20,6 +21,7 @@ import {
   AnchorPoint,
   AnchorPointsService,
 } from "@/services/anchorpoints/anchorPointService";
+import { Stamp, StampService } from "@/services/stamps/stampService";
 import { CitiesService } from "@/services/cities/citiesService";
 import { Route, RoutesService } from "@/services/routes/routeService";
 import { useWeather } from "@/hooks/use-weather";
@@ -30,7 +32,7 @@ import {
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
 import NetInfo from "@react-native-community/netinfo";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -130,6 +132,7 @@ const AnchorMarker = React.memo(({ ap }: { ap: AnchorPoint }) => {
     >
       <AnchorPointMarker
         icon_name={ap.category?.icon_name}
+        category_id={ap.category_id}
         on_route={ap.on_route}
       />
     </Marker>
@@ -140,19 +143,12 @@ AnchorMarker.displayName = "AnchorMarker";
 
 const UserMarker = React.memo(
   ({ latitude, longitude }: { latitude: number; longitude: number }) => {
-    const [ready, setReady] = useState(false);
-
-    useEffect(() => {
-      const t = setTimeout(() => setReady(true), 300);
-      return () => clearTimeout(t);
-    }, []);
-
     return (
       <Marker
         coordinate={{ latitude, longitude }}
         anchor={{ x: 0.5, y: 0.5 }}
         flat
-        tracksViewChanges={!ready}
+        tracksViewChanges={false}
       >
         <View style={styles.userDot} />
       </Marker>
@@ -281,32 +277,41 @@ export default function NativeMap() {
   const acquiredRef = useRef(false);
   const anchorFetchedRef = useRef(false);
 
+  const [stamps, setStamps] = useState<Stamp[]>([]);
+  const [userStamps, setUserStamps] = useState<any[]>([]);
+
   const loadMapData = useCallback(async () => {
     try {
+      // 1. Carregar IMEDIATAMENTE do repositório SQLite local para renderização ultra-rápida (< 50ms)
+      const [localPts, localRoutes, localStamps] = await Promise.all([
+        AnchorPointsOfflineRepository.getAll().catch(() => []),
+        RoutesOfflineRepository.getAll().catch(() => []),
+        StampsOfflineRepository.getAll().catch(() => []),
+      ]);
+      if (localPts && localPts.length > 0) setAnchorPoints(localPts);
+      if (localRoutes && localRoutes.length > 0) setRoutes(localRoutes);
+      if (localStamps && localStamps.length > 0) setUserStamps(localStamps);
+
+      // 2. Em segundo plano, atualizar do servidor se houver conectividade
       const netState = await NetInfo.fetch();
       const isStable =
         netState.isConnected === true && netState.isInternetReachable !== false;
 
       if (isStable) {
-        await BootstrapOfflineService.syncBootstrapData();
-        const [pts, rts] = await Promise.all([
+        BootstrapOfflineService.syncBootstrapData().catch(() => {});
+        const [pts, rts, stps, uStps] = await Promise.all([
           AnchorPointsService.findAll().catch(() => []),
           RoutesService.findAll().catch(() => []),
+          StampService.findAll().catch(() => []),
+          StampService.getUserStamps().catch(() => []),
         ]);
         if (pts && pts.length > 0) setAnchorPoints(pts);
         if (rts && rts.length > 0) setRoutes(rts);
-      } else {
-        // Conexão instável ou offline: carregar estritamente do SQLite local
-        const localPts = await AnchorPointsOfflineRepository.getAll();
-        const localRoutes = await RoutesOfflineRepository.getAll();
-        if (localPts) setAnchorPoints(localPts);
-        if (localRoutes) setRoutes(localRoutes);
+        if (stps && stps.length > 0) setStamps(stps);
+        if (uStps && uStps.length > 0) setUserStamps(uStps);
       }
     } catch {
-      const localPts = await AnchorPointsOfflineRepository.getAll();
-      const localRoutes = await RoutesOfflineRepository.getAll();
-      if (localPts) setAnchorPoints(localPts);
-      if (localRoutes) setRoutes(localRoutes);
+      // Falhas são tratadas mantendo dados locais
     }
   }, []);
 
@@ -337,23 +342,23 @@ export default function NativeMap() {
   }, [loadMapData]);
 
   useEffect(() => {
-    if (!lat || !lng) return;
+    if (!lat || !lng || apId) return;
     const latitude = parseFloat(lat),
       longitude = parseFloat(lng);
+    if (isNaN(latitude) || isNaN(longitude)) return;
     const zoomLevel = zoom ? parseInt(zoom) : 12;
     const delta = 1 / Math.pow(2, zoomLevel - 8);
     viewingCityRef.current = true;
     setViewingCity(true);
     followingRef.current = false;
     setFollowing(false);
-    const timer = setTimeout(() => {
+    requestAnimationFrame(() => {
       mapRef.current?.animateToRegion(
         { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
-        500,
+        400,
       );
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [lat, lng, t, zoom]);
+    });
+  }, [lat, lng, t, zoom, apId]);
 
   useEffect(() => {
     if (apId) {
@@ -362,17 +367,18 @@ export default function NativeMap() {
       if (lat && lng) {
         const latitude = parseFloat(lat);
         const longitude = parseFloat(lng);
-        viewingCityRef.current = true;
-        setViewingCity(true);
-        followingRef.current = false;
-        setFollowing(false);
-        const timer = setTimeout(() => {
-          mapRef.current?.animateToRegion(
-            { latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 },
-            600
-          );
-        }, 350);
-        return () => clearTimeout(timer);
+        if (!isNaN(latitude) && !isNaN(longitude)) {
+          viewingCityRef.current = true;
+          setViewingCity(true);
+          followingRef.current = false;
+          setFollowing(false);
+          requestAnimationFrame(() => {
+            mapRef.current?.animateToRegion(
+              { latitude, longitude, latitudeDelta: 0.012, longitudeDelta: 0.012 },
+              400
+            );
+          });
+        }
       }
     }
   }, [apId, apName, lat, lng, t]);
@@ -501,19 +507,93 @@ export default function NativeMap() {
     return stopWatch;
   }, [startWatch, stopWatch]);
 
-  const handleRecenter = useCallback(() => {
+  const handleRecenter = useCallback(async () => {
+    viewingCityRef.current = false;
+    setViewingCity(false);
+    setSelectedSingleApId(null);
+    setSingleApName(null);
     followingRef.current = true;
     setFollowing(true);
-    if (location) animateToLocation(location);
-  }, [location, animateToLocation]);
+
+    try {
+      if (router && typeof router.setParams === "function") {
+        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined, zoom: undefined });
+      }
+    } catch {}
+
+    if (location?.coords) {
+      const { latitude, longitude, accuracy } = location.coords;
+      const delta = Math.max((accuracy ?? 100) / 50000, 0.008);
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        400,
+      );
+    } else {
+      try {
+        const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (currentLoc?.coords) {
+          setLocation(currentLoc);
+          mapRef.current?.animateToRegion(
+            {
+              latitude: currentLoc.coords.latitude,
+              longitude: currentLoc.coords.longitude,
+              latitudeDelta: 0.008,
+              longitudeDelta: 0.008,
+            },
+            400,
+          );
+        }
+      } catch (err) {
+        console.log("Erro ao obter localização em handleRecenter:", err);
+      }
+    }
+  }, [location]);
+
+  const handleDismissSingleAp = useCallback(() => {
+    viewingCityRef.current = false;
+    setViewingCity(false);
+    setSelectedSingleApId(null);
+    setSingleApName(null);
+    followingRef.current = true;
+    setFollowing(true);
+
+    try {
+      if (router && typeof router.setParams === "function") {
+        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined });
+      }
+    } catch {}
+
+    if (location?.coords) {
+      const { latitude, longitude, accuracy } = location.coords;
+      const delta = Math.max((accuracy ?? 100) / 50000, 0.008);
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        400,
+      );
+    }
+  }, [location]);
 
   const handleDismissCity = useCallback(() => {
     viewingCityRef.current = false;
     setViewingCity(false);
     followingRef.current = true;
     setFollowing(true);
-    if (location) animateToLocation(location);
-  }, [location, animateToLocation]);
+
+    try {
+      if (router && typeof router.setParams === "function") {
+        router.setParams({ lat: undefined, lng: undefined, zoom: undefined, t: undefined });
+      }
+    } catch {}
+
+    if (location?.coords) {
+      const { latitude, longitude, accuracy } = location.coords;
+      const delta = Math.max((accuracy ?? 100) / 50000, 0.008);
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        400,
+      );
+    }
+  }, [location]);
 
   const { latitude, longitude, accuracy } = location?.coords ?? {};
   const firstCoord = routeCoordinates[0]?.coordinates[0];
@@ -532,17 +612,38 @@ export default function NativeMap() {
         longitudeDelta: 0.04,
       };
 
+  const stampsApSet = useMemo(() => {
+    const set = new Set<string>();
+    (stamps || []).forEach((s) => {
+      const apId = (s.anchor_point_id || (s as any).anchor_point?.id)?.toString();
+      if (apId) set.add(apId);
+    });
+    return set;
+  }, [stamps]);
+
+  const collectedApSet = useMemo(() => {
+    const set = new Set<string>();
+    (userStamps || []).forEach((us) => {
+      const apId = (
+        us.anchor_point_id ||
+        us.stamp?.anchor_point_id ||
+        us.stamp_id
+      )?.toString();
+      if (apId) set.add(apId);
+    });
+    return set;
+  }, [userStamps]);
+
   const visibleAnchorPoints = useMemo(() => {
-    let list: AnchorPoint[] = [];
-    if (selectedSingleApId) {
-      list = anchorPoints.filter((ap) => ap.id?.toString() === selectedSingleApId);
-    } else if (categoryFilter.size === 0) {
-      list = anchorPoints;
-    } else {
-      list = anchorPoints.filter(
-        (ap) =>
-          ap.category?.icon_name && categoryFilter.has(ap.category.icon_name),
-      );
+    let list = anchorPoints;
+    if (categoryFilter.size > 0) {
+      list = anchorPoints.filter((ap) => {
+        const iconName =
+          ap.category?.icon_name ||
+          (ap.category_id ? CATEGORY_LABELS[ap.category_id.toString()] : null) ||
+          "store";
+        return categoryFilter.has(iconName);
+      });
     }
     const map = new Map<string, AnchorPoint>();
     (list || []).forEach((ap) => {
@@ -551,7 +652,7 @@ export default function NativeMap() {
       }
     });
     return Array.from(map.values());
-  }, [anchorPoints, categoryFilter, selectedSingleApId]);
+  }, [anchorPoints, categoryFilter]);
 
   const nearbyPoints = useMemo(() => {
     if (!latitude || !longitude || visibleAnchorPoints.length === 0) return [];
@@ -583,7 +684,7 @@ export default function NativeMap() {
             ref={mapRef}
             style={styles.map}
             initialRegion={initialRegion}
-            showsUserLocation={false}
+            showsUserLocation={true}
             showsMyLocationButton={false}
             onPanDrag={() => {
               followingRef.current = false;
@@ -601,21 +702,11 @@ export default function NativeMap() {
             ))}
 
             {visibleAnchorPoints.map((ap, index) => (
-              <AnchorMarker key={`ap-${ap.id}-${index}`} ap={ap} />
+              <AnchorMarker
+                key={`ap-${ap.id}-${index}`}
+                ap={ap}
+              />
             ))}
-
-            {latitude && longitude && (
-              <>
-                <UserMarker latitude={latitude} longitude={longitude} />
-                <Circle
-                  center={{ latitude, longitude }}
-                  radius={accuracy ?? 50}
-                  strokeColor="rgba(39,50,115,0.3)"
-                  fillColor="rgba(39,50,115,0.06)"
-                  strokeWidth={1}
-                />
-              </>
-            )}
           </MapView>
 
           {/* Container de Controles do Topo (Posição, Clima e Indicador Inline) */}
@@ -658,14 +749,7 @@ export default function NativeMap() {
                   Visualizando {singleApName || "ponto de apoio"}
                 </Text>
                 <Pressable
-                  onPress={() => {
-                    setSelectedSingleApId(null);
-                    setSingleApName(null);
-                    setViewingCity(false);
-                    followingRef.current = true;
-                    setFollowing(true);
-                    if (location) animateToLocation(location);
-                  }}
+                  onPress={handleDismissSingleAp}
                   style={styles.cityBannerClose}
                   hitSlop={8}
                 >
@@ -718,7 +802,7 @@ export default function NativeMap() {
               )}
             </TouchableOpacity>
 
-            {!following && !viewingCity && (
+            {(!following || viewingCity || selectedSingleApId !== null) && (
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={styles.fabBtn}

@@ -8,7 +8,7 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 const ICON_MAP: Record<
   string,
@@ -26,20 +26,44 @@ const ICON_MAP: Record<
 };
 
 interface Props {
-  icon_name: string | null | undefined;
+  icon_name?: string | null;
+  category_id?: string | number | null;
   on_route?: boolean;
 }
 
-const AnchorPointMarkerComponent = ({ icon_name, on_route }: Props) => {
-  const IconComponent = icon_name ? ICON_MAP[icon_name] : null;
+const CATEGORY_ID_MAP: Record<string, string> = {
+  "1": "gas_station",
+  "2": "food",
+  "3": "hotel",
+  "4": "pharmacy",
+  "5": "repair",
+  "6": "store",
+  "7": "tourism",
+  "8": "hospital",
+  "9": "beverage_storage",
+};
+
+const AnchorPointMarkerComponent = ({
+  icon_name,
+  category_id,
+  on_route,
+}: Props) => {
+  let IconComponent = icon_name ? ICON_MAP[icon_name] : null;
+
+  if (!IconComponent && category_id) {
+    const catKey = CATEGORY_ID_MAP[category_id.toString()];
+    if (catKey && ICON_MAP[catKey]) {
+      IconComponent = ICON_MAP[catKey];
+    }
+  }
+
+  if (!IconComponent) {
+    IconComponent = Store;
+  }
 
   return (
     <View style={styles.shadow}>
-      {IconComponent ? (
-        <IconComponent width={42} height={42} />
-      ) : (
-        <View style={styles.fallbackDot} />
-      )}
+      <IconComponent width={42} height={42} />
     </View>
   );
 };
@@ -54,11 +78,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 4,
     elevation: 5,
-  },
-  fallbackDot: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#2563EB",
   },
 });

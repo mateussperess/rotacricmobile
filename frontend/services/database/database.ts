@@ -13,6 +13,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
         const db = await SQLite.openDatabaseAsync("rotacric.db");
         await db.execAsync(`
           PRAGMA journal_mode = WAL;
+          PRAGMA busy_timeout = 5000;
           
           CREATE TABLE IF NOT EXISTS cities (
             id TEXT PRIMARY KEY,

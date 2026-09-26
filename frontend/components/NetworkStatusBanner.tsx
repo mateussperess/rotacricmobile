@@ -16,6 +16,7 @@ import {
   BootstrapOfflineService,
   SyncQueueRepository,
 } from "@/services/database/offlineRepositories";
+import { tokenStorage } from "@/services/tokenStorage";
 import { StampService } from "@/services/stamps/stampService";
 
 export type NetworkStatusState = "online" | "offline" | "syncing" | "reconnected";
@@ -31,12 +32,13 @@ export function useNetworkStatus() {
     let unsubscribe = () => {};
     try {
       if (NetInfo && typeof NetInfo.addEventListener === "function") {
-        unsubscribe = NetInfo.addEventListener((state) => {
+        unsubscribe = NetInfo.addEventListener(async (state) => {
           const isOffline =
             state.isConnected === false || state.isInternetReachable === false;
           const online = !isOffline;
           setIsConnected(online);
-          if (online) {
+          const token = await tokenStorage.get();
+          if (online && token) {
             BootstrapOfflineService.syncBootstrapData();
             StampService.processSyncQueue();
           }
@@ -48,6 +50,11 @@ export function useNetworkStatus() {
 
     const checkPending = async () => {
       try {
+        const token = await tokenStorage.get();
+        if (!token) {
+          setPendingCount(0);
+          return;
+        }
         const count = await SyncQueueRepository.getPendingCount();
         setPendingCount(count);
         if (count > 0 && isConnected) {

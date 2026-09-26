@@ -324,11 +324,13 @@ export const AnchorPointsOfflineRepository = {
 
   delete: async (id: string) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      const strId = id.toString();
-      await db.runAsync("DELETE FROM anchor_points WHERE id = ?", [strId]);
-      await db.runAsync("DELETE FROM stamps WHERE anchor_point_id = ?", [strId]);
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        const strId = id.toString();
+        await db.runAsync("DELETE FROM anchor_points WHERE id = ?", [strId]);
+        await db.runAsync("DELETE FROM stamps WHERE anchor_point_id = ?", [strId]);
+      });
     } catch (e) {
       console.warn("Erro ao excluir ponto de apoio e carimbos vinculados do SQLite:", e);
     }
@@ -429,11 +431,13 @@ export const AnchorPointsOfflineRepository = {
 export const StampsOfflineRepository = {
   deleteByAnchorPoint: async (anchorPointId: string) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      await db.runAsync("DELETE FROM stamps WHERE anchor_point_id = ?", [
-        anchorPointId.toString(),
-      ]);
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        await db.runAsync("DELETE FROM stamps WHERE anchor_point_id = ?", [
+          anchorPointId.toString(),
+        ]);
+      });
     } catch (e) {
       console.warn("Erro ao excluir carimbos por ponto de apoio do SQLite:", e);
     }
@@ -441,9 +445,11 @@ export const StampsOfflineRepository = {
 
   delete: async (id: string) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      await db.runAsync("DELETE FROM stamps WHERE id = ?", [id.toString()]);
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        await db.runAsync("DELETE FROM stamps WHERE id = ?", [id.toString()]);
+      });
     } catch (e) {
       console.warn("Erro ao excluir carimbo do SQLite:", e);
     }
@@ -673,43 +679,45 @@ export const StampsOfflineRepository = {
 
   markAsCollected: async (stampIdOrToken: string, apId?: string, name?: string) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      const scannedAt = new Date().toISOString();
-      const targetId = stampIdOrToken ? String(stampIdOrToken) : "";
-      const targetApId = apId ? String(apId) : "";
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        const scannedAt = new Date().toISOString();
+        const targetId = stampIdOrToken ? String(stampIdOrToken) : "";
+        const targetApId = apId ? String(apId) : "";
 
-      let res = { changes: 0 };
+        let res = { changes: 0 };
 
-      if (targetId) {
-        res = await db.runAsync(
-          `UPDATE stamps SET collected = 1, scanned_at = ? WHERE id = ? OR qr_code_token = ?`,
-          [scannedAt, targetId, targetId]
-        );
-      }
+        if (targetId) {
+          res = await db.runAsync(
+            `UPDATE stamps SET collected = 1, scanned_at = ? WHERE id = ? OR qr_code_token = ?`,
+            [scannedAt, targetId, targetId]
+          );
+        }
 
-      if (res.changes === 0 && targetApId) {
-        res = await db.runAsync(
-          `UPDATE stamps SET collected = 1, scanned_at = ? WHERE anchor_point_id = ?`,
-          [scannedAt, targetApId]
-        );
-      }
+        if (res.changes === 0 && targetApId) {
+          res = await db.runAsync(
+            `UPDATE stamps SET collected = 1, scanned_at = ? WHERE anchor_point_id = ?`,
+            [scannedAt, targetApId]
+          );
+        }
 
-      // Se não havia a linha cadastrada no SQLite, cria o registro imediatamente com collected = 1
-      if (res.changes === 0 && (targetId || targetApId)) {
-        await db.runAsync(
-          `INSERT INTO stamps (id, anchor_point_id, qr_code_token, name, badge_image, active, collected, scanned_at)
-           VALUES (?, ?, ?, ?, '', 1, 1, ?)
-           ON CONFLICT(id) DO UPDATE SET collected = 1, scanned_at = excluded.scanned_at`,
-          [
-            targetId || targetApId || "1",
-            targetApId || "101",
-            targetId || "STAMP_LOCAL",
-            name || "Carimbo Coletado",
-            scannedAt,
-          ]
-        );
-      }
+        // Se não havia a linha cadastrada no SQLite, cria o registro imediatamente com collected = 1
+        if (res.changes === 0 && (targetId || targetApId)) {
+          await db.runAsync(
+            `INSERT INTO stamps (id, anchor_point_id, qr_code_token, name, badge_image, active, collected, scanned_at)
+             VALUES (?, ?, ?, ?, '', 1, 1, ?)
+             ON CONFLICT(id) DO UPDATE SET collected = 1, scanned_at = excluded.scanned_at`,
+            [
+              targetId || targetApId || "1",
+              targetApId || "101",
+              targetId || "STAMP_LOCAL",
+              name || "Carimbo Coletado",
+              scannedAt,
+            ]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao marcar carimbo como coletado offline:", e);
     }
@@ -749,14 +757,16 @@ const INITIAL_STAMPS_SEED: Stamp[] = [
 export const SyncQueueRepository = {
   enqueueAction: async (action_type: string, payload: any) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      await db.runAsync(
-        `INSERT INTO pending_sync_queue (id, action_type, payload, created_at, status)
-         VALUES (?, ?, ?, ?, 'pending')`,
-        [id, action_type, JSON.stringify(payload), new Date().toISOString()]
-      );
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        await db.runAsync(
+          `INSERT INTO pending_sync_queue (id, action_type, payload, created_at, status)
+           VALUES (?, ?, ?, ?, 'pending')`,
+          [id, action_type, JSON.stringify(payload), new Date().toISOString()]
+        );
+      });
     } catch (e) {
       console.warn("Erro ao enfileirar ação no SQLite:", e);
     }
@@ -797,9 +807,11 @@ export const SyncQueueRepository = {
 
   removeAction: async (id: string) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      await db.runAsync("DELETE FROM pending_sync_queue WHERE id = ?", [id]);
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        await db.runAsync("DELETE FROM pending_sync_queue WHERE id = ?", [id]);
+      });
     } catch (e) {
       console.error("Error removing sync item:", e);
     }
@@ -809,22 +821,24 @@ export const SyncQueueRepository = {
 export const CityImagesOfflineRepository = {
   saveAll: async (cityId: string, images: CityImage[]) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      for (const img of images) {
-        await db.runAsync(
-          `INSERT OR REPLACE INTO city_images (id, city_id, url, caption, order_index, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            img.id.toString(),
-            cityId.toString(),
-            img.url,
-            img.caption || null,
-            img.order || 0,
-            img.created_at || new Date().toISOString(),
-          ]
-        );
-      }
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        for (const img of images) {
+          await db.runAsync(
+            `INSERT OR REPLACE INTO city_images (id, city_id, url, caption, order_index, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              img.id.toString(),
+              cityId.toString(),
+              img.url,
+              img.caption || null,
+              img.order || 0,
+              img.created_at || new Date().toISOString(),
+            ]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao salvar imagens da cidade no SQLite:", e);
     }
@@ -858,28 +872,30 @@ export const CityImagesOfflineRepository = {
 export const WeatherOfflineRepository = {
   saveWeather: async (key: string, data: any) => {
     try {
-      const db = await getDatabase();
-      if (!db) return;
-      try {
-        await db.runAsync(
-          `INSERT OR REPLACE INTO weather_cache (key, data, updated_at) VALUES (?, ?, ?)`,
-          [key, JSON.stringify(data), Date.now()]
-        );
-      } catch (err: any) {
-        // Se falhou por incompatibilidade de colunas na tabela antiga, recriar a tabela
-        await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS weather_cache (
-            key TEXT PRIMARY KEY,
-            data TEXT NOT NULL,
-            updated_at INTEGER NOT NULL
+      await runWithTransaction(async () => {
+        const db = await getDatabase();
+        if (!db) return;
+        try {
+          await db.runAsync(
+            `INSERT OR REPLACE INTO weather_cache (key, data, updated_at) VALUES (?, ?, ?)`,
+            [key, JSON.stringify(data), Date.now()]
           );
-        `);
-        await db.runAsync(
-          `INSERT OR REPLACE INTO weather_cache (key, data, updated_at) VALUES (?, ?, ?)`,
-          [key, JSON.stringify(data), Date.now()]
-        );
-      }
+        } catch (err: any) {
+          // Se falhou por incompatibilidade de colunas na tabela antiga, recriar a tabela
+          await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS weather_cache (
+              key TEXT PRIMARY KEY,
+              data TEXT NOT NULL,
+              updated_at INTEGER NOT NULL
+            );
+          `);
+          await db.runAsync(
+            `INSERT OR REPLACE INTO weather_cache (key, data, updated_at) VALUES (?, ?, ?)`,
+            [key, JSON.stringify(data), Date.now()]
+          );
+        }
+      });
     } catch (e) {
       console.warn("Erro ao salvar previsão do tempo no SQLite:", e);
     }

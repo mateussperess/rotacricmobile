@@ -75,7 +75,7 @@ services:
     volumes:
       - ../../projetocric-django:/rotacric
     ports:
-      - "8000:8000"
+      - "${DJANGO_PORT:-8001}:8000"
     environment:
       - DB_ENGINE=django.db.backends.mysql
       - DB_HOST=rtcmobile-db

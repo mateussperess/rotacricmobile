@@ -482,6 +482,10 @@ export default function EscanearScreen() {
 
   const handleCollectStamp = async () => {
     if (!scanResult || !scanResult.stamp || scanResult.isCollected) return;
+    if (!isLoggedIn) {
+      router.push("/(tabs)/profile");
+      return;
+    }
     setCollecting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
@@ -845,31 +849,47 @@ export default function EscanearScreen() {
                   </Pressable>
 
                   {!scanResult.isCollected && !collectSuccess ? (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.collectBtn,
-                        scanResult.isOnline ? styles.collectBtnOnline : styles.collectBtnOffline,
-                        (!scanResult.isWithinRadius || collecting) && styles.btnDisabled,
-                        pressed && scanResult.isWithinRadius && styles.btnPressed,
-                      ]}
-                      onPress={handleCollectStamp}
-                      disabled={!scanResult.isWithinRadius || collecting}
-                    >
-                      {collecting ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Feather name={scanResult.isOnline ? "check" : "save"} size={18} color="#fff" />
-                          <Text style={styles.collectBtnText}>
-                            {scanResult.isWithinRadius
-                              ? scanResult.isOnline
-                                ? "Coletar Carimbo (Online)"
-                                : "Coletar Carimbo (Off-line)"
-                              : `Fora do Raio (< ${RADIUS_LIMIT_METERS}m)`}
-                          </Text>
-                        </>
-                      )}
-                    </Pressable>
+                    !isLoggedIn ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.collectBtn,
+                          styles.collectBtnOnline,
+                          pressed && styles.btnPressed,
+                        ]}
+                        onPress={() => router.push("/(tabs)/profile")}
+                      >
+                        <Feather name="log-in" size={18} color="#fff" />
+                        <Text style={styles.collectBtnText}>
+                          Faça login para coletar este carimbo
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.collectBtn,
+                          scanResult.isOnline ? styles.collectBtnOnline : styles.collectBtnOffline,
+                          (!scanResult.isWithinRadius || collecting) && styles.btnDisabled,
+                          pressed && scanResult.isWithinRadius && styles.btnPressed,
+                        ]}
+                        onPress={handleCollectStamp}
+                        disabled={!scanResult.isWithinRadius || collecting}
+                      >
+                        {collecting ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Feather name={scanResult.isOnline ? "check" : "save"} size={18} color="#fff" />
+                            <Text style={styles.collectBtnText}>
+                              {scanResult.isWithinRadius
+                                ? scanResult.isOnline
+                                  ? "Coletar Carimbo (Online)"
+                                  : "Coletar Carimbo (Off-line)"
+                                : `Fora do Raio (< ${RADIUS_LIMIT_METERS}m)`}
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    )
                   ) : (
                     <Pressable
                       style={({ pressed }) => [styles.mapBtn, pressed && styles.btnPressed]}

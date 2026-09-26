@@ -3,6 +3,7 @@ import {
   StampsOfflineRepository,
   SyncQueueRepository,
 } from "../database/offlineRepositories";
+import { tokenStorage } from "../tokenStorage";
 
 export interface Stamp {
   id: string;
@@ -34,31 +35,43 @@ export const StampService = {
         return data;
       }
     } catch {
-      console.log("Offline mode: Carregando carimbos do SQLite local");
+      // Retornar silenciosamente os dados offline
     }
     return StampsOfflineRepository.getAll();
   },
 
   getUserStamps: async (): Promise<any[]> => {
-    // 1. Tentar descarregar a fila de sincronização pendente para o servidor
-    await StampService.processSyncQueue();
-
-    // 2. Se online, buscar carimbos mais recentes do servidor e atualizar SQLite
     try {
+      const token = await tokenStorage.get();
+      if (!token) {
+        return StampsOfflineRepository.getUserStamps();
+      }
+      await StampService.processSyncQueue();
       const { data } = await api.get("/stamps/my-stamps");
       if (data && Array.isArray(data)) {
         await StampsOfflineRepository.saveUserStamps(data);
       }
     } catch {
-      console.log("Offline mode: Carregando meus carimbos do SQLite local");
+      // Ignorar erros de rede/autenticação em modo offline
     }
 
-    // 3. Sempre retornar a fusão incondicional dos carimbos coletados salvos no SQLite
     return StampsOfflineRepository.getUserStamps();
   },
 
   processSyncQueue: async (): Promise<boolean> => {
     try {
+      const token = await tokenStorage.get();
+      if (!token) {
+        // Se deslogado, limpar quaisquer ações órfãs da fila para interromper loops de sincronização
+        const pending = await SyncQueueRepository.getPendingActions();
+        for (const action of pending) {
+          if (action.action_type === "COLLECT_STAMP") {
+            await SyncQueueRepository.removeAction(action.id);
+          }
+        }
+        return true;
+      }
+
       const pending = await SyncQueueRepository.getPendingActions();
       const stampActions = pending.filter(
         (a) => a.action_type === "COLLECT_STAMP"
@@ -88,7 +101,14 @@ export const StampService = {
       }
       return true;
     } catch (err: any) {
-      console.log("Sincronização em segundo plano aguardando sinal...", err?.message || "");
+      if (err?.response?.status === 401) {
+        const pending = await SyncQueueRepository.getPendingActions();
+        for (const action of pending) {
+          if (action.action_type === "COLLECT_STAMP") {
+            await SyncQueueRepository.removeAction(action.id);
+          }
+        }
+      }
       return false;
     }
   },

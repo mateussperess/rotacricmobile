@@ -223,17 +223,15 @@ export default function CarimbosScreen() {
     try {
       setLoading(true);
 
-      // Tentar obter a localização GPS atual em segundo plano
+      // Tentar obter a localização GPS rápida (última conhecida) sem bloquear o carregamento
       let userLocation: Location.LocationObject | null = null;
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === "granted") {
-          userLocation = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
+          userLocation = await Location.getLastKnownPositionAsync().catch(() => null);
         }
       } catch (e) {
-        console.log("GPS não disponível para cálculo de distância:", e);
+        console.log("GPS não disponível no momento:", e);
       }
 
       const [anchorPointsData, stampsData, userStampsData, citiesData] =
