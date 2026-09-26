@@ -11,6 +11,8 @@ import { RoutesModule } from './routes/routes.module';
 import { UsersModule } from './users/users.module';
 import { RouteSegmentsModule } from './route-segments/route-segments.module';
 import { RouteAnchorPointsModule } from './route-anchor-points/route-anchor-points.module';
+import { StampsModule } from './stamps/stamps.module';
+import { SyncModule } from './sync/sync.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { RouteAnchorPointsModule } from './route-anchor-points/route-anchor-poin
     AnchorPointsModule,
     RouteSegmentsModule,
     RouteAnchorPointsModule,
+    StampsModule,
+    SyncModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

@@ -65,6 +65,34 @@ services:
       interval: 30s
       start_period: 15s
 
+  web-django:
+    build:
+      context: ../../projetocric-django
+      dockerfile: Dockerfile
+    container_name: rotacric-web-test
+    restart: unless-stopped
+    command: sh -c "python manage.py collectstatic --noinput && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ../../projetocric-django:/rotacric
+    ports:
+      - "${DJANGO_PORT:-8001}:8000"
+    environment:
+      - DB_ENGINE=django.db.backends.mysql
+      - DB_HOST=rtcmobile-db
+      - DB_PORT=3306
+      - DB_NAME=${MYSQL_DATABASE}
+      - DB_USER=${MYSQL_ROOT_USER}
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - SECRET_KEY=sua_secret_key_de_teste
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+      - FEATURE_EMAIL_ENABLED=False
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rtcmobile-network
+
 volumes:
   mysql_data:
     driver: local

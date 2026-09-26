@@ -8,16 +8,31 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
+import {
+  BootstrapOfflineService,
+  AnchorPointsOfflineRepository,
+  RoutesOfflineRepository,
+  StampsOfflineRepository,
+} from "@/services/database/offlineRepositories";
+import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
   AnchorPoint,
   AnchorPointsService,
 } from "@/services/anchorpoints/anchorPointService";
+import { Stamp, StampService } from "@/services/stamps/stampService";
 import { CitiesService } from "@/services/cities/citiesService";
 import { Route, RoutesService } from "@/services/routes/routeService";
+import { useWeather } from "@/hooks/use-weather";
+import {
+  useNetworkStatus,
+  NetworkStatusInlineBadge,
+} from "@/components/NetworkStatusBanner";
 import polyline from "@mapbox/polyline";
 import * as Location from "expo-location";
-import { useLocalSearchParams } from "expo-router";
+import NetInfo from "@react-native-community/netinfo";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -100,46 +115,44 @@ const MOCK_ROUTE_INFO = {
   elevation: "+280 m",
 };
 
-const AnchorMarker = React.memo(({ ap }: { ap: AnchorPoint }) => {
-  const [ready, setReady] = useState(false);
+const AnchorMarker = React.memo(
+  ({ ap, isCollected }: { ap: AnchorPoint; isCollected?: boolean }) => {
+    const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(() => setReady(true), 300);
-    return () => clearTimeout(t);
-  }, []);
+    useEffect(() => {
+      setReady(false);
+      const t = setTimeout(() => setReady(true), 300);
+      return () => clearTimeout(t);
+    }, [isCollected]);
 
-  return (
-    <Marker
-      coordinate={{ latitude: ap.lat, longitude: ap.lng }}
-      title={ap.name}
-      description={ap.phone ?? ap.business_hours ?? undefined}
-      tracksViewChanges={!ready}
-    >
-      <AnchorPointMarker
-        icon_name={ap.category?.icon_name}
-        on_route={ap.on_route}
-      />
-    </Marker>
-  );
-});
+    return (
+      <Marker
+        coordinate={{ latitude: ap.lat, longitude: ap.lng }}
+        title={ap.name}
+        description={ap.phone ?? ap.business_hours ?? undefined}
+        tracksViewChanges={!ready}
+      >
+        <AnchorPointMarker
+          icon_name={ap.category?.icon_name}
+          category_id={ap.category_id}
+          on_route={ap.on_route}
+          is_collected={isCollected}
+        />
+      </Marker>
+    );
+  }
+);
 
 AnchorMarker.displayName = "AnchorMarker";
 
 const UserMarker = React.memo(
   ({ latitude, longitude }: { latitude: number; longitude: number }) => {
-    const [ready, setReady] = useState(false);
-
-    useEffect(() => {
-      const t = setTimeout(() => setReady(true), 300);
-      return () => clearTimeout(t);
-    }, []);
-
     return (
       <Marker
         coordinate={{ latitude, longitude }}
         anchor={{ x: 0.5, y: 0.5 }}
         flat
-        tracksViewChanges={!ready}
+        tracksViewChanges={false}
       >
         <View style={styles.userDot} />
       </Marker>
@@ -150,11 +163,14 @@ const UserMarker = React.memo(
 UserMarker.displayName = "UserMarker";
 
 export default function NativeMap() {
-  const { lat, lng, zoom, t } = useLocalSearchParams<{
+  const { primaryColor, isLoggedIn } = useAuth();
+  const { lat, lng, zoom, t, apId, apName } = useLocalSearchParams<{
     lat?: string;
     lng?: string;
     zoom?: string;
     t?: string;
+    apId?: string;
+    apName?: string;
   }>();
 
   const cityTarget =
@@ -167,6 +183,8 @@ export default function NativeMap() {
       : null;
 
   const [viewingCity, setViewingCity] = useState(!!cityTarget);
+  const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(null);
+  const [singleApName, setSingleApName] = useState<string | null>(null);
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
   const [following, setFollowing] = useState(!cityTarget);
@@ -174,6 +192,12 @@ export default function NativeMap() {
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [gpsLoading, setGpsLoading] = useState(true);
+
+  const activeLat = location?.coords.latitude ?? cityTarget?.latitude ?? 0;
+  const activeLng = location?.coords.longitude ?? cityTarget?.longitude ?? 0;
+  const { data: weatherData } = useWeather(activeLat, activeLng);
+  const { statusState, pendingCount } = useNetworkStatus();
+  const [showOfflineCardModal, setShowOfflineCardModal] = useState(false);
 
   // ── Animações ──
   const sheetAnim = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
@@ -253,55 +277,168 @@ export default function NativeMap() {
   const followingRef = useRef(!cityTarget);
   const viewingCityRef = useRef(!!cityTarget);
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const geocodedRef = useRef<boolean>(false);
   const acquiredRef = useRef(false);
   const anchorFetchedRef = useRef(false);
 
-  useEffect(() => {
-    RoutesService.findAll().then(setRoutes);
-    AnchorPointsService.findAll().then((pts) => {
-      if (pts) setAnchorPoints(pts);
-    });
+  const [stamps, setStamps] = useState<Stamp[]>([]);
+  const [userStamps, setUserStamps] = useState<any[]>([]);
+
+  const loadMapData = useCallback(async () => {
+    try {
+      // 1. Carregar IMEDIATAMENTE do repositório SQLite local para renderização ultra-rápida (< 50ms)
+      const [localPts, localRoutes, localStamps] = await Promise.all([
+        AnchorPointsOfflineRepository.getAll().catch(() => []),
+        RoutesOfflineRepository.getAll().catch(() => []),
+        StampsOfflineRepository.getAll().catch(() => []),
+      ]);
+      if (localPts && localPts.length > 0) setAnchorPoints(localPts);
+      if (localRoutes && localRoutes.length > 0) setRoutes(localRoutes);
+      if (localStamps && localStamps.length > 0) setUserStamps(localStamps);
+
+      // 2. Em segundo plano, atualizar do servidor se houver conectividade
+      const netState = await NetInfo.fetch();
+      const isStable =
+        netState.isConnected === true && netState.isInternetReachable !== false;
+
+      if (isStable) {
+        BootstrapOfflineService.syncBootstrapData().catch(() => {});
+        const [pts, rts, stps, uStps] = await Promise.all([
+          AnchorPointsService.findAll().catch(() => []),
+          RoutesService.findAll().catch(() => []),
+          StampService.findAll().catch(() => []),
+          StampService.getUserStamps().catch(() => []),
+        ]);
+        if (pts && pts.length > 0) setAnchorPoints(pts);
+        if (rts && rts.length > 0) setRoutes(rts);
+        if (stps && stps.length > 0) setStamps(stps);
+        if (uStps && uStps.length > 0) setUserStamps(uStps);
+      }
+    } catch {
+      // Falhas são tratadas mantendo dados locais
+    }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadMapData();
+    }, [loadMapData])
+  );
+
   useEffect(() => {
-    if (!lat || !lng) return;
+    let unsubscribe = () => {};
+    try {
+      if (NetInfo && typeof NetInfo.addEventListener === "function") {
+        unsubscribe = NetInfo.addEventListener((state) => {
+          const isStable =
+            state.isConnected === true && state.isInternetReachable === true;
+          if (isStable) {
+            loadMapData();
+          }
+        });
+      }
+    } catch {}
+    return () => {
+      try {
+        unsubscribe();
+      } catch {}
+    };
+  }, [loadMapData]);
+
+  useEffect(() => {
+    if (!lat || !lng || apId) return;
     const latitude = parseFloat(lat),
       longitude = parseFloat(lng);
+    if (isNaN(latitude) || isNaN(longitude)) return;
     const zoomLevel = zoom ? parseInt(zoom) : 12;
     const delta = 1 / Math.pow(2, zoomLevel - 8);
     viewingCityRef.current = true;
     setViewingCity(true);
     followingRef.current = false;
     setFollowing(false);
-    const timer = setTimeout(() => {
+    requestAnimationFrame(() => {
       mapRef.current?.animateToRegion(
         { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
-        500,
+        400,
       );
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [lat, lng, t, zoom]);
+    });
+  }, [lat, lng, t, zoom, apId]);
 
   useEffect(() => {
-    if (!location) return;
+    if (apId) {
+      setSelectedSingleApId(apId);
+      setSingleApName(apName || null);
+      if (lat && lng) {
+        const latitude = parseFloat(lat);
+        const longitude = parseFloat(lng);
+        if (!isNaN(latitude) && !isNaN(longitude)) {
+          viewingCityRef.current = true;
+          setViewingCity(true);
+          followingRef.current = false;
+          setFollowing(false);
+          requestAnimationFrame(() => {
+            mapRef.current?.animateToRegion(
+              { latitude, longitude, latitudeDelta: 0.012, longitudeDelta: 0.012 },
+              400
+            );
+          });
+        }
+      }
+    }
+  }, [apId, apName, lat, lng, t]);
+
+  useEffect(() => {
+    if (!location || geocodedRef.current) return;
+
+    if (
+      cityName &&
+      cityName !== "Localizando..." &&
+      cityName !== "Erro ao obter localização" &&
+      cityName !== "Rota CRIC"
+    ) {
+      geocodedRef.current = true;
+      return;
+    }
+
     const { latitude, longitude } = location.coords;
     (async () => {
-      const [place] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-      const name = place?.city ?? place?.subregion ?? null;
-      setCityName(name);
+      try {
+        const netState = await NetInfo.fetch();
+        if (!netState.isConnected) return;
+
+        const results = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        }).catch(() => null);
+
+        if (results && results.length > 0) {
+          const place = results[0];
+          const name = place?.city ?? place?.subregion ?? null;
+          if (name) {
+            setCityName(name);
+            geocodedRef.current = true;
+          }
+        }
+      } catch {
+        // Geocodificação reversa exige internet. Ignorar silenciosamente offline.
+      }
     })();
-  }, [location]);
+  }, [location, cityName]);
 
   const routeCoordinates = useMemo(() => {
     const activeRoutes = includeEventRoutes
       ? routes
       : routes.filter((r) => !r.is_event_route);
 
-    return activeRoutes.map((route) => ({
-      id: route.id,
+    const uniqueRoutesMap = new Map<string, Route>();
+    (activeRoutes || []).forEach((r) => {
+      if (r && r.id) {
+        uniqueRoutesMap.set(r.id.toString(), r);
+      }
+    });
+
+    return Array.from(uniqueRoutesMap.values()).map((route, idx) => ({
+      id: route.id?.toString() || `route-${idx}`,
       color: route.color ?? "#2563EB",
       coordinates: (() => {
         try {
@@ -327,36 +464,41 @@ export default function NativeMap() {
   }, []);
 
   const startWatch = useCallback(async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      setAcquiring(false);
-      return;
-    }
-    acquiredRef.current = false;
-    const timeout = setTimeout(() => {
-      if (!acquiredRef.current) {
-        acquiredRef.current = true;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
         setAcquiring(false);
+        return;
       }
-    }, MAX_WAIT_MS);
-    subscriptionRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 1000,
-        distanceInterval: 1,
-      },
-      (loc) => {
-        setLocation(loc);
-        setGpsLoading(false);
-        animateToLocation(loc);
-        const acc = loc.coords.accuracy ?? Infinity;
-        if (acc <= ACCURACY_THRESHOLD_METERS && !acquiredRef.current) {
+      acquiredRef.current = false;
+      const timeout = setTimeout(() => {
+        if (!acquiredRef.current) {
           acquiredRef.current = true;
-          clearTimeout(timeout);
           setAcquiring(false);
         }
-      },
-    );
+      }, MAX_WAIT_MS);
+      subscriptionRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000,
+          distanceInterval: 1,
+        },
+        (loc) => {
+          setLocation(loc);
+          setGpsLoading(false);
+          animateToLocation(loc);
+          const acc = loc.coords.accuracy ?? Infinity;
+          if (acc <= ACCURACY_THRESHOLD_METERS && !acquiredRef.current) {
+            acquiredRef.current = true;
+            clearTimeout(timeout);
+            setAcquiring(false);
+          }
+        },
+      );
+    } catch (err) {
+      console.warn("[GPS Watch Error Ignored]", err);
+      setAcquiring(false);
+    }
   }, [animateToLocation]);
 
   const stopWatch = useCallback(() => {
@@ -369,19 +511,93 @@ export default function NativeMap() {
     return stopWatch;
   }, [startWatch, stopWatch]);
 
-  const handleRecenter = useCallback(() => {
+  const handleRecenter = useCallback(async () => {
+    viewingCityRef.current = false;
+    setViewingCity(false);
+    setSelectedSingleApId(null);
+    setSingleApName(null);
     followingRef.current = true;
     setFollowing(true);
-    if (location) animateToLocation(location);
-  }, [location, animateToLocation]);
+
+    try {
+      if (router && typeof router.setParams === "function") {
+        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined, zoom: undefined });
+      }
+    } catch {}
+
+    if (location?.coords) {
+      const { latitude, longitude, accuracy } = location.coords;
+      const delta = Math.max((accuracy ?? 100) / 50000, 0.008);
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        400,
+      );
+    } else {
+      try {
+        const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (currentLoc?.coords) {
+          setLocation(currentLoc);
+          mapRef.current?.animateToRegion(
+            {
+              latitude: currentLoc.coords.latitude,
+              longitude: currentLoc.coords.longitude,
+              latitudeDelta: 0.008,
+              longitudeDelta: 0.008,
+            },
+            400,
+          );
+        }
+      } catch (err) {
+        console.log("Erro ao obter localização em handleRecenter:", err);
+      }
+    }
+  }, [location]);
+
+  const handleDismissSingleAp = useCallback(() => {
+    viewingCityRef.current = false;
+    setViewingCity(false);
+    setSelectedSingleApId(null);
+    setSingleApName(null);
+    followingRef.current = true;
+    setFollowing(true);
+
+    try {
+      if (router && typeof router.setParams === "function") {
+        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined });
+      }
+    } catch {}
+
+    if (location?.coords) {
+      const { latitude, longitude, accuracy } = location.coords;
+      const delta = Math.max((accuracy ?? 100) / 50000, 0.008);
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        400,
+      );
+    }
+  }, [location]);
 
   const handleDismissCity = useCallback(() => {
     viewingCityRef.current = false;
     setViewingCity(false);
     followingRef.current = true;
     setFollowing(true);
-    if (location) animateToLocation(location);
-  }, [location, animateToLocation]);
+
+    try {
+      if (router && typeof router.setParams === "function") {
+        router.setParams({ lat: undefined, lng: undefined, zoom: undefined, t: undefined });
+      }
+    } catch {}
+
+    if (location?.coords) {
+      const { latitude, longitude, accuracy } = location.coords;
+      const delta = Math.max((accuracy ?? 100) / 50000, 0.008);
+      mapRef.current?.animateToRegion(
+        { latitude, longitude, latitudeDelta: delta, longitudeDelta: delta },
+        400,
+      );
+    }
+  }, [location]);
 
   const { latitude, longitude, accuracy } = location?.coords ?? {};
   const firstCoord = routeCoordinates[0]?.coordinates[0];
@@ -400,12 +616,62 @@ export default function NativeMap() {
         longitudeDelta: 0.04,
       };
 
+  const stampsApSet = useMemo(() => {
+    const set = new Set<string>();
+    (stamps || []).forEach((s) => {
+      const apId = (s.anchor_point_id || (s as any).anchor_point?.id)?.toString();
+      if (apId) set.add(apId);
+    });
+    return set;
+  }, [stamps]);
+
+  const collectedApSet = useMemo(() => {
+    if (!isLoggedIn) return new Set<string>();
+    const set = new Set<string>();
+    const stampToApMap = new Map<string, string>();
+    (stamps || []).forEach((s) => {
+      if (s.id && s.anchor_point_id) {
+        stampToApMap.set(s.id.toString(), s.anchor_point_id.toString());
+      }
+    });
+
+    (userStamps || []).forEach((us) => {
+      const explicitApId = (
+        us.anchor_point_id ||
+        us.stamp?.anchor_point_id
+      )?.toString();
+      if (explicitApId) {
+        set.add(explicitApId);
+      } else {
+        const sId = (us.stamp_id || us.stamp?.id)?.toString();
+        if (sId && stampToApMap.has(sId)) {
+          set.add(stampToApMap.get(sId)!);
+        } else if (us.anchor_point_id) {
+          set.add(us.anchor_point_id.toString());
+        }
+      }
+    });
+    return set;
+  }, [isLoggedIn, stamps, userStamps]);
+
   const visibleAnchorPoints = useMemo(() => {
-    if (categoryFilter.size === 0) return anchorPoints;
-    return anchorPoints.filter(
-      (ap) =>
-        ap.category?.icon_name && categoryFilter.has(ap.category.icon_name),
-    );
+    let list = anchorPoints;
+    if (categoryFilter.size > 0) {
+      list = anchorPoints.filter((ap) => {
+        const iconName =
+          ap.category?.icon_name ||
+          (ap.category_id ? CATEGORY_LABELS[ap.category_id.toString()] : null) ||
+          "store";
+        return categoryFilter.has(iconName);
+      });
+    }
+    const map = new Map<string, AnchorPoint>();
+    (list || []).forEach((ap) => {
+      if (ap && ap.id) {
+        map.set(ap.id.toString(), ap);
+      }
+    });
+    return Array.from(map.values());
   }, [anchorPoints, categoryFilter]);
 
   const nearbyPoints = useMemo(() => {
@@ -430,7 +696,7 @@ export default function NativeMap() {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
         {/* ── Mapa ── */}
         <Animated.View style={[styles.mapWrapper, { height: mapHeight }]}>
@@ -438,16 +704,16 @@ export default function NativeMap() {
             ref={mapRef}
             style={styles.map}
             initialRegion={initialRegion}
-            showsUserLocation={false}
+            showsUserLocation={true}
             showsMyLocationButton={false}
             onPanDrag={() => {
               followingRef.current = false;
               setFollowing(false);
             }}
           >
-            {routeCoordinates.map((route) => (
+            {routeCoordinates.map((route, index) => (
               <Polyline
-                key={route.id}
+                key={`route-${route.id}-${index}`}
                 coordinates={route.coordinates}
                 strokeColor={route.color}
                 strokeWidth={4}
@@ -455,69 +721,85 @@ export default function NativeMap() {
               />
             ))}
 
-            {visibleAnchorPoints.map((ap) => (
-              <AnchorMarker key={ap.id} ap={ap} />
-            ))}
-
-            {latitude && longitude && (
-              <>
-                <UserMarker latitude={latitude} longitude={longitude} />
-                <Circle
-                  center={{ latitude, longitude }}
-                  radius={accuracy ?? 50}
-                  strokeColor="rgba(39,50,115,0.3)"
-                  fillColor="rgba(39,50,115,0.06)"
-                  strokeWidth={1}
+            {visibleAnchorPoints.map((ap, index) => {
+              const isCollected =
+                isLoggedIn && collectedApSet.has(ap.id.toString());
+              return (
+                <AnchorMarker
+                  key={`ap-${ap.id}-${isCollected ? "collected" : "normal"}`}
+                  ap={ap}
+                  isCollected={isCollected}
                 />
-              </>
-            )}
+              );
+            })}
           </MapView>
 
-          {/* Card posição */}
-          <View style={styles.positionCard}>
-            <View style={styles.positionIconWrap}>
-              <Text style={styles.positionIcon}>➤</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.positionLabel}>Você está em</Text>
-              <Text style={styles.positionCity}>
-                {cityName
-                  ? `${cityName} — RS`
-                  : acquiring
-                    ? "Localizando..."
-                    : "Fora da rota"}
-              </Text>
-            </View>
-            <Pressable
-              style={[
-                styles.filterBtn,
-                categoryFilter.size > 0 && styles.filterBtnActive,
-              ]}
-              onPress={openModal}
-            >
-              <Text style={styles.filterBtnIcon}>⚙️</Text>
-              {categoryFilter.size > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>
-                    {categoryFilter.size}
+          {/* Container de Controles do Topo (Posição, Clima e Indicador Inline) */}
+          <View style={styles.topControlsContainer}>
+            <View style={styles.topControlsRow}>
+              <View style={styles.positionCard}>
+                <View style={styles.positionIconWrap}>
+                  <Text style={styles.positionIcon}>➤</Text>
+                </View>
+                <View style={{ flex: 1, marginRight: 4 }}>
+                  <Text style={styles.positionLabel}>Você está em</Text>
+                  <Text style={styles.positionCity} numberOfLines={1}>
+                    {cityName
+                      ? `${cityName} — RS`
+                      : acquiring
+                        ? "Localizando..."
+                        : "Fora da rota"}
                   </Text>
                 </View>
-              )}
-            </Pressable>
+                {weatherData && (
+                  <View style={styles.weatherBadge}>
+                    <Text style={styles.weatherEmoji}>{weatherData.emoji}</Text>
+                    <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Badge de estado de rede integrado à direita com animação de entrada/saída */}
+              <NetworkStatusInlineBadge
+                statusState={statusState}
+                pendingCount={pendingCount}
+                onPress={() => setShowOfflineCardModal(true)}
+              />
+            </View>
+
+            {/* Sub-banner para exibição de Cidade ou Ponto de Apoio Selecionado */}
+            {selectedSingleApId ? (
+              <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+                <Text style={styles.cityBannerText} numberOfLines={1}>
+                  Visualizando {singleApName || "ponto de apoio"}
+                </Text>
+                <Pressable
+                  onPress={handleDismissSingleAp}
+                  style={styles.cityBannerClose}
+                  hitSlop={8}
+                >
+                  <Text style={styles.cityBannerCloseText}>✕</Text>
+                </Pressable>
+              </View>
+            ) : (
+              viewingCity && cityTarget && (
+                <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+                  <Text style={styles.cityBannerText} numberOfLines={1}>
+                    Visualizando cidade
+                  </Text>
+                  <Pressable
+                    onPress={handleDismissCity}
+                    style={styles.cityBannerClose}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.cityBannerCloseText}>✕</Text>
+                  </Pressable>
+                </View>
+              )
+            )}
           </View>
 
-          {viewingCity && cityTarget && (
-            <View style={styles.cityBanner}>
-              <Text style={styles.cityBannerText}>Visualizando cidade</Text>
-              <Pressable
-                onPress={handleDismissCity}
-                style={styles.cityBannerClose}
-              >
-                <Text style={styles.cityBannerCloseText}>✕</Text>
-              </Pressable>
-            </View>
-          )}
-
+          {/* Banner de refinamento de GPS */}
           {acquiring && (
             <View style={styles.acquiringBanner}>
               <ActivityIndicator size="small" color="#2563EB" />
@@ -525,79 +807,121 @@ export default function NativeMap() {
             </View>
           )}
 
-          {!following && !viewingCity && (
+          {/* Deck Flutuante de Botões de Ação do Mapa (FAB Deck) */}
+          <View style={styles.fabDeck}>
             <TouchableOpacity
-              style={styles.recenterBtn}
-              onPress={handleRecenter}
+              activeOpacity={0.8}
+              style={[
+                styles.fabBtn,
+                categoryFilter.size > 0 && styles.fabBtnActive,
+              ]}
+              onPress={openModal}
             >
-              <Text style={styles.recenterText}>📍</Text>
+              <Text style={styles.fabBtnIcon}>⚙️</Text>
+              {categoryFilter.size > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>
+                    {categoryFilter.size}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
-          )}
+
+            {(!following || viewingCity || selectedSingleApId !== null) && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.fabBtn}
+                onPress={handleRecenter}
+              >
+                <Text style={styles.fabBtnIcon}>📍</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </Animated.View>
 
-        {/* ── Bottom Sheet ── */}
+        {/* ── Bottom Sheet (Menu Expandível) ── */}
         <Animated.View style={[styles.sheet, { height: sheetAnim }]}>
           {/* Handle de drag */}
           <View {...panResponder.panHandlers} style={styles.handleArea}>
             <View style={styles.handle} />
           </View>
 
-          {/* Header clicável */}
+          {/* Header clicável do Bottom Sheet */}
           <Pressable onPress={toggleSheet} style={styles.sheetHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.sheetLabel}>{MOCK_ROUTE_INFO.label}</Text>
-              <Text style={styles.sheetRoute}>
+              <Text style={styles.sheetRoute} numberOfLines={1}>
                 {cityName ? `Você está em ${cityName}` : "ROTA CRIC"}
               </Text>
             </View>
-            <Animated.Text
-              style={[
-                styles.sheetChevron,
-                { transform: [{ rotate: chevronRotate }] },
-              ]}
-            >
-              ▲
-            </Animated.Text>
+            <View style={styles.expandTogglePill}>
+              <Text style={styles.expandToggleText}>
+                {sheetOpen.current ? "Recolher" : "Menu"}
+              </Text>
+              <Animated.Text
+                style={[
+                  styles.sheetChevron,
+                  { transform: [{ rotate: chevronRotate }] },
+                ]}
+              >
+                ▲
+              </Animated.Text>
+            </View>
           </Pressable>
 
-          {/* Conteúdo */}
+          {/* Conteúdo do Menu Expandível */}
           <ScrollView
             style={styles.sheetScroll}
             showsVerticalScrollIndicator={false}
             removeClippedSubviews={true}
           >
+            {/* Grid de Estatísticas da Rota */}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>🚴</Text>
+                <View style={styles.statIconWrap}>
+                  <Text style={styles.statIcon}>🚴</Text>
+                </View>
                 <Text style={styles.statLabel}>Distância</Text>
                 <Text style={styles.statValue}>{MOCK_ROUTE_INFO.distance}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>🕐</Text>
+                <View style={styles.statIconWrap}>
+                  <Text style={styles.statIcon}>🕐</Text>
+                </View>
                 <Text style={styles.statLabel}>Tempo est.</Text>
                 <Text style={styles.statValue}>{MOCK_ROUTE_INFO.time}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>↑</Text>
+                <View style={styles.statIconWrap}>
+                  <Text style={styles.statIcon}>↑</Text>
+                </View>
                 <Text style={styles.statLabel}>Elevação</Text>
-                <Text style={[styles.statValue, { color: "#F59E0B" }]}>
+                <Text style={[styles.statValue, { color: "#D97706" }]}>
                   {MOCK_ROUTE_INFO.elevation}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>PRÓXIMOS PONTOS DE APOIO</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>PRÓXIMOS PONTOS DE APOIO</Text>
+              <Text style={styles.sectionCountText}>
+                {nearbyPoints.length} próximos
+              </Text>
+            </View>
+
             {gpsLoading ? (
               <ActivityIndicator
-                color="#2563EB"
-                style={{ marginVertical: 12 }}
+                color={primaryColor || "#2563EB"}
+                style={{ marginVertical: 16 }}
               />
             ) : nearbyPoints.length === 0 ? (
-              <Text style={styles.emptyText}>
-                Nenhum ponto de apoio encontrado próximo.
-              </Text>
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  Nenhum ponto de apoio encontrado próximo à sua localização.
+                </Text>
+              </View>
             ) : (
               nearbyPoints.map((ap) => {
                 const IconComponent = ap.category?.icon_name
@@ -607,7 +931,10 @@ export default function NativeMap() {
                 return (
                   <Pressable
                     key={ap.id}
-                    style={styles.anchorRow}
+                    style={({ pressed }) => [
+                      styles.anchorRow,
+                      pressed && styles.anchorRowPressed,
+                    ]}
                     onPress={() => {
                       mapRef.current?.animateToRegion(
                         {
@@ -629,17 +956,27 @@ export default function NativeMap() {
                       ]}
                     >
                       {IconComponent ? (
-                        <IconComponent width={35} height={35} />
+                        <IconComponent width={26} height={26} />
                       ) : (
                         <Text style={styles.anchorRowIcon}>📍</Text>
                       )}
                     </View>
-                    <Text style={styles.anchorRowName} numberOfLines={1}>
-                      {ap.name}
-                    </Text>
-                    <Text style={styles.anchorRowDist}>
-                      {formatDist(ap.distM)}
-                    </Text>
+                    <View style={styles.anchorRowInfo}>
+                      <Text style={styles.anchorRowName} numberOfLines={1}>
+                        {ap.name}
+                      </Text>
+                      <Text style={styles.anchorRowSub}>
+                        {ap.category?.icon_name
+                          ? CATEGORY_LABELS[ap.category.icon_name] || "Ponto de Apoio"
+                          : "Ponto de Apoio"}
+                        {ap.on_route ? " • Na Rota" : ""}
+                      </Text>
+                    </View>
+                    <View style={styles.anchorRowDistChip}>
+                      <Text style={styles.anchorRowDist}>
+                        {formatDist(ap.distM)}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })
@@ -670,82 +1007,199 @@ export default function NativeMap() {
                 },
               ]}
             >
+              {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Filtrar categorias</Text>
+                <View style={styles.modalHeaderTitleRow}>
+                  <View style={styles.modalHeaderIconWrap}>
+                    <Text style={{ fontSize: 16 }}>⚙️</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.modalTitle}>Filtros do Mapa</Text>
+                    <Text style={styles.modalSubtitle}>Categorias e opções de exibição</Text>
+                  </View>
+                </View>
+
                 {categoryFilter.size > 0 && (
-                  <Pressable onPress={() => setCategoryFilter(new Set())}>
-                    <Text style={styles.modalClear}>Limpar</Text>
+                  <Pressable
+                    onPress={() => setCategoryFilter(new Set())}
+                    style={styles.modalClearBtn}
+                  >
+                    <Text style={styles.modalClearText}>Limpar</Text>
                   </Pressable>
                 )}
               </View>
 
-              {Object.entries(ICON_MAP).map(([key, IconComponent]) => {
-                const active = categoryFilter.has(key);
-                return (
-                  <Pressable
-                    key={key}
-                    style={[styles.modalItem, active && styles.modalItemActive]}
-                    onPress={() => {
-                      setCategoryFilter((prev) => {
-                        const next = new Set(prev);
-                        next.has(key) ? next.delete(key) : next.add(key);
-                        return next;
-                      });
-                    }}
+              {/* Modal Scroll Content */}
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.modalSectionLabel}>CATEGORIAS DE PONTOS DE APOIO</Text>
+                <View style={styles.categoryGrid}>
+                  {Object.entries(ICON_MAP).map(([key, IconComponent]) => {
+                    const active = categoryFilter.has(key);
+                    return (
+                      <Pressable
+                        key={key}
+                        style={({ pressed }) => [
+                          styles.categoryCard,
+                          active && styles.categoryCardActive,
+                          pressed && styles.categoryCardPressed,
+                        ]}
+                        onPress={() => {
+                          setCategoryFilter((prev) => {
+                            const next = new Set(prev);
+                            next.has(key) ? next.delete(key) : next.add(key);
+                            return next;
+                          });
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.categoryCardIcon,
+                            active && styles.categoryCardIconActive,
+                          ]}
+                        >
+                          <IconComponent width={20} height={20} />
+                        </View>
+                        <Text
+                          style={[
+                            styles.categoryCardText,
+                            active && styles.categoryCardTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {CATEGORY_LABELS[key]}
+                        </Text>
+                        {active && (
+                          <View style={styles.categoryCheckBadge}>
+                            <Text style={styles.categoryCheckText}>✓</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.modalSectionLabel, { marginTop: 8 }]}>EXIBIÇÃO DE ROTAS</Text>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.routeOptionCard,
+                    includeEventRoutes && styles.routeOptionCardActive,
+                    pressed && styles.categoryCardPressed,
+                  ]}
+                  onPress={() => setIncludeEventRoutes((prev) => !prev)}
+                >
+                  <View
+                    style={[
+                      styles.routeOptionIcon,
+                      includeEventRoutes && styles.routeOptionIconActive,
+                    ]}
                   >
-                    <View
-                      style={[
-                        styles.modalItemIcon,
-                        active && styles.modalItemIconActive,
-                      ]}
-                    >
-                      <IconComponent width={22} height={22} />
-                    </View>
+                    <Text style={{ fontSize: 16 }}>🚩</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text
                       style={[
-                        styles.modalItemText,
-                        active && styles.modalItemTextActive,
+                        styles.routeOptionTitle,
+                        includeEventRoutes && styles.routeOptionTitleActive,
                       ]}
                     >
-                      {CATEGORY_LABELS[key]}
+                      Exibir rotas de eventos
                     </Text>
-                    {active && <Text style={styles.modalItemCheck}>✓</Text>}
-                  </Pressable>
-                );
-              })}
+                    <Text style={styles.routeOptionSub}>
+                      Inclui rotas especiais de passeios e eventos temporários
+                    </Text>
+                  </View>
+                  {includeEventRoutes && (
+                    <View style={styles.categoryCheckBadge}>
+                      <Text style={styles.categoryCheckText}>✓</Text>
+                    </View>
+                  )}
+                </Pressable>
+              </ScrollView>
 
-              <View style={[styles.modalHeader, { marginTop: 12 }]}>
-                <Text style={styles.modalTitle}>Filtro de Rotas</Text>
-              </View>
-
-              <Pressable
-                style={[styles.modalItem, includeEventRoutes && styles.modalItemActive]}
-                onPress={() => setIncludeEventRoutes((prev) => !prev)}
+              {/* Modal Footer */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[styles.modalDone, { backgroundColor: primaryColor || "#2563EB" }]}
+                onPress={closeModal}
               >
-                <View
-                  style={[
-                    styles.modalItemIcon,
-                    includeEventRoutes && styles.modalItemIconActive,
-                  ]}
-                >
-                  <Text style={{ fontSize: 16 }}>🚩</Text>
-                </View>
-                <Text
-                  style={[
-                    styles.modalItemText,
-                    includeEventRoutes && styles.modalItemTextActive,
-                  ]}
-                >
-                  Exibir rotas de eventos
+                <Text style={styles.modalDoneText}>
+                  {categoryFilter.size > 0
+                    ? `Aplicar Filtros (${categoryFilter.size})`
+                    : "Aplicar Filtros"}
                 </Text>
-                {includeEventRoutes && <Text style={styles.modalItemCheck}>✓</Text>}
-              </Pressable>
-
-              <Pressable style={styles.modalDone} onPress={closeModal}>
-                <Text style={styles.modalDoneText}>Concluído</Text>
-              </Pressable>
+              </TouchableOpacity>
             </Animated.View>
           </Animated.View>
+        )}
+        {/* Card Modal Explicativo de Estado de Conectividade */}
+        {showOfflineCardModal && (
+          <View style={styles.modalOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setShowOfflineCardModal(false)}
+            />
+            <View
+              style={[
+                styles.expandedCard,
+                statusState === "reconnected"
+                  ? styles.borderReconnected
+                  : statusState === "offline"
+                    ? styles.borderOffline
+                    : styles.borderSyncing,
+              ]}
+            >
+              <View style={styles.expandedHeader}>
+                <View style={styles.titleRow}>
+                  <Text style={styles.expandedTitle}>
+                    {statusState === "reconnected"
+                      ? "Conexão Reestabelecida"
+                      : statusState === "offline"
+                        ? "Dispositivo Off-line"
+                        : "Sincronizando Dados"}
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => setShowOfflineCardModal(false)}
+                  style={styles.closeBtn}
+                >
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.expandedSubText}>
+                {statusState === "reconnected"
+                  ? "Você está online novamente. As informações e carimbos salvos localmente foram sincronizados."
+                  : statusState === "offline"
+                    ? pendingCount > 0
+                      ? `Você está sem internet. Há ${pendingCount} carimbo(s) salvo(s) neste celular que serão enviados automaticamente ao reconectar.`
+                      : "Você está sem conexão de internet. As informações de cidades, rotas, mapas e carimbos salvos continuam disponíveis para consulta off-line."
+                    : `Sincronizando ${pendingCount} item(ns) pendente(s) com os servidores da Rota CRIC...`}
+              </Text>
+
+              <View style={styles.expandedFooter}>
+                {pendingCount > 0 && (
+                  <View style={styles.pendingChip}>
+                    <Text style={styles.pendingChipText}>
+                      {pendingCount} pendente(s) na fila
+                    </Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={styles.collapseBtn}
+                  onPress={() => setShowOfflineCardModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.collapseBtnText}>Recolher</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -775,264 +1229,572 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  positionCard: {
+  topControlsContainer: {
     position: "absolute",
-    top: 12,
+    top: 10,
     left: 12,
     right: 12,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
+    zIndex: 10,
+    gap: 8,
+  },
+  topControlsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+  },
+  positionCard: {
+    flex: 1,
+    height: 48,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 4,
   },
   positionIconWrap: {
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
     borderRadius: 10,
     backgroundColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
   },
-  positionIcon: { fontSize: 16, color: "#2563EB" },
+  positionIcon: { fontSize: 14, color: "#2563EB" },
   positionLabel: {
     fontSize: 10,
-    color: "#9CA3AF",
-    fontWeight: "600",
+    color: "#94A3B8",
+    fontWeight: "700",
     letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-  positionCity: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  positionNext: { fontSize: 15, fontWeight: "700", color: "#2563EB" },
+  positionCity: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
+
   cityBanner: {
-    position: "absolute",
-    top: 76,
-    alignSelf: "center",
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     backgroundColor: "#2563EB",
-    paddingLeft: 14,
-    paddingRight: 10,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 6,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
     elevation: 4,
+    maxWidth: "100%",
   },
-  cityBannerText: { fontSize: 13, color: "#fff", fontWeight: "600" },
+  cityBannerText: { fontSize: 12, color: "#FFFFFF", fontWeight: "600" },
   cityBannerClose: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  cityBannerCloseText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  cityBannerCloseText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
+
   acquiringBanner: {
     position: "absolute",
-    bottom: 12,
+    top: 102,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     elevation: 3,
   },
-  acquiringText: { fontSize: 13, color: "#374151" },
-  recenterBtn: {
+  acquiringText: { fontSize: 12, color: "#334155", fontWeight: "600" },
+
+  /* Deck Flutuante de Ações */
+  fabDeck: {
     position: "absolute",
-    bottom: 12,
-    right: 12,
-    backgroundColor: "#fff",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    bottom: 14,
+    right: 14,
+    gap: 10,
+    alignItems: "center",
+    zIndex: 20,
+  },
+  fabBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  recenterText: { fontSize: 18 },
+  fabBtnActive: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#2563EB",
+  },
+  fabBtnIcon: { fontSize: 18 },
+  filterBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: "#2563EB",
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadgeText: { fontSize: 10, color: "#FFFFFF", fontWeight: "800" },
+
+  /* Bottom Sheet Otimizado */
   sheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 8,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 12,
     overflow: "hidden",
   },
-  handleArea: { alignItems: "center", paddingTop: 10, paddingBottom: 6 },
-  handle: { width: 40, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2 },
+  handleArea: { alignItems: "center", paddingTop: 10, paddingBottom: 8 },
+  handle: { width: 36, height: 4, backgroundColor: "#CBD5E1", borderRadius: 2 },
   sheetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingBottom: 12,
   },
+  sheetBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
   sheetLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#2563EB",
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontWeight: "800",
+    letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   sheetRoute: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
-    color: "#111827",
-    marginTop: 2,
+    color: "#0F172A",
   },
-  sheetChevron: { fontSize: 18, color: "#9CA3AF" },
-  sheetScroll: { paddingHorizontal: 20 },
+  expandTogglePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 4,
+  },
+  expandToggleText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  sheetChevron: { fontSize: 12, color: "#475569" },
+  sheetScroll: { paddingHorizontal: 18 },
+
+  /* Stats Grid */
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    backgroundColor: "#F7F8FC",
-    borderRadius: 14,
-    paddingVertical: 14,
-    marginBottom: 20,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  statItem: { alignItems: "center", gap: 4, flex: 1 },
-  statDivider: { width: 1, backgroundColor: "#E5E7EB" },
-  statIcon: { fontSize: 18 },
-  statLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600" },
-  statValue: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#9CA3AF",
-    letterSpacing: 1.5,
+  statItem: { alignItems: "center", gap: 3, flex: 1 },
+  statIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  statIcon: { fontSize: 14 },
+  statDivider: { width: 1, backgroundColor: "#E2E8F0", marginVertical: 4 },
+  statLabel: { fontSize: 10, color: "#64748B", fontWeight: "600" },
+  statValue: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
+
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 1.2,
+  },
+  sectionCountText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+
   anchorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
-  anchorRowIcon: { fontSize: 16 },
-  anchorRowName: { flex: 1, fontSize: 14, fontWeight: "600", color: "#111827" },
-  anchorRowDist: { fontSize: 13, color: "#2563EB", fontWeight: "700" },
-  emptyText: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    fontStyle: "italic",
-    paddingVertical: 8,
+  anchorRowPressed: {
+    backgroundColor: "#F8FAFC",
   },
   anchorRowIconWrap: {
-    width: 45,
-    height: 45,
-    borderRadius: 8,
-    backgroundColor: "rgba(107, 114, 128, 0.45)",
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
   },
   anchorRowIconOnRoute: {
-    backgroundColor: "rgba(37, 100, 235, 0.45)",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
   },
-  filterBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterBtnActive: {
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1.5,
-    borderColor: "#2563EB",
-  },
-  filterBtnIcon: { fontSize: 16 },
-  filterBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#2563EB",
+  anchorRowIcon: { fontSize: 18 },
+  anchorRowInfo: { flex: 1 },
+  anchorRowName: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  anchorRowSub: { fontSize: 11, color: "#64748B", marginTop: 1 },
+  anchorRowDistChip: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 8,
-    width: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
   },
-  filterBadgeText: { fontSize: 10, color: "#fff", fontWeight: "700" },
+  anchorRowDist: { fontSize: 12, color: "#2563EB", fontWeight: "800" },
+  emptyContainer: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 13,
+    color: "#94A3B8",
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  weatherBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  weatherEmoji: { fontSize: 13 },
+  weatherTemp: { fontSize: 12, fontWeight: "800", color: "#0F172A" },
+
+  /* Modal de Filtros Otimizado */
   modalOverlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    paddingTop: 80,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "center",
     paddingHorizontal: 16,
+    paddingVertical: 40,
+    zIndex: 9999,
   },
   modalBox: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
+    maxHeight: "85%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 16,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
-  modalTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
-  modalClear: { fontSize: 13, color: "#EF4444", fontWeight: "600" },
-  modalItem: {
+  modalHeaderTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 4,
-    backgroundColor: "#F9FAFB",
+    gap: 10,
   },
-  modalItemActive: {
-    backgroundColor: "#EEF2FF",
-  },
-  modalItemIcon: {
+  modalHeaderIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 8,
-    backgroundColor: "#6B7280",
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
   },
-  modalItemIconActive: {
-    backgroundColor: "#2563EB",
+  modalTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  modalSubtitle: { fontSize: 11, color: "#64748B", marginTop: 1 },
+  modalClearBtn: {
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
   },
-  modalItemText: { flex: 1, fontSize: 14, fontWeight: "500", color: "#374151" },
-  modalItemTextActive: { color: "#2563EB", fontWeight: "700" },
-  modalItemCheck: { fontSize: 14, color: "#2563EB", fontWeight: "700" },
+  modalClearText: { fontSize: 11, color: "#EF4444", fontWeight: "700" },
+
+  modalScroll: { maxHeight: 380 },
+  modalSectionLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 1,
+  },
+
+  /* Grid 2 colunas */
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  categoryCard: {
+    width: "48.5%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+  },
+  categoryCardActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#2563EB",
+  },
+  categoryCardPressed: {
+    opacity: 0.8,
+  },
+  categoryCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryCardIconActive: {
+    backgroundColor: "#DBEAFE",
+  },
+  categoryCardText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  categoryCardTextActive: {
+    color: "#1E40AF",
+    fontWeight: "800",
+  },
+  categoryCheckBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryCheckText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+
+  /* Card de filtro de rotas */
+  routeOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+  },
+  routeOptionCardActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#2563EB",
+  },
+  routeOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  routeOptionIconActive: {
+    backgroundColor: "#DBEAFE",
+  },
+  routeOptionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  routeOptionTitleActive: {
+    color: "#1E40AF",
+    fontWeight: "800",
+  },
+  routeOptionSub: {
+    fontSize: 10,
+    color: "#64748B",
+    marginTop: 2,
+  },
+
   modalDone: {
     backgroundColor: "#2563EB",
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 14,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  modalDoneText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  modalDoneText: { color: "#FFFFFF", fontWeight: "800", fontSize: 15 },
+
+  /* Card Expandido de Conectividade */
+  expandedCard: {
+    width: 280,
+    backgroundColor: "#0F172A",
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 12,
+    gap: 8,
+    alignSelf: "center",
+  },
+  borderOffline: {
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 158, 11, 0.6)",
+  },
+  borderSyncing: {
+    borderWidth: 1.5,
+    borderColor: "rgba(56, 189, 248, 0.6)",
+  },
+  borderReconnected: {
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.6)",
+  },
+  expandedHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  expandedTitle: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  closeBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeBtnText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  expandedSubText: {
+    color: "#CBD5E1",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  expandedFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+  },
+  pendingChip: {
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  pendingChipText: {
+    color: "#FBBF24",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  collapseBtn: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginLeft: "auto",
+  },
+  collapseBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
 });

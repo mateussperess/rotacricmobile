@@ -34,7 +34,13 @@ export class AuthService {
       data: { last_login: new Date() },
     });
 
-    const payload = { sub: user.id.toString(), username: user.username, email: user.email };
+    const payload = {
+      sub: user.id.toString(),
+      username: user.username,
+      email: user.email,
+      is_staff: Boolean(user.is_staff),
+      is_superuser: Boolean(user.is_superuser),
+    };
     const token = await this.jwtService.signAsync(payload);
 
     return {
@@ -45,6 +51,8 @@ export class AuthService {
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
+        is_staff: Boolean(user.is_staff),
+        is_superuser: Boolean(user.is_superuser),
         profile_picture: user.profile?.profile_picture_path
           ? `${process.env.MEDIA_BASE_URL || 'https://rota-cric.charqueadas.ifsul.edu.br/media/'}${user.profile.profile_picture_path}`
           : null,

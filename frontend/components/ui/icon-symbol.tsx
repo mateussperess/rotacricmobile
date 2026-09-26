@@ -36,6 +36,16 @@ const MAPPING = {
   "questionmark.circle.fill": "help-outline",
   "rectangle.portrait.and.arrow.right": "logout",
   bicycle: "directions-bike",
+  "plus.circle.fill": "add-circle",
+  "mappin.circle.fill": "location-on",
+  "arrow.clockwise": "refresh",
+  "xmark.circle.fill": "cancel",
+  qrcode: "qr-code",
+  magnifyingglass: "search",
+  "wifi.slash": "wifi-off",
+  wifi: "wifi",
+  "cloud.sync": "sync",
+  "slash.circle.fill": "block",
 } as const;
 
 /**
