@@ -8,8 +8,6 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
-import StoreCollected from "@/assets/images/anchorpoint_categories_logos/collected/store_collected.svg";
-
 import { useAuth } from "@/components/contexts/AuthContext";
 import React from "react";
 import { StyleSheet, View } from "react-native";
@@ -71,7 +69,7 @@ const AnchorPointMarkerComponent = ({
 }: Props) => {
   const auth = useAuth();
   const isLoggedIn = Boolean(auth?.isLoggedIn);
-  const actualCollected = isLoggedIn && Boolean(is_collected);
+  // const actualCollected = isLoggedIn && Boolean(is_collected);
 
   // const mapToUse = actualCollected ? COLLECTED_ICON_MAP : ICON_MAP;
   const mapToUse = ICON_MAP;
@@ -85,7 +83,8 @@ const AnchorPointMarkerComponent = ({
   }
 
   if (!IconComponent) {
-    IconComponent = actualCollected ? StoreCollected : Store;
+    // IconComponent = actualCollected ? StoreCollected : Store;
+    IconComponent = Store;
   }
 
   return (
