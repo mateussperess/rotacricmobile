@@ -7,8 +7,12 @@ import Pharmacy from "@/assets/images/anchorpoint_categories_logos/pharmacy.svg"
 import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
+
+import StoreCollected from "@/assets/images/anchorpoint_categories_logos/collected/store_collected.svg";
+
+import { useAuth } from "@/components/contexts/AuthContext";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 const ICON_MAP: Record<
   string,
@@ -25,10 +29,26 @@ const ICON_MAP: Record<
   tourism: Tourism,
 };
 
+// const COLLECTED_ICON_MAP: Record<
+//   string,
+//   React.FC<{ width: number; height: number; color?: string }>
+// > = {
+//   beverage_storage: BeverageStorageCollected,
+//   food: FoodCollected,
+//   gas_station: GasStationCollected,
+//   hospital: HospitalCollected,
+//   hotel: HotelCollected,
+//   pharmacy: PharmacyCollected,
+//   repair: RepairCollected,
+//   store: StoreCollected,
+//   tourism: TourismCollected,
+// };
+
 interface Props {
   icon_name?: string | null;
   category_id?: string | number | null;
   on_route?: boolean;
+  is_collected?: boolean;
 }
 
 const CATEGORY_ID_MAP: Record<string, string> = {
@@ -47,18 +67,25 @@ const AnchorPointMarkerComponent = ({
   icon_name,
   category_id,
   on_route,
+  is_collected = false,
 }: Props) => {
-  let IconComponent = icon_name ? ICON_MAP[icon_name] : null;
+  const auth = useAuth();
+  const isLoggedIn = Boolean(auth?.isLoggedIn);
+  const actualCollected = isLoggedIn && Boolean(is_collected);
+
+  // const mapToUse = actualCollected ? COLLECTED_ICON_MAP : ICON_MAP;
+  const mapToUse = ICON_MAP;
+  let IconComponent = icon_name ? mapToUse[icon_name] : null;
 
   if (!IconComponent && category_id) {
     const catKey = CATEGORY_ID_MAP[category_id.toString()];
-    if (catKey && ICON_MAP[catKey]) {
-      IconComponent = ICON_MAP[catKey];
+    if (catKey && mapToUse[catKey]) {
+      IconComponent = mapToUse[catKey];
     }
   }
 
   if (!IconComponent) {
-    IconComponent = Store;
+    IconComponent = actualCollected ? StoreCollected : Store;
   }
 
   return (

@@ -8,7 +8,6 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import * as SplashScreen from "expo-splash-screen";
 
-import { deactivateKeepAwake } from "expo-keep-awake";
 import { useEffect, useState } from "react";
 import { AuthProvider } from "@/components/contexts/AuthContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -26,10 +25,6 @@ export default function RootLayout() {
   const [splashAnimationDone, setSplashAnimationDone] = useState(false);
 
   useEffect(() => {
-    try {
-      deactivateKeepAwake().catch(() => {});
-    } catch {}
-
     // Oculta a splash nativa estática do sistema para exibir a AnimatedSplashScreen
     SplashScreen.hideAsync().catch(() => {});
   }, []);

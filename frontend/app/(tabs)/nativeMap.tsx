@@ -115,29 +115,33 @@ const MOCK_ROUTE_INFO = {
   elevation: "+280 m",
 };
 
-const AnchorMarker = React.memo(({ ap }: { ap: AnchorPoint }) => {
-  const [ready, setReady] = useState(false);
+const AnchorMarker = React.memo(
+  ({ ap, isCollected }: { ap: AnchorPoint; isCollected?: boolean }) => {
+    const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(() => setReady(true), 300);
-    return () => clearTimeout(t);
-  }, []);
+    useEffect(() => {
+      setReady(false);
+      const t = setTimeout(() => setReady(true), 300);
+      return () => clearTimeout(t);
+    }, [isCollected]);
 
-  return (
-    <Marker
-      coordinate={{ latitude: ap.lat, longitude: ap.lng }}
-      title={ap.name}
-      description={ap.phone ?? ap.business_hours ?? undefined}
-      tracksViewChanges={!ready}
-    >
-      <AnchorPointMarker
-        icon_name={ap.category?.icon_name}
-        category_id={ap.category_id}
-        on_route={ap.on_route}
-      />
-    </Marker>
-  );
-});
+    return (
+      <Marker
+        coordinate={{ latitude: ap.lat, longitude: ap.lng }}
+        title={ap.name}
+        description={ap.phone ?? ap.business_hours ?? undefined}
+        tracksViewChanges={!ready}
+      >
+        <AnchorPointMarker
+          icon_name={ap.category?.icon_name}
+          category_id={ap.category_id}
+          on_route={ap.on_route}
+          is_collected={isCollected}
+        />
+      </Marker>
+    );
+  }
+);
 
 AnchorMarker.displayName = "AnchorMarker";
 
@@ -159,7 +163,7 @@ const UserMarker = React.memo(
 UserMarker.displayName = "UserMarker";
 
 export default function NativeMap() {
-  const { primaryColor } = useAuth();
+  const { primaryColor, isLoggedIn } = useAuth();
   const { lat, lng, zoom, t, apId, apName } = useLocalSearchParams<{
     lat?: string;
     lng?: string;
@@ -622,17 +626,33 @@ export default function NativeMap() {
   }, [stamps]);
 
   const collectedApSet = useMemo(() => {
+    if (!isLoggedIn) return new Set<string>();
     const set = new Set<string>();
+    const stampToApMap = new Map<string, string>();
+    (stamps || []).forEach((s) => {
+      if (s.id && s.anchor_point_id) {
+        stampToApMap.set(s.id.toString(), s.anchor_point_id.toString());
+      }
+    });
+
     (userStamps || []).forEach((us) => {
-      const apId = (
+      const explicitApId = (
         us.anchor_point_id ||
-        us.stamp?.anchor_point_id ||
-        us.stamp_id
+        us.stamp?.anchor_point_id
       )?.toString();
-      if (apId) set.add(apId);
+      if (explicitApId) {
+        set.add(explicitApId);
+      } else {
+        const sId = (us.stamp_id || us.stamp?.id)?.toString();
+        if (sId && stampToApMap.has(sId)) {
+          set.add(stampToApMap.get(sId)!);
+        } else if (us.anchor_point_id) {
+          set.add(us.anchor_point_id.toString());
+        }
+      }
     });
     return set;
-  }, [userStamps]);
+  }, [isLoggedIn, stamps, userStamps]);
 
   const visibleAnchorPoints = useMemo(() => {
     let list = anchorPoints;
@@ -701,12 +721,17 @@ export default function NativeMap() {
               />
             ))}
 
-            {visibleAnchorPoints.map((ap, index) => (
-              <AnchorMarker
-                key={`ap-${ap.id}-${index}`}
-                ap={ap}
-              />
-            ))}
+            {visibleAnchorPoints.map((ap, index) => {
+              const isCollected =
+                isLoggedIn && collectedApSet.has(ap.id.toString());
+              return (
+                <AnchorMarker
+                  key={`ap-${ap.id}-${isCollected ? "collected" : "normal"}`}
+                  ap={ap}
+                  isCollected={isCollected}
+                />
+              );
+            })}
           </MapView>
 
           {/* Container de Controles do Topo (Posição, Clima e Indicador Inline) */}
