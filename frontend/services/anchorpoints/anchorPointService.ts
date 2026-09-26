@@ -33,7 +33,7 @@ export const AnchorPointsService = {
     try {
       const { data } = await api.get("/anchor-points");
       if (data && Array.isArray(data)) {
-        await AnchorPointsOfflineRepository.saveAll(data, true);
+        AnchorPointsOfflineRepository.saveAll(data, true).catch(() => {});
         return data;
       }
     } catch (e) {
@@ -46,7 +46,7 @@ export const AnchorPointsService = {
     try {
       const { data } = await api.get(`/anchor-points/city/${city_id}`);
       if (data && Array.isArray(data)) {
-        await AnchorPointsOfflineRepository.saveAll(data);
+        AnchorPointsOfflineRepository.saveAll(data).catch(() => {});
         return data;
       }
     } catch (e) {

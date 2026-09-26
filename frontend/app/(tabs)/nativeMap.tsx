@@ -117,30 +117,48 @@ const MOCK_ROUTE_INFO = {
 
 const AnchorMarker = React.memo(
   ({ ap, isCollected }: { ap: AnchorPoint; isCollected?: boolean }) => {
-    const [ready, setReady] = useState(false);
+    const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
+    const handleLayout = useCallback(() => {
+      setTracksViewChanges(false);
+    }, []);
 
     useEffect(() => {
-      setReady(false);
-      const t = setTimeout(() => setReady(true), 300);
-      return () => clearTimeout(t);
-    }, [isCollected]);
+      setTracksViewChanges(true);
+      const timer = setTimeout(() => {
+        setTracksViewChanges(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }, [ap.id, ap.lat, ap.lng, isCollected, ap.category?.icon_name]);
 
     return (
       <Marker
         coordinate={{ latitude: ap.lat, longitude: ap.lng }}
         title={ap.name}
         description={ap.phone ?? ap.business_hours ?? undefined}
-        tracksViewChanges={!ready}
+        tracksViewChanges={tracksViewChanges}
       >
-        <AnchorPointMarker
-          icon_name={ap.category?.icon_name}
-          category_id={ap.category_id}
-          on_route={ap.on_route}
-          is_collected={isCollected}
-        />
+        <View onLayout={handleLayout}>
+          <AnchorPointMarker
+            icon_name={ap.category?.icon_name}
+            category_id={ap.category_id}
+            on_route={ap.on_route}
+            is_collected={isCollected}
+          />
+        </View>
       </Marker>
     );
-  }
+  },
+  (prevProps, nextProps) =>
+    prevProps.ap.id === nextProps.ap.id &&
+    prevProps.ap.lat === nextProps.ap.lat &&
+    prevProps.ap.lng === nextProps.ap.lng &&
+    prevProps.ap.name === nextProps.ap.name &&
+    prevProps.ap.phone === nextProps.ap.phone &&
+    prevProps.ap.business_hours === nextProps.ap.business_hours &&
+    prevProps.ap.category_id === nextProps.ap.category_id &&
+    prevProps.ap.category?.icon_name === nextProps.ap.category?.icon_name &&
+    prevProps.isCollected === nextProps.isCollected
 );
 
 AnchorMarker.displayName = "AnchorMarker";
@@ -183,6 +201,7 @@ export default function NativeMap() {
       : null;
 
   const [viewingCity, setViewingCity] = useState(!!cityTarget);
+  const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
   const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(null);
   const [singleApName, setSingleApName] = useState<string | null>(null);
   const [location, setLocation] = useState<LocationData>(null);
@@ -286,34 +305,52 @@ export default function NativeMap() {
 
   const loadMapData = useCallback(async () => {
     try {
-      // 1. Carregar IMEDIATAMENTE do repositório SQLite local para renderização ultra-rápida (< 50ms)
+      // 1. Carregar IMEDIATAMENTE do repositório SQLite local para renderização ultra-rápida (< 10ms)
       const [localPts, localRoutes, localStamps] = await Promise.all([
         AnchorPointsOfflineRepository.getAll().catch(() => []),
         RoutesOfflineRepository.getAll().catch(() => []),
         StampsOfflineRepository.getAll().catch(() => []),
       ]);
-      if (localPts && localPts.length > 0) setAnchorPoints(localPts);
-      if (localRoutes && localRoutes.length > 0) setRoutes(localRoutes);
-      if (localStamps && localStamps.length > 0) setUserStamps(localStamps);
+      React.startTransition(() => {
+        if (localPts && localPts.length > 0) setAnchorPoints(localPts);
+        if (localRoutes && localRoutes.length > 0) setRoutes(localRoutes);
+        if (localStamps && localStamps.length > 0) setUserStamps(localStamps);
+      });
 
-      // 2. Em segundo plano, atualizar do servidor se houver conectividade
-      const netState = await NetInfo.fetch();
-      const isStable =
-        netState.isConnected === true && netState.isInternetReachable !== false;
+      // 2. Disparar sincronização com servidor e atualizar estados instantaneamente na chegada (18ms)
+      BootstrapOfflineService.syncBootstrapData().catch(() => {});
 
-      if (isStable) {
-        BootstrapOfflineService.syncBootstrapData().catch(() => {});
-        const [pts, rts, stps, uStps] = await Promise.all([
-          AnchorPointsService.findAll().catch(() => []),
-          RoutesService.findAll().catch(() => []),
-          StampService.findAll().catch(() => []),
-          StampService.getUserStamps().catch(() => []),
-        ]);
-        if (pts && pts.length > 0) setAnchorPoints(pts);
-        if (rts && rts.length > 0) setRoutes(rts);
-        if (stps && stps.length > 0) setStamps(stps);
-        if (uStps && uStps.length > 0) setUserStamps(uStps);
-      }
+      AnchorPointsService.findAll()
+        .then((pts) => {
+          if (pts && pts.length > 0) {
+            React.startTransition(() => setAnchorPoints(pts));
+          }
+        })
+        .catch(() => {});
+
+      RoutesService.findAll()
+        .then((rts) => {
+          if (rts && rts.length > 0) {
+            React.startTransition(() => setRoutes(rts));
+          }
+        })
+        .catch(() => {});
+
+      StampService.findAll()
+        .then((stps) => {
+          if (stps && stps.length > 0) {
+            React.startTransition(() => setStamps(stps));
+          }
+        })
+        .catch(() => {});
+
+      StampService.getUserStamps()
+        .then((uStps) => {
+          if (uStps && uStps.length > 0) {
+            React.startTransition(() => setUserStamps(uStps));
+          }
+        })
+        .catch(() => {});
     } catch {
       // Falhas são tratadas mantendo dados locais
     }
@@ -674,6 +711,38 @@ export default function NativeMap() {
     return Array.from(map.values());
   }, [anchorPoints, categoryFilter]);
 
+  const renderedAnchorPoints = useMemo(() => {
+    if (!currentRegion) return visibleAnchorPoints;
+    const latMargin = (currentRegion.latitudeDelta || 0.1) * 0.75;
+    const lngMargin = (currentRegion.longitudeDelta || 0.1) * 0.75;
+    const latMin = currentRegion.latitude - latMargin;
+    const latMax = currentRegion.latitude + latMargin;
+    const lngMin = currentRegion.longitude - lngMargin;
+    const lngMax = currentRegion.longitude + lngMargin;
+
+    return visibleAnchorPoints.filter((ap) => {
+      if (apId && ap.id.toString() === apId.toString()) return true;
+      return (
+        ap.lat >= latMin &&
+        ap.lat <= latMax &&
+        ap.lng >= lngMin &&
+        ap.lng <= lngMax
+      );
+    });
+  }, [visibleAnchorPoints, currentRegion, apId]);
+
+  const renderedPolylines = useMemo(() => {
+    return routeCoordinates.map((route, index) => (
+      <Polyline
+        key={`route-${route.id}-${index}`}
+        coordinates={route.coordinates}
+        strokeColor={route.color}
+        strokeWidth={4}
+        lineJoin="round"
+      />
+    ));
+  }, [routeCoordinates]);
+
   const nearbyPoints = useMemo(() => {
     if (!latitude || !longitude || visibleAnchorPoints.length === 0) return [];
     return [...visibleAnchorPoints]
@@ -706,27 +775,22 @@ export default function NativeMap() {
             initialRegion={initialRegion}
             showsUserLocation={true}
             showsMyLocationButton={false}
+            onRegionChangeComplete={(region) => {
+              setCurrentRegion(region);
+            }}
             onPanDrag={() => {
               followingRef.current = false;
               setFollowing(false);
             }}
           >
-            {routeCoordinates.map((route, index) => (
-              <Polyline
-                key={`route-${route.id}-${index}`}
-                coordinates={route.coordinates}
-                strokeColor={route.color}
-                strokeWidth={4}
-                lineJoin="round"
-              />
-            ))}
+            {renderedPolylines}
 
-            {visibleAnchorPoints.map((ap, index) => {
+            {renderedAnchorPoints.map((ap) => {
               const isCollected =
                 isLoggedIn && collectedApSet.has(ap.id.toString());
               return (
                 <AnchorMarker
-                  key={`ap-${ap.id}-${isCollected ? "collected" : "normal"}`}
+                  key={`ap-${ap.id}`}
                   ap={ap}
                   isCollected={isCollected}
                 />

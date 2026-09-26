@@ -31,7 +31,7 @@ export const StampService = {
     try {
       const { data } = await api.get("/stamps");
       if (data && Array.isArray(data)) {
-        await StampsOfflineRepository.saveAll(data);
+        StampsOfflineRepository.saveAll(data).catch(() => {});
         return data;
       }
     } catch {
@@ -46,10 +46,11 @@ export const StampService = {
       if (!token) {
         return StampsOfflineRepository.getUserStamps();
       }
-      await StampService.processSyncQueue();
+      StampService.processSyncQueue().catch(() => {});
       const { data } = await api.get("/stamps/my-stamps");
       if (data && Array.isArray(data)) {
-        await StampsOfflineRepository.saveUserStamps(data);
+        StampsOfflineRepository.saveUserStamps(data).catch(() => {});
+        return data;
       }
     } catch {
       // Ignorar erros de rede/autenticação em modo offline

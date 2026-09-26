@@ -19,7 +19,7 @@ export const RoutesService = {
     try {
       const { data } = await api.get("/routes");
       if (data && Array.isArray(data)) {
-        await RoutesOfflineRepository.saveAll(data);
+        RoutesOfflineRepository.saveAll(data).catch(() => {});
         return data;
       }
     } catch (e) {
