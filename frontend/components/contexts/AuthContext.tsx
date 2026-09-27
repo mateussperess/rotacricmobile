@@ -10,6 +10,8 @@ export interface User {
   username?: string;
   first_name?: string;
   last_name?: string;
+  is_staff?: boolean;
+  is_superuser?: boolean;
   birth_date?: string | null;
   document?: string | null;
   document_type?: string | null;
@@ -19,11 +21,16 @@ export interface User {
   stampsCount?: number;
 }
 
+export const CRIC_BLUE = "#2563EB";
+export const ADMIN_BLUE = "#273273";
+
 interface AuthContextType {
   token: string | null;
   user: User | null;
   loading: boolean;
   isLoggedIn: boolean;
+  isAdmin: boolean;
+  primaryColor: string;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -50,6 +57,8 @@ function decodeToken(token: string): Partial<User> | null {
       email: email,
       name: payload.name || email.split("@")[0],
       username: payload.username,
+      is_staff: Boolean(payload.is_staff),
+      is_superuser: Boolean(payload.is_superuser),
     };
   } catch (error) {
     console.error("Erro ao decodificar token:", error);
@@ -76,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: profile.username || baseUser.username,
         first_name: profile.first_name,
         last_name: profile.last_name,
+        is_staff: profile.is_staff !== undefined ? Boolean(profile.is_staff) : Boolean(baseUser.is_staff),
+        is_superuser: profile.is_superuser !== undefined ? Boolean(profile.is_superuser) : Boolean(baseUser.is_superuser),
         birth_date: profile.birth_date,
         document: profile.document,
         document_type: profile.document_type,
@@ -91,6 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: baseUser.email || "",
         name: baseUser.name || "Ciclista",
         username: baseUser.username,
+        is_staff: Boolean(baseUser.is_staff),
+        is_superuser: Boolean(baseUser.is_superuser),
       });
     }
   };
@@ -159,11 +172,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = login;
   const signOut = logout;
 
+  const isAdmin = Boolean(user?.is_staff || user?.is_superuser);
+  const primaryColor = isAdmin ? ADMIN_BLUE : CRIC_BLUE;
+
   const value: AuthContextType = {
     token,
     user,
     loading,
     isLoggedIn: !!token && !!user,
+    isAdmin,
+    primaryColor,
     login,
     logout,
     refreshUser,

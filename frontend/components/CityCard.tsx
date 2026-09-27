@@ -1,3 +1,4 @@
+import { useAuth } from "@/components/contexts/AuthContext";
 import { City } from "@/services/cities/citiesService";
 import { Feather } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -25,6 +26,7 @@ interface CityCardProps {
 }
 
 export function CityCard({ item, meta, onPress }: CityCardProps) {
+  const { primaryColor } = useAuth();
   const { data: weather, loading: weatherLoading } = useWeather(
     item.lat,
     item.lng,
@@ -45,7 +47,7 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
       onPress={onPress}
     >
       {/* Faixa colorida */}
-      <View style={[styles.cardAccent, { backgroundColor: CRIC_BLUE }]} />
+      <View style={[styles.cardAccent, { backgroundColor: primaryColor }]} />
 
       <View style={styles.cardBody}>
         {/* KM + clima */}
@@ -61,7 +63,7 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
             ) : weather ? (
               <>
                 <Text style={styles.weatherIcon}>{weather.emoji}</Text>
-                <Text style={[styles.weatherTemp, { color: CRIC_BLUE }]}>
+                <Text style={[styles.weatherTemp, { color: primaryColor }]}>
                   {weather.temperature}°
                 </Text>
               </>
@@ -80,9 +82,9 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
             )}
           </View>
           <View
-            style={[styles.locationIcon, { backgroundColor: CRIC_BLUE + "18" }]}
+            style={[styles.locationIcon, { backgroundColor: primaryColor + "18" }]}
           >
-            <Feather name="map-pin" size={18} color={CRIC_BLUE} />
+            <Feather name="map-pin" size={18} color={primaryColor} />
           </View>
         </View>
 
@@ -106,7 +108,7 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
               <Text style={styles.footerStat}>📍 {item.anchorCount}</Text>
             )}
           </View>
-          <Text style={[styles.detailsBtnText, { color: CRIC_BLUE }]}>
+          <Text style={[styles.detailsBtnText, { color: primaryColor }]}>
             Ver detalhes ›
           </Text>
         </View>

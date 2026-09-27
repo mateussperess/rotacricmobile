@@ -9,24 +9,24 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 const TAB_BAR_HEIGHT = 64;
 
 /** Botão central elevado — substitui o tabBarButton padrão só no Escanear */
-function ScanTabButton({ onPress, children }: any) {
+function ScanTabButton({ onPress, primaryColor }: any) {
   return (
     <Pressable
       onPress={onPress}
       style={styles.scanTabButton}
       android_ripple={{ color: "transparent" }}
     >
-      {/* Círculo azul elevado */}
-      <View style={styles.scanButton}>
+      {/* Círculo elevado adaptativo */}
+      <View style={[styles.scanButton, { backgroundColor: primaryColor, shadowColor: primaryColor }]}>
         <IconSymbol size={26} name="barcode.viewfinder" color="#FFFFFF" />
       </View>
-      <Text style={styles.scanLabel}>Escanear</Text>
+      <Text style={[styles.scanLabel, { color: primaryColor }]}>Escanear</Text>
     </Pressable>
   );
 }
 
 export default function TabLayout() {
-  const { token, loading } = useAuth();
+  const { token, loading, primaryColor, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -39,7 +39,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#2563EB",
+        tabBarActiveTintColor: primaryColor,
         tabBarInactiveTintColor: "#9CA3AF",
         headerShown: false,
         tabBarButton: HapticTab,
@@ -54,7 +54,11 @@ export default function TabLayout() {
           title: "Mapa",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+              style={
+                focused
+                  ? [styles.activeIconWrapper, { backgroundColor: isAdmin ? "#EEF2FF" : "#EFF6FF" }]
+                  : styles.iconWrapper
+              }
             >
               <IconSymbol size={22} name="map.fill" color={color} />
             </View>
@@ -68,7 +72,11 @@ export default function TabLayout() {
           title: "Cidades",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+              style={
+                focused
+                  ? [styles.activeIconWrapper, { backgroundColor: isAdmin ? "#EEF2FF" : "#EFF6FF" }]
+                  : styles.iconWrapper
+              }
             >
               <IconSymbol name="building.2.fill" size={22} color={color} />
             </View>
@@ -83,7 +91,7 @@ export default function TabLayout() {
           title: "Escanear",
           tabBarLabel: () => null,
           tabBarIcon: () => null,
-          tabBarButton: (props) => <ScanTabButton {...props} />,
+          tabBarButton: (props) => <ScanTabButton {...props} primaryColor={primaryColor} />,
           tabBarItemStyle: styles.scanTabItem,
         }}
       />
@@ -94,7 +102,11 @@ export default function TabLayout() {
           title: "Carimbos",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+              style={
+                focused
+                  ? [styles.activeIconWrapper, { backgroundColor: isAdmin ? "#EEF2FF" : "#EFF6FF" }]
+                  : styles.iconWrapper
+              }
             >
               <IconSymbol size={22} name="star.fill" color={color} />
             </View>
@@ -108,11 +120,23 @@ export default function TabLayout() {
           title: token ? "Perfil" : "Entrar",
           tabBarIcon: ({ color, focused }) => (
             <View
-              style={focused ? styles.activeIconWrapper : styles.iconWrapper}
+              style={
+                focused
+                  ? [styles.activeIconWrapper, { backgroundColor: isAdmin ? "#EEF2FF" : "#EFF6FF" }]
+                  : styles.iconWrapper
+              }
             >
               <IconSymbol size={22} name="person.fill" color={color} />
             </View>
           ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="admin"
+        options={{
+          href: null,
+          title: "Painel Admin",
         }}
       />
     </Tabs>
