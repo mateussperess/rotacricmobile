@@ -117,17 +117,73 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
   return dbPromise;
 }
 
-let dbLockChain: Promise<any> = Promise.resolve();
+class AsyncMutex {
+  private queue: Promise<any> = Promise.resolve();
 
-export async function runWithTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  const next = dbLockChain.then(async () => {
+  async runExclusive<T>(task: () => Promise<T>): Promise<T> {
+    const res = this.queue.then(
+      () => task(),
+      () => task()
+    );
+    this.queue = res.catch(() => {});
+    return res;
+  }
+}
+
+export const dbMutex = new AsyncMutex();
+
+export async function runReadOnly<T>(fn: () => Promise<T>): Promise<T> {
+  return dbMutex.runExclusive(async () => {
+    return await fn();
+  });
+}
+
+export async function runWithTransaction<T>(
+  fn: () => Promise<T>,
+  maxRetries = 5,
+  initialDelayMs = 150
+): Promise<T> {
+  return dbMutex.runExclusive(async () => {
     const db = await getDatabase();
     if (!db) return fn();
-    if (typeof (db as any).withTransactionAsync === "function") {
-      return (db as any).withTransactionAsync(fn);
+
+    let lastError: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let inTx = false;
+      try {
+        await db.execAsync("BEGIN IMMEDIATE;");
+        inTx = true;
+        const result = await fn();
+        await db.execAsync("COMMIT;");
+        return result;
+      } catch (err: any) {
+        lastError = err;
+        if (inTx) {
+          try {
+            await db.execAsync("ROLLBACK;");
+          } catch {}
+        }
+
+        const errStr = String(err?.message || err || "");
+        const isLocked =
+          errStr.includes("database is locked") ||
+          errStr.includes("finalizeAsync") ||
+          errStr.includes("SQLITE_BUSY") ||
+          errStr.includes("cannot start a transaction") ||
+          errStr.includes("within a transaction");
+
+        if (isLocked && attempt < maxRetries) {
+          const delay = initialDelayMs * Math.pow(2, attempt);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        throw err;
+      }
     }
-    return fn();
+    throw lastError;
   });
-  dbLockChain = next.catch(() => {});
-  return next;
 }
+
+
+

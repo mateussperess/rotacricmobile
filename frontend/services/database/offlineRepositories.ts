@@ -3,19 +3,82 @@ import { AnchorPoint } from "../anchorpoints/anchorPointService";
 import { City, CityImage } from "../cities/citiesService";
 import { Route } from "../routes/routeService";
 import { Stamp } from "../stamps/stampService";
-import { getDatabase, runWithTransaction } from "./database";
+import { getDatabase, runWithTransaction, runReadOnly } from "./database";
+
+function parseCoordinate(val1: any, val2: any): number {
+  const extractNum = (v: any): number => {
+    if (v === undefined || v === null || v === "") return NaN;
+    if (typeof v === "number") return isNaN(v) ? NaN : v;
+    if (typeof v === "object" && v !== null) {
+      if (typeof v.toNumber === "function") {
+        try {
+          const res = v.toNumber();
+          if (typeof res === "number" && !isNaN(res)) return res;
+        } catch {}
+      }
+      if ("d" in v && "s" in v && Array.isArray(v.d) && v.d.length > 0) {
+        const sign = v.s < 0 ? -1 : 1;
+        const mainPart = Number(v.d[0]);
+        let fracPart = 0;
+        if (v.d.length > 1 && v.d[1] !== undefined) {
+          const fracStr = String(v.d[1]);
+          fracPart = Number(v.d[1]) / Math.pow(10, fracStr.length);
+        }
+        const parsedDecimal = sign * (mainPart + fracPart);
+        if (!isNaN(parsedDecimal)) return parsedDecimal;
+      }
+      if (typeof v.toString === "function") {
+        const str = v.toString();
+        if (str && str !== "[object Object]") {
+          const parsed = parseFloat(str.replace(",", "."));
+          if (!isNaN(parsed)) return parsed;
+        }
+      }
+    }
+    if (typeof v === "string") {
+      const cleaned = v.trim().replace(",", ".");
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? NaN : parsed;
+    }
+    const num = Number(v);
+    return isNaN(num) ? NaN : num;
+  };
+
+  const num1 = extractNum(val1);
+  if (!isNaN(num1) && num1 !== 0) return num1;
+
+  const num2 = extractNum(val2);
+  if (!isNaN(num2) && num2 !== 0) return num2;
+
+  return !isNaN(num1) ? num1 : !isNaN(num2) ? num2 : 0;
+}
+
+async function batchInsertOrReplace(
+  db: any,
+  tableName: string,
+  columns: string[],
+  rows: any[][]
+) {
+  if (!rows || rows.length === 0) return;
+  const placeholders = columns.map(() => "?").join(",");
+  const sql = `INSERT OR REPLACE INTO ${tableName} (${columns.join(",")}) VALUES (${placeholders});`;
+  for (const row of rows) {
+    const safeRow = row.map((v) => (v === undefined ? null : v));
+    await db.runAsync(sql, safeRow);
+  }
+}
 
 // Fallback seed data if DB is totally fresh and phone opens offline for the first time
 const INITIAL_CITIES_SEED: City[] = [
   {
     id: "1",
-    name: "Criciúma",
+    name: "Charqueadas",
     about: "Cidade polo da Rota CRIC com vasta estrutura e pontos de apoio.",
-    lat: -28.6775,
-    lng: -49.3703,
-    latitude: -28.6775,
-    longitude: -49.3703,
-    zoom: 12,
+    lat: -29.9547,
+    lng: -51.6256,
+    latitude: -29.9547,
+    longitude: -51.6256,
+    zoom: 13,
     banner_image: null,
     visible: true,
     active: true,
@@ -24,12 +87,12 @@ const INITIAL_CITIES_SEED: City[] = [
   },
   {
     id: "2",
-    name: "Nova Veneza",
-    about: "Encantadora cidade com gastronomia e rota turística de ciclismo.",
-    lat: -28.6366,
-    lng: -49.4983,
-    latitude: -28.6366,
-    longitude: -49.4983,
+    name: "Butiá",
+    about: "Cidade histórica da região carbonífera, com patrimônio mineiro e recepção ciclística.",
+    lat: -30.1189,
+    lng: -51.9619,
+    latitude: -30.1189,
+    longitude: -51.9619,
     zoom: 13,
     banner_image: null,
     visible: true,
@@ -39,12 +102,102 @@ const INITIAL_CITIES_SEED: City[] = [
   },
   {
     id: "3",
-    name: "Urussanga",
-    about: "Tradição em vinhos e vales deslumbrantes para pedalar.",
-    lat: -28.5192,
-    lng: -49.3217,
-    latitude: -28.5192,
-    longitude: -49.3217,
+    name: "Arroio dos Ratos",
+    about: "Berço da indústria carboquímica nacional e abrigo do Museu do Carvão.",
+    lat: -30.0781,
+    lng: -51.7288,
+    latitude: -30.0781,
+    longitude: -51.7288,
+    zoom: 13,
+    banner_image: null,
+    visible: true,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "4",
+    name: "São Jerônimo",
+    about: "Cidade histórica às margens do Rio Jacuí, com centro histórico e pontos turísticos.",
+    lat: -29.9592,
+    lng: -51.7225,
+    latitude: -29.9592,
+    longitude: -51.7225,
+    zoom: 13,
+    banner_image: null,
+    visible: true,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "5",
+    name: "General Câmara",
+    about: "Histórico município com bela beira de rio e paisagens rurais encantadoras.",
+    lat: -29.9056,
+    lng: -51.7608,
+    latitude: -29.9056,
+    longitude: -51.7608,
+    zoom: 13,
+    banner_image: null,
+    visible: true,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "6",
+    name: "Triunfo",
+    about: "Cidade histórica rica em acervo arquitetônico e paisagens do Vale do Rio dos Sinos.",
+    lat: -29.9419,
+    lng: -51.7175,
+    latitude: -29.9419,
+    longitude: -51.7175,
+    zoom: 13,
+    banner_image: null,
+    visible: true,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "7",
+    name: "Barão do Triunfo",
+    about: "Município emoldurado pelas serras gaúchas com desafios e vistas panorâmicas.",
+    lat: -30.3872,
+    lng: -51.7397,
+    latitude: -30.3872,
+    longitude: -51.7397,
+    zoom: 13,
+    banner_image: null,
+    visible: true,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "8",
+    name: "Minas do Leão",
+    about: "Cidade que preserva a história da mineração e a força da rota de ciclismo.",
+    lat: -30.1369,
+    lng: -52.0933,
+    latitude: -30.1369,
+    longitude: -52.0933,
+    zoom: 13,
+    banner_image: null,
+    visible: true,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "9",
+    name: "Vale Verde",
+    about: "Encantador destino de chegada do circuito com receptivo aconchegante.",
+    lat: -29.9867,
+    lng: -52.1481,
+    latitude: -29.9867,
+    longitude: -52.1481,
     zoom: 13,
     banner_image: null,
     visible: true,
@@ -57,19 +210,66 @@ const INITIAL_CITIES_SEED: City[] = [
 const INITIAL_ANCHOR_POINTS_SEED: AnchorPoint[] = [
   {
     id: "101",
-    name: "Posto Central Criciúma",
-    lat: -28.678,
-    lng: -49.371,
-    latitude: -28.678,
-    longitude: -49.371,
+    name: "BG Hotel e Restaurante",
+    lat: -29.9535,
+    lng: -51.624,
+    latitude: -29.9535,
+    longitude: -51.624,
     business_hours: "24h",
-    phone: "(48) 99999-0001",
+    phone: "(51) 99999-0001",
     image: null,
     active: true,
     on_route: true,
     category_id: "1",
+    city_id: "1",
     category: {
       id: "1",
+      name: "Hospedagem",
+      icon_name: "hotel",
+      icon_image: "",
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "102",
+    name: "Hotel Ouro Verde",
+    lat: -29.956,
+    lng: -51.627,
+    latitude: -29.956,
+    longitude: -51.627,
+    business_hours: "24h",
+    phone: "(51) 99999-0002",
+    image: null,
+    active: true,
+    on_route: true,
+    category_id: "1",
+    city_id: "1",
+    category: {
+      id: "1",
+      name: "Hospedagem",
+      icon_name: "hotel",
+      icon_image: "",
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "103",
+    name: "Posto Central Charqueadas",
+    lat: -29.951,
+    lng: -51.621,
+    latitude: -29.951,
+    longitude: -51.621,
+    business_hours: "24h",
+    phone: "(51) 99999-0003",
+    image: null,
+    active: true,
+    on_route: true,
+    category_id: "2",
+    city_id: "1",
+    category: {
+      id: "2",
       name: "Posto de Gasolina",
       icon_name: "gas_station",
       icon_image: "",
@@ -78,44 +278,23 @@ const INITIAL_ANCHOR_POINTS_SEED: AnchorPoint[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: "102",
-    name: "Padaria da Praça Veneza",
-    lat: -28.637,
-    lng: -49.499,
-    latitude: -28.637,
-    longitude: -49.499,
+    id: "104",
+    name: "Padaria da Praça",
+    lat: -29.955,
+    lng: -51.623,
+    latitude: -29.955,
+    longitude: -51.623,
     business_hours: "06:00 - 20:00",
-    phone: "(48) 99999-0002",
-    image: null,
-    active: true,
-    on_route: true,
-    category_id: "2",
-    category: {
-      id: "2",
-      name: "Alimentação",
-      icon_name: "food",
-      icon_image: "",
-    },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "103",
-    name: "Oficina do Ciclista Urussanga",
-    lat: -28.52,
-    lng: -49.3225,
-    latitude: -28.52,
-    longitude: -49.3225,
-    business_hours: "08:00 - 18:00",
-    phone: "(48) 99999-0003",
+    phone: "(51) 99999-0004",
     image: null,
     active: true,
     on_route: true,
     category_id: "3",
+    city_id: "1",
     category: {
       id: "3",
-      name: "Reparo",
-      icon_name: "repair",
+      name: "Alimentação",
+      icon_name: "food",
       icon_image: "",
     },
     created_at: new Date().toISOString(),
@@ -124,33 +303,57 @@ const INITIAL_ANCHOR_POINTS_SEED: AnchorPoint[] = [
 ];
 
 export const CitiesOfflineRepository = {
-  saveAll: async (cities: City[]) => {
+  saveAll: async (cities: City[], replaceAll: boolean = false) => {
     try {
+      if (!Array.isArray(cities) || cities.length === 0) return;
       await runWithTransaction(async () => {
         const db = await getDatabase();
         if (!db) return;
-        for (const c of cities) {
-          const latVal = Number(c.lat ?? (c as any).latitude ?? 0);
-          const lngVal = Number(c.lng ?? (c as any).longitude ?? 0);
 
-          await db.runAsync(
-            `INSERT OR REPLACE INTO cities (id, name, about, lat, lng, zoom, banner_image, visible, active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              c.id.toString(),
-              c.name || "Cidade",
-              c.about || null,
-              isNaN(latVal) ? 0 : latVal,
-              isNaN(lngVal) ? 0 : lngVal,
-              c.zoom || 12,
-              c.banner_image || null,
-              c.visible ? 1 : 0,
-              c.active ? 1 : 0,
-              c.created_at || null,
-              c.updated_at || null,
-            ]
-          );
+        if (replaceAll && Array.isArray(cities) && cities.length > 0) {
+          const validIds = cities.map((c) => c.id.toString());
+          const placeholders = validIds.map(() => "?").join(",");
+          try {
+            await db.runAsync(
+              `DELETE FROM cities WHERE id NOT IN (${placeholders})`,
+              validIds
+            );
+          } catch {}
         }
+
+        const columns = [
+          "id",
+          "name",
+          "about",
+          "lat",
+          "lng",
+          "zoom",
+          "banner_image",
+          "visible",
+          "active",
+          "created_at",
+          "updated_at",
+        ];
+
+        const rows = cities.map((c) => {
+          const latVal = parseCoordinate(c.lat, (c as any).latitude);
+          const lngVal = parseCoordinate(c.lng, (c as any).longitude);
+          return [
+            c.id.toString(),
+            c.name || "Cidade",
+            c.about || null,
+            isNaN(latVal) ? 0 : latVal,
+            isNaN(lngVal) ? 0 : lngVal,
+            c.zoom || 12,
+            c.banner_image || null,
+            c.visible ? 1 : 0,
+            c.active ? 1 : 0,
+            c.created_at || null,
+            c.updated_at || null,
+          ];
+        });
+
+        await batchInsertOrReplace(db, "cities", columns, rows);
       });
     } catch (e) {
       console.warn("Erro ao salvar cidades no SQLite:", e);
@@ -158,16 +361,54 @@ export const CitiesOfflineRepository = {
   },
 
   getAll: async (): Promise<City[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return INITIAL_CITIES_SEED;
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM cities WHERE active = 1 ORDER BY name ASC"
-      );
-      if (rows && rows.length > 0) {
-        return rows.map((r) => {
-          const latNum = Number(r.lat || 0);
-          const lngNum = Number(r.lng || 0);
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return INITIAL_CITIES_SEED;
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM cities ORDER BY name ASC"
+        );
+        if (rows && rows.length > 0) {
+          return rows.map((r) => {
+            const latNum = parseCoordinate(r.lat, (r as any).latitude);
+            const lngNum = parseCoordinate(r.lng, (r as any).longitude);
+            return {
+              ...r,
+              id: r.id.toString(),
+              name: r.name,
+              about: r.about,
+              lat: latNum,
+              lng: lngNum,
+              latitude: latNum,
+              longitude: lngNum,
+              zoom: r.zoom || 12,
+              banner_image: r.banner_image,
+              visible: Boolean(r.visible !== 0 && r.visible !== "0" && r.visible !== false),
+              active: Boolean(r.active !== 0 && r.active !== "0" && r.active !== false),
+              created_at: r.created_at,
+              updated_at: r.updated_at,
+            };
+          });
+        }
+        return INITIAL_CITIES_SEED;
+      } catch {
+        return INITIAL_CITIES_SEED;
+      }
+    });
+  },
+
+  getOne: async (id: string): Promise<City | null> => {
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return INITIAL_CITIES_SEED.find((c) => c.id === id) || null;
+        const r = await db.getFirstAsync<any>(
+          "SELECT * FROM cities WHERE id = ?",
+          [id]
+        );
+        if (r) {
+          const latNum = parseCoordinate(r.lat, (r as any).latitude);
+          const lngNum = parseCoordinate(r.lng, (r as any).longitude);
           return {
             ...r,
             lat: latNum,
@@ -177,67 +418,69 @@ export const CitiesOfflineRepository = {
             visible: Boolean(r.visible),
             active: Boolean(r.active),
           };
-        });
+        }
+        return (
+          INITIAL_CITIES_SEED.find(
+            (c) => c.id === id || c.name.toLowerCase() === id.toLowerCase()
+          ) || null
+        );
+      } catch {
+        return (
+          INITIAL_CITIES_SEED.find(
+            (c) => c.id === id || c.name.toLowerCase() === id.toLowerCase()
+          ) || null
+        );
       }
-      await CitiesOfflineRepository.saveAll(INITIAL_CITIES_SEED);
-      return INITIAL_CITIES_SEED;
-    } catch {
-      return INITIAL_CITIES_SEED;
-    }
-  },
-
-  getOne: async (id: string): Promise<City | null> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return INITIAL_CITIES_SEED.find((c) => c.id === id) || null;
-      const r = await db.getFirstAsync<any>(
-        "SELECT * FROM cities WHERE id = ?",
-        [id]
-      );
-      if (r) {
-        const latNum = Number(r.lat || 0);
-        const lngNum = Number(r.lng || 0);
-        return {
-          ...r,
-          lat: latNum,
-          lng: lngNum,
-          latitude: latNum,
-          longitude: lngNum,
-          visible: Boolean(r.visible),
-          active: Boolean(r.active),
-        };
-      }
-      return null;
-    } catch {
-      return null;
-    }
+    });
   },
 };
 
 export const RoutesOfflineRepository = {
-  saveAll: async (routes: Route[]) => {
+  saveAll: async (routes: Route[], replaceAll: boolean = false) => {
     try {
+      if (!Array.isArray(routes) || routes.length === 0) return;
       await runWithTransaction(async () => {
         const db = await getDatabase();
         if (!db) return;
-        for (const r of routes) {
-          await db.runAsync(
-            `INSERT OR REPLACE INTO routes (id, name, polyline, strava_id, color, distance, is_event_route, active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              r.id.toString(),
-              r.name || "Rota",
-              r.polyline || "",
-              r.strava_id || null,
-              r.color || "#2563EB",
-              r.distance || 0,
-              r.is_event_route ? 1 : 0,
-              r.active ? 1 : 0,
-              r.created_at || null,
-              r.updated_at || null,
-            ]
-          );
+
+        if (replaceAll && Array.isArray(routes) && routes.length > 0) {
+          const validIds = routes.map((r) => r.id.toString());
+          const placeholders = validIds.map(() => "?").join(",");
+          try {
+            await db.runAsync(
+              `DELETE FROM routes WHERE id NOT IN (${placeholders})`,
+              validIds
+            );
+          } catch {}
         }
+
+        const columns = [
+          "id",
+          "name",
+          "polyline",
+          "strava_id",
+          "color",
+          "distance",
+          "is_event_route",
+          "active",
+          "created_at",
+          "updated_at",
+        ];
+
+        const rows = routes.map((r) => [
+          r.id.toString(),
+          r.name || "Rota",
+          r.polyline || "",
+          r.strava_id || null,
+          r.color || "#2563EB",
+          r.distance || 0,
+          r.is_event_route ? 1 : 0,
+          r.active ? 1 : 0,
+          r.created_at || null,
+          r.updated_at || null,
+        ]);
+
+        await batchInsertOrReplace(db, "routes", columns, rows);
       });
     } catch (e) {
       console.warn("Erro ao salvar rotas no SQLite:", e);
@@ -245,23 +488,25 @@ export const RoutesOfflineRepository = {
   },
 
   getAll: async (): Promise<Route[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return [];
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM routes WHERE active = 1"
-      );
-      if (rows && rows.length > 0) {
-        return rows.map((r) => ({
-          ...r,
-          is_event_route: Boolean(r.is_event_route),
-          active: Boolean(r.active),
-        }));
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return [];
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM routes WHERE active = 1"
+        );
+        if (rows && rows.length > 0) {
+          return rows.map((r) => ({
+            ...r,
+            is_event_route: Boolean(r.is_event_route),
+            active: Boolean(r.active),
+          }));
+        }
+        return [];
+      } catch {
+        return [];
       }
-      return [];
-    } catch {
-      return [];
-    }
+    });
   },
 };
 
@@ -280,42 +525,56 @@ export const AnchorPointsOfflineRepository = {
               `DELETE FROM anchor_points WHERE id NOT IN (${placeholders})`,
               validIds
             );
-            await db.runAsync(
-              `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
-            );
           } catch {
             // Ignorar se tabela estiver vazia
           }
         }
 
-        for (const ap of pts) {
-          const latVal = Number(ap.lat ?? (ap as any).latitude ?? 0);
-          const lngVal = Number(ap.lng ?? (ap as any).longitude ?? 0);
-          const catIcon = ap.category?.icon_name || null;
-          const catName = ap.category?.name || null;
+        const columns = [
+          "id",
+          "name",
+          "lat",
+          "lng",
+          "business_hours",
+          "phone",
+          "image",
+          "active",
+          "on_route",
+          "category_id",
+          "city_id",
+          "category_icon_name",
+          "category_name",
+          "created_at",
+          "updated_at",
+        ];
 
-          await db.runAsync(
-            `INSERT OR REPLACE INTO anchor_points (id, name, lat, lng, business_hours, phone, image, active, on_route, category_id, city_id, category_icon_name, category_name, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              ap.id.toString(),
-              ap.name || "Ponto de Apoio",
-              isNaN(latVal) ? 0 : latVal,
-              isNaN(lngVal) ? 0 : lngVal,
-              ap.business_hours || null,
-              ap.phone || null,
-              ap.image || null,
-              ap.active ? 1 : 0,
-              ap.on_route ? 1 : 0,
-              ap.category_id ? ap.category_id.toString() : null,
-              (ap as any).city_id ? (ap as any).city_id.toString() : null,
-              catIcon,
-              catName,
-              ap.created_at || null,
-              ap.updated_at || null,
-            ]
-          );
-        }
+        const rows = pts.map((ap) => {
+          const latVal = parseCoordinate(ap.lat, (ap as any).latitude);
+          const lngVal = parseCoordinate(ap.lng, (ap as any).longitude);
+          const catIcon = ap.category?.icon_name || (ap as any).category_icon_name || null;
+          const catName = ap.category?.name || (ap as any).category_name || null;
+          const catId = ap.category_id || (ap as any).anchorpoint_category_id || ap.category?.id || null;
+
+          return [
+            ap.id.toString(),
+            ap.name || "Ponto de Apoio",
+            isNaN(latVal) ? 0 : latVal,
+            isNaN(lngVal) ? 0 : lngVal,
+            ap.business_hours || null,
+            ap.phone || null,
+            ap.image || null,
+            ap.active ? 1 : 0,
+            ap.on_route ? 1 : 0,
+            catId ? catId.toString() : null,
+            (ap as any).city_id ? (ap as any).city_id.toString() : null,
+            catIcon,
+            catName,
+            ap.created_at || null,
+            ap.updated_at || null,
+          ];
+        });
+
+        await batchInsertOrReplace(db, "anchor_points", columns, rows);
       });
     } catch (e) {
       console.warn("Erro ao salvar pontos de apoio no SQLite:", e);
@@ -337,94 +596,134 @@ export const AnchorPointsOfflineRepository = {
   },
 
   getAll: async (): Promise<AnchorPoint[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return INITIAL_ANCHOR_POINTS_SEED;
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM anchor_points WHERE active = 1"
-      );
-      if (rows && rows.length > 0) {
-        return rows.map((r) => {
-          const latNum = Number(r.lat || 0);
-          const lngNum = Number(r.lng || 0);
-          return {
-            id: r.id,
-            name: r.name,
-            lat: latNum,
-            lng: lngNum,
-            latitude: latNum,
-            longitude: lngNum,
-            business_hours: r.business_hours,
-            phone: r.phone,
-            image: r.image,
-            active: Boolean(r.active),
-            on_route: Boolean(r.on_route),
-            category_id: r.category_id,
-            city_id: r.city_id,
-            category: r.category_icon_name
-              ? {
-                  id: r.category_id || "1",
-                  name: r.category_name || "Geral",
-                  icon_name: r.category_icon_name,
-                  icon_image: "",
-                }
-              : null,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-          };
-        });
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return INITIAL_ANCHOR_POINTS_SEED;
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM anchor_points ORDER BY name ASC"
+        );
+        if (rows && rows.length > 0) {
+          const result = rows.map((r) => {
+            let latNum = parseCoordinate(r.lat, (r as any).latitude);
+            let lngNum = parseCoordinate(r.lng, (r as any).longitude);
+
+            if (latNum === 0 && lngNum === 0) {
+              const rNameLower = (r.name || "").toLowerCase().trim();
+              const seedMatch = INITIAL_ANCHOR_POINTS_SEED.find(
+                (s) =>
+                  s.id.toString() === r.id.toString() ||
+                  (rNameLower && s.name.toLowerCase().trim().includes(rNameLower)) ||
+                  (rNameLower && rNameLower.includes(s.name.toLowerCase().trim()))
+              );
+              if (seedMatch) {
+                latNum = seedMatch.lat;
+                lngNum = seedMatch.lng;
+              } else {
+                latNum = -29.9547;
+                lngNum = -51.6256;
+              }
+            }
+
+            return {
+              id: r.id.toString(),
+              name: r.name,
+              lat: latNum,
+              lng: lngNum,
+              latitude: latNum,
+              longitude: lngNum,
+              business_hours: r.business_hours,
+              phone: r.phone,
+              image: r.image,
+              active: Boolean(r.active !== 0 && r.active !== "0" && r.active !== false),
+              on_route: Boolean(r.on_route !== 0 && r.on_route !== "0" && r.on_route !== false),
+              category_id: r.category_id ? r.category_id.toString() : null,
+              city_id: r.city_id ? r.city_id.toString() : null,
+              category: r.category_icon_name
+                ? {
+                    id: r.category_id || "1",
+                    name: r.category_name || "Geral",
+                    icon_name: r.category_icon_name,
+                    icon_image: "",
+                  }
+                : null,
+              created_at: r.created_at,
+              updated_at: r.updated_at,
+            };
+          });
+
+          return result;
+        }
+        return INITIAL_ANCHOR_POINTS_SEED;
+      } catch {
+        return INITIAL_ANCHOR_POINTS_SEED;
       }
-      await AnchorPointsOfflineRepository.saveAll(INITIAL_ANCHOR_POINTS_SEED);
-      return INITIAL_ANCHOR_POINTS_SEED;
-    } catch {
-      return INITIAL_ANCHOR_POINTS_SEED;
-    }
+    });
   },
 
   getByCity: async (cityId: string): Promise<AnchorPoint[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return INITIAL_ANCHOR_POINTS_SEED;
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM anchor_points WHERE city_id = ? AND active = 1",
-        [cityId]
-      );
-      if (rows && rows.length > 0) {
-        return rows.map((r) => {
-          const latNum = Number(r.lat || 0);
-          const lngNum = Number(r.lng || 0);
-          return {
-            id: r.id,
-            name: r.name,
-            lat: latNum,
-            lng: lngNum,
-            latitude: latNum,
-            longitude: lngNum,
-            business_hours: r.business_hours,
-            phone: r.phone,
-            image: r.image,
-            active: Boolean(r.active),
-            on_route: Boolean(r.on_route),
-            category_id: r.category_id,
-            city_id: r.city_id,
-            category: r.category_icon_name
-              ? {
-                  id: r.category_id || "1",
-                  name: r.category_name || "Geral",
-                  icon_name: r.category_icon_name,
-                  icon_image: "",
-                }
-              : null,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-          };
-        });
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return [];
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM anchor_points WHERE city_id = ? AND active = 1",
+          [cityId.toString()]
+        );
+        if (rows && rows.length > 0) {
+          return rows.map((r) => {
+            let latNum = parseCoordinate(r.lat, (r as any).latitude);
+            let lngNum = parseCoordinate(r.lng, (r as any).longitude);
+
+            if (latNum === 0 && lngNum === 0) {
+              const rNameLower = (r.name || "").toLowerCase().trim();
+              const seedMatch = INITIAL_ANCHOR_POINTS_SEED.find(
+                (s) =>
+                  s.id.toString() === r.id.toString() ||
+                  (rNameLower && s.name.toLowerCase().trim().includes(rNameLower)) ||
+                  (rNameLower && rNameLower.includes(s.name.toLowerCase().trim()))
+              );
+              if (seedMatch) {
+                latNum = seedMatch.lat;
+                lngNum = seedMatch.lng;
+              } else {
+                latNum = -29.9547;
+                lngNum = -51.6256;
+              }
+            }
+
+            return {
+              id: r.id.toString(),
+              name: r.name,
+              lat: latNum,
+              lng: lngNum,
+              latitude: latNum,
+              longitude: lngNum,
+              business_hours: r.business_hours,
+              phone: r.phone,
+              image: r.image,
+              active: Boolean(r.active),
+              on_route: Boolean(r.on_route),
+              category_id: r.category_id ? r.category_id.toString() : null,
+              city_id: r.city_id ? r.city_id.toString() : null,
+              category: r.category_icon_name
+                ? {
+                    id: r.category_id || "1",
+                    name: r.category_name || "Geral",
+                    icon_name: r.category_icon_name,
+                    icon_image: "",
+                  }
+                : null,
+              created_at: r.created_at,
+              updated_at: r.updated_at,
+            };
+          });
+        }
+        return [];
+      } catch {
+        return [];
       }
-      const all = await AnchorPointsOfflineRepository.getAll();
-      return all;
-    } catch {
-      return INITIAL_ANCHOR_POINTS_SEED;
-    }
+    });
   },
 };
 
@@ -455,7 +754,7 @@ export const StampsOfflineRepository = {
     }
   },
 
-  saveAll: async (stamps: Stamp[]) => {
+  saveAll: async (stamps: Stamp[], replaceAll: boolean = false) => {
     try {
       await runWithTransaction(async () => {
         const db = await getDatabase();
@@ -474,33 +773,36 @@ export const StampsOfflineRepository = {
           }
         }
 
-        try {
-          await db.runAsync(
-            `DELETE FROM stamps WHERE anchor_point_id IS NOT NULL AND anchor_point_id != '' AND anchor_point_id NOT IN (SELECT id FROM anchor_points)`
-          );
-        } catch {
-          // Ignorar
-        }
+        const columns = [
+          "id",
+          "anchor_point_id",
+          "qr_code_token",
+          "name",
+          "badge_image",
+          "active",
+        ];
 
-        for (const s of stamps) {
-          await db.runAsync(
-            `INSERT INTO stamps (id, anchor_point_id, qr_code_token, name, badge_image, active)
-             VALUES (?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               anchor_point_id = excluded.anchor_point_id,
-               qr_code_token = excluded.qr_code_token,
-               name = excluded.name,
-               badge_image = excluded.badge_image,
-               active = excluded.active`,
-            [
-              s.id.toString(),
-              s.anchor_point_id ? s.anchor_point_id.toString() : "",
-              s.qr_code_token || "",
-              s.name || "Carimbo",
-              s.badge_image || "",
-              s.active ? 1 : 0,
-            ]
-          );
+        const rows = stamps.map((s) => [
+          s.id.toString(),
+          s.anchor_point_id ? s.anchor_point_id.toString() : "",
+          s.qr_code_token || "",
+          s.name || "Carimbo",
+          s.badge_image || "",
+          s.active ? 1 : 0,
+        ]);
+
+        const placeholders = columns.map(() => "?").join(",");
+        const sql = `INSERT INTO stamps (${columns.join(",")}) VALUES (${placeholders})
+          ON CONFLICT(id) DO UPDATE SET
+            anchor_point_id=excluded.anchor_point_id,
+            qr_code_token=excluded.qr_code_token,
+            name=excluded.name,
+            badge_image=excluded.badge_image,
+            active=excluded.active;`;
+
+        for (const row of rows) {
+          const safeRow = row.map((v) => (v === undefined ? null : v));
+          await db.runAsync(sql, safeRow);
         }
       });
     } catch (e) {
@@ -526,7 +828,16 @@ export const StampsOfflineRepository = {
 
         // Preservar itens da fila de sincronização pendente off-line
         try {
-          const pendingQueue = await SyncQueueRepository.getPendingActions();
+          const pendingRows = await db.getAllAsync<any>(
+            "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC"
+          );
+          const pendingQueue = (pendingRows || []).map((r: any) => ({
+            id: r.id,
+            action_type: r.action_type,
+            payload: JSON.parse(r.payload),
+            created_at: r.created_at,
+          }));
+
           const pendingStampActions = pendingQueue.filter(
             (a) => a.action_type === "COLLECT_STAMP"
           );
@@ -592,89 +903,101 @@ export const StampsOfflineRepository = {
   },
 
   getAll: async (): Promise<Stamp[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return INITIAL_STAMPS_SEED;
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM stamps WHERE active = 1"
-      );
-      if (rows && rows.length > 0) {
-        return rows.map((r) => ({
-          id: r.id,
-          anchor_point_id: r.anchor_point_id,
-          qr_code_token: r.qr_code_token,
-          name: r.name,
-          badge_image: r.badge_image,
-          active: Boolean(r.active),
-          created_at: r.scanned_at,
-        }));
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return INITIAL_STAMPS_SEED;
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM stamps ORDER BY name ASC"
+        );
+        if (rows && rows.length > 0) {
+          return rows.map((r) => ({
+            id: r.id.toString(),
+            anchor_point_id: r.anchor_point_id ? r.anchor_point_id.toString() : "",
+            qr_code_token: r.qr_code_token,
+            name: r.name,
+            badge_image: r.badge_image,
+            active: Boolean(r.active !== 0 && r.active !== "0" && r.active !== false),
+            created_at: r.scanned_at,
+          }));
+        }
+        return INITIAL_STAMPS_SEED;
+      } catch {
+        return INITIAL_STAMPS_SEED;
       }
-      await StampsOfflineRepository.saveAll(INITIAL_STAMPS_SEED);
-      return INITIAL_STAMPS_SEED;
-    } catch {
-      return INITIAL_STAMPS_SEED;
-    }
+    });
   },
 
   getUserStamps: async (): Promise<any[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return [];
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM stamps WHERE collected = 1"
-      );
-      const items: any[] = (rows || []).map((r) => ({
-        id: `us-${r.id}`,
-        stamp_id: r.id,
-        anchor_point_id: r.anchor_point_id,
-        scanned_at: r.scanned_at || new Date().toISOString(),
-        stamp: {
-          id: r.id,
-          name: r.name,
-          anchor_point_id: r.anchor_point_id,
-        },
-      }));
-
-      // Incluir carimbos da fila de sincronização pendente para garantia total na UI
+    return runReadOnly(async () => {
       try {
-        const pendingQueue = await SyncQueueRepository.getPendingActions();
-        const stampActions = pendingQueue.filter(
-          (a) => a.action_type === "COLLECT_STAMP"
+        const db = await getDatabase();
+        if (!db) return [];
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM stamps WHERE collected = 1"
         );
+        const items: any[] = (rows || []).map((r) => ({
+          id: `us-${r.id}`,
+          stamp_id: r.id,
+          anchor_point_id: r.anchor_point_id,
+          scanned_at: r.scanned_at || new Date().toISOString(),
+          stamp: {
+            id: r.id,
+            name: r.name,
+            anchor_point_id: r.anchor_point_id,
+          },
+        }));
 
-        for (const action of stampActions) {
-          const p = action.payload || {};
-          const stampId = p.stamp_id?.toString();
-          const apId = p.anchor_point_id?.toString();
+        // Incluir carimbos da fila de sincronização pendente para garantia total na UI
+        try {
+          const pendingRows = await db.getAllAsync<any>(
+            "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC"
+          );
+          const pendingQueue = (pendingRows || []).map((r: any) => ({
+            id: r.id,
+            action_type: r.action_type,
+            payload: JSON.parse(r.payload),
+            created_at: r.created_at,
+          }));
 
-          const alreadyIncluded = items.some(
-            (it) =>
-              (stampId && (it.stamp_id === stampId || it.stamp?.id === stampId)) ||
-              (apId && (it.anchor_point_id === apId || it.stamp?.anchor_point_id === apId))
+          const stampActions = pendingQueue.filter(
+            (a) => a.action_type === "COLLECT_STAMP"
           );
 
-          if (!alreadyIncluded) {
-            items.push({
-              id: `pending-${action.id}`,
-              stamp_id: stampId || `st-${apId}`,
-              anchor_point_id: apId || "101",
-              scanned_at: p.scanned_at || action.created_at || new Date().toISOString(),
-              stamp: {
-                id: stampId || `st-${apId}`,
-                name: "Carimbo Coletado",
-                anchor_point_id: apId || "101",
-              },
-            });
-          }
-        }
-      } catch {
-        // Ignorar falhas na fila de sincronização
-      }
+          for (const action of stampActions) {
+            const p = action.payload || {};
+            const stampId = p.stamp_id?.toString();
+            const apId = p.anchor_point_id?.toString();
 
-      return items;
-    } catch {
-      return [];
-    }
+            const alreadyIncluded = items.some(
+              (it) =>
+                (stampId && (it.stamp_id === stampId || it.stamp?.id === stampId)) ||
+                (apId && (it.anchor_point_id === apId || it.stamp?.anchor_point_id === apId))
+            );
+
+            if (!alreadyIncluded) {
+              items.push({
+                id: `pending-${action.id}`,
+                stamp_id: stampId || `st-${apId}`,
+                anchor_point_id: apId || "101",
+                scanned_at: p.scanned_at || action.created_at || new Date().toISOString(),
+                stamp: {
+                  id: stampId || `st-${apId}`,
+                  name: "Carimbo Coletado",
+                  anchor_point_id: apId || "101",
+                },
+              });
+            }
+          }
+        } catch {
+          // Ignorar falhas na fila de sincronização
+        }
+
+        return items;
+      } catch {
+        return [];
+      }
+    });
   },
 
   markAsCollected: async (stampIdOrToken: string, apId?: string, name?: string) => {
@@ -728,8 +1051,8 @@ const INITIAL_STAMPS_SEED: Stamp[] = [
   {
     id: "1",
     anchor_point_id: "101",
-    qr_code_token: "STAMP_CRICIUMA_01",
-    name: "Carimbo Posto Central Criciúma",
+    qr_code_token: "STAMP_BG_HOTEL",
+    name: "Carimbo BG Hotel",
     badge_image: "",
     active: true,
     created_at: new Date().toISOString(),
@@ -737,17 +1060,17 @@ const INITIAL_STAMPS_SEED: Stamp[] = [
   {
     id: "2",
     anchor_point_id: "102",
-    qr_code_token: "STAMP_VENEZA_01",
-    name: "Carimbo Padaria Praça Veneza",
+    qr_code_token: "STAMP_OURO_VERDE",
+    name: "Carimbo Hotel Ouro Verde",
     badge_image: "",
     active: true,
     created_at: new Date().toISOString(),
   },
   {
     id: "3",
-    anchor_point_id: "103",
-    qr_code_token: "STAMP_URUSSANGA_01",
-    name: "Carimbo Oficina Ciclista Urussanga",
+    anchor_point_id: "104",
+    qr_code_token: "STAMP_PADARIA_PRACA",
+    name: "Carimbo Padaria da Praça",
     badge_image: "",
     active: true,
     created_at: new Date().toISOString(),
@@ -773,36 +1096,40 @@ export const SyncQueueRepository = {
   },
 
   getPendingCount: async (): Promise<number> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return 0;
-      const res = await db.getFirstAsync<{ count: number }>(
-        "SELECT COUNT(*) as count FROM pending_sync_queue WHERE status = 'pending'"
-      );
-      return res?.count || 0;
-    } catch {
-      return 0;
-    }
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return 0;
+        const res = await db.getFirstAsync<{ count: number }>(
+          "SELECT COUNT(*) as count FROM pending_sync_queue WHERE status = 'pending'"
+        );
+        return res?.count || 0;
+      } catch {
+        return 0;
+      }
+    });
   },
 
   getPendingActions: async (): Promise<
     Array<{ id: string; action_type: string; payload: any; created_at: string }>
   > => {
-    try {
-      const db = await getDatabase();
-      if (!db) return [];
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC"
-      );
-      return rows.map((r) => ({
-        id: r.id,
-        action_type: r.action_type,
-        payload: JSON.parse(r.payload),
-        created_at: r.created_at,
-      }));
-    } catch {
-      return [];
-    }
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return [];
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC"
+        );
+        return rows.map((r) => ({
+          id: r.id,
+          action_type: r.action_type,
+          payload: JSON.parse(r.payload),
+          created_at: r.created_at,
+        }));
+      } catch {
+        return [];
+      }
+    });
   },
 
   removeAction: async (id: string) => {
@@ -821,23 +1148,30 @@ export const SyncQueueRepository = {
 export const CityImagesOfflineRepository = {
   saveAll: async (cityId: string, images: CityImage[]) => {
     try {
+      if (!Array.isArray(images) || images.length === 0) return;
       await runWithTransaction(async () => {
         const db = await getDatabase();
         if (!db) return;
-        for (const img of images) {
-          await db.runAsync(
-            `INSERT OR REPLACE INTO city_images (id, city_id, url, caption, order_index, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              img.id.toString(),
-              cityId.toString(),
-              img.url,
-              img.caption || null,
-              img.order || 0,
-              img.created_at || new Date().toISOString(),
-            ]
-          );
-        }
+
+        const columns = [
+          "id",
+          "city_id",
+          "url",
+          "caption",
+          "order_index",
+          "created_at",
+        ];
+
+        const rows = images.map((img) => [
+          img.id.toString(),
+          cityId.toString(),
+          img.url || "",
+          img.caption || null,
+          img.order || 0,
+          img.created_at || new Date().toISOString(),
+        ]);
+
+        await batchInsertOrReplace(db, "city_images", columns, rows);
       });
     } catch (e) {
       console.warn("Erro ao salvar imagens da cidade no SQLite:", e);
@@ -845,27 +1179,29 @@ export const CityImagesOfflineRepository = {
   },
 
   getByCity: async (cityId: string): Promise<CityImage[]> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return [];
-      const rows = await db.getAllAsync<any>(
-        "SELECT * FROM city_images WHERE city_id = ? ORDER BY order_index ASC",
-        [cityId]
-      );
-      if (rows && rows.length > 0) {
-        return rows.map((r) => ({
-          id: r.id,
-          city_id: r.city_id,
-          url: r.url,
-          caption: r.caption,
-          order: r.order_index,
-          created_at: r.created_at,
-        }));
+    return runReadOnly(async () => {
+      try {
+        const db = await getDatabase();
+        if (!db) return [];
+        const rows = await db.getAllAsync<any>(
+          "SELECT * FROM city_images WHERE city_id = ? ORDER BY order_index ASC",
+          [cityId]
+        );
+        if (rows && rows.length > 0) {
+          return rows.map((r) => ({
+            id: r.id,
+            city_id: r.city_id,
+            url: r.url,
+            caption: r.caption,
+            order: r.order_index,
+            created_at: r.created_at,
+          }));
+        }
+        return [];
+      } catch {
+        return [];
       }
-      return [];
-    } catch {
-      return [];
-    }
+    });
   },
 };
 
@@ -902,32 +1238,38 @@ export const WeatherOfflineRepository = {
   },
 
   getWeather: async (key: string): Promise<any | null> => {
-    try {
-      const db = await getDatabase();
-      if (!db) return null;
+    return runReadOnly(async () => {
       try {
-        const row = await db.getFirstAsync<any>(
-          "SELECT data FROM weather_cache WHERE key = ?",
-          [key]
-        );
-        if (row?.data) {
-          return JSON.parse(row.data);
-        }
-      } catch (err: any) {
-        // Se a coluna antiga estiver corrompida, tratar silenciosamente
-        await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
-        await db.execAsync(`
-          CREATE TABLE IF NOT EXISTS weather_cache (
-            key TEXT PRIMARY KEY,
-            data TEXT NOT NULL,
-            updated_at INTEGER NOT NULL
+        const db = await getDatabase();
+        if (!db) return null;
+        try {
+          const row = await db.getFirstAsync<any>(
+            "SELECT data FROM weather_cache WHERE key = ?",
+            [key]
           );
-        `);
+          if (row?.data) {
+            return JSON.parse(row.data);
+          }
+        } catch (err: any) {
+          // Se a coluna antiga estiver corrompida, tratar silenciosamente
+          await runWithTransaction(async () => {
+            const db2 = await getDatabase();
+            if (!db2) return;
+            await db2.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
+            await db2.execAsync(`
+              CREATE TABLE IF NOT EXISTS weather_cache (
+                key TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+              );
+            `);
+          });
+        }
+        return null;
+      } catch {
+        return null;
       }
-      return null;
-    } catch {
-      return null;
-    }
+    });
   },
 };
 
@@ -937,38 +1279,45 @@ export const BootstrapOfflineService = {
       const { data } = await api.get("/sync/bootstrap");
       if (data) {
         if (data.cities && Array.isArray(data.cities)) {
-          await CitiesOfflineRepository.saveAll(data.cities);
-          // Pré-carregar imagens e clima de cada cidade quando online
-          for (const city of data.cities) {
-            try {
-              const res = await api.get(`/cities/${city.id}/images`);
-              if (res.data && Array.isArray(res.data)) {
-                await CityImagesOfflineRepository.saveAll(city.id, res.data);
-              }
-            } catch {
-              // Ignorar falhas individuais de imagem
-            }
+          await CitiesOfflineRepository.saveAll(data.cities, true);
+        }
 
+        if (data.cityImages && Array.isArray(data.cityImages)) {
+          const imagesByCity: Record<string, CityImage[]> = {};
+          for (const img of data.cityImages) {
+            const cId = img.city_id?.toString();
+            if (cId) {
+              if (!imagesByCity[cId]) imagesByCity[cId] = [];
+              imagesByCity[cId].push(img);
+            }
+          }
+          for (const [cId, imgs] of Object.entries(imagesByCity)) {
+            await CityImagesOfflineRepository.saveAll(cId, imgs);
+          }
+        }
+
+        if (data.cities && Array.isArray(data.cities)) {
+          // Pré-carregar clima de cada cidade em background sem bloquear o sync
+          data.cities.forEach((city: any) => {
             try {
               const latVal = Number(city.lat ?? (city as any).latitude);
               const lngVal = Number(city.lng ?? (city as any).longitude);
               if (!isNaN(latVal) && !isNaN(lngVal) && (latVal !== 0 || lngVal !== 0)) {
                 const { fetchAndSaveWeather } = require("@/hooks/use-weather");
-                await fetchAndSaveWeather(latVal, lngVal);
+                fetchAndSaveWeather(latVal, lngVal).catch(() => {});
               }
-            } catch {
-              // Ignorar falhas de pré-carregamento do clima
-            }
-          }
+            } catch {}
+          });
         }
+
         if (data.routes && Array.isArray(data.routes)) {
-          await RoutesOfflineRepository.saveAll(data.routes);
+          await RoutesOfflineRepository.saveAll(data.routes, true);
         }
         if (data.anchorPoints && Array.isArray(data.anchorPoints)) {
-          await AnchorPointsOfflineRepository.saveAll(data.anchorPoints);
+          await AnchorPointsOfflineRepository.saveAll(data.anchorPoints, true);
         }
         if (data.stamps && Array.isArray(data.stamps)) {
-          await StampsOfflineRepository.saveAll(data.stamps);
+          await StampsOfflineRepository.saveAll(data.stamps, true);
         }
       }
       return true;

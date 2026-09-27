@@ -37,7 +37,7 @@ export const AnchorPointsService = {
         return data;
       }
     } catch (e) {
-      console.log("Offline mode: Carregando pontos de apoio da base SQLite local");
+      // Modo off-line: carregar do SQLite silenciosamente
     }
     return AnchorPointsOfflineRepository.getAll();
   },
@@ -50,7 +50,7 @@ export const AnchorPointsService = {
         return data;
       }
     } catch (e) {
-      console.log("Offline mode: Carregando pontos de apoio da cidade do SQLite local");
+      // Modo off-line: carregar do SQLite silenciosamente
     }
     return AnchorPointsOfflineRepository.getByCity(city_id);
   },

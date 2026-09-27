@@ -312,7 +312,7 @@ export default function NativeMap() {
         StampsOfflineRepository.getAll().catch(() => []),
       ]);
       React.startTransition(() => {
-        if (localPts && localPts.length > 0) setAnchorPoints(localPts);
+        setAnchorPoints(localPts || []);
         if (localRoutes && localRoutes.length > 0) setRoutes(localRoutes);
         if (localStamps && localStamps.length > 0) setUserStamps(localStamps);
       });
@@ -647,8 +647,8 @@ export default function NativeMap() {
         longitudeDelta: 0.05,
       }
     : {
-        latitude: latitude ?? firstCoord?.latitude ?? -15.7942,
-        longitude: longitude ?? firstCoord?.longitude ?? -47.8822,
+        latitude: latitude ?? firstCoord?.latitude ?? -28.6775,
+        longitude: longitude ?? firstCoord?.longitude ?? -49.3703,
         latitudeDelta: 0.04,
         longitudeDelta: 0.04,
       };
@@ -712,24 +712,8 @@ export default function NativeMap() {
   }, [anchorPoints, categoryFilter]);
 
   const renderedAnchorPoints = useMemo(() => {
-    if (!currentRegion) return visibleAnchorPoints;
-    const latMargin = (currentRegion.latitudeDelta || 0.1) * 0.75;
-    const lngMargin = (currentRegion.longitudeDelta || 0.1) * 0.75;
-    const latMin = currentRegion.latitude - latMargin;
-    const latMax = currentRegion.latitude + latMargin;
-    const lngMin = currentRegion.longitude - lngMargin;
-    const lngMax = currentRegion.longitude + lngMargin;
-
-    return visibleAnchorPoints.filter((ap) => {
-      if (apId && ap.id.toString() === apId.toString()) return true;
-      return (
-        ap.lat >= latMin &&
-        ap.lat <= latMax &&
-        ap.lng >= lngMin &&
-        ap.lng <= lngMax
-      );
-    });
-  }, [visibleAnchorPoints, currentRegion, apId]);
+    return visibleAnchorPoints;
+  }, [visibleAnchorPoints]);
 
   const renderedPolylines = useMemo(() => {
     return routeCoordinates.map((route, index) => (

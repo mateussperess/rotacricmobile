@@ -50,14 +50,14 @@ export const CitiesService = {
     try {
       const { data } = await api.get("/cities");
       if (data && Array.isArray(data)) {
-        await CitiesOfflineRepository.saveAll(data);
+        CitiesOfflineRepository.saveAll(data).catch(() => {});
         const orderedData = [...data].sort((a: City, b: City) =>
           a.name.localeCompare(b.name)
         );
         return orderedData;
       }
     } catch (error) {
-      console.log("Offline mode: Carregando cidades da base SQLite local");
+      // Modo off-line: carregar do SQLite silenciosamente
     }
     return CitiesOfflineRepository.getAll();
   },
@@ -70,7 +70,7 @@ export const CitiesService = {
       }
       return data;
     } catch (error) {
-      console.log("Offline mode: Carregando detalhes da cidade do SQLite local");
+      // Modo off-line: carregar do SQLite silenciosamente
       return CitiesOfflineRepository.getOne(id);
     }
   },
@@ -83,7 +83,7 @@ export const CitiesService = {
         return data;
       }
     } catch (error) {
-      console.log("Offline mode: Buscando imagens salvas no SQLite local");
+      // Modo off-line: carregar do SQLite silenciosamente
     }
     return CityImagesOfflineRepository.getByCity(cityId);
   },

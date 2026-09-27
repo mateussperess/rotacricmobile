@@ -23,7 +23,7 @@ export const RoutesService = {
         return data;
       }
     } catch (e) {
-      console.log("Offline mode: Carregando rotas da base SQLite local");
+      // Modo off-line: carregar do SQLite silenciosamente
     }
     return RoutesOfflineRepository.getAll();
   },

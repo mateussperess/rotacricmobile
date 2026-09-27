@@ -95,8 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile_picture_path: profile.profile_picture_path,
         stampsCount: 0,
       });
-    } catch (err) {
-      console.warn("Falha ao buscar perfil completo, usando dados do token:", err);
+    } catch (err: any) {
+      const isNetworkError =
+        err?.code === "ERR_NETWORK" ||
+        err?.message?.includes("Network Error") ||
+        err?.message?.includes("Network request failed");
+
+      if (!isNetworkError) {
+        console.warn("Falha ao buscar perfil completo, usando dados do token:", err?.message || err);
+      }
       setUser({
         id: userId,
         email: baseUser.email || "",

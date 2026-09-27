@@ -37,10 +37,12 @@ export function useNetworkStatus() {
             state.isConnected === false || state.isInternetReachable === false;
           const online = !isOffline;
           setIsConnected(online);
-          const token = await tokenStorage.get();
-          if (online && token) {
-            BootstrapOfflineService.syncBootstrapData();
-            StampService.processSyncQueue();
+          if (online) {
+            BootstrapOfflineService.syncBootstrapData().catch(() => {});
+            const token = await tokenStorage.get();
+            if (token) {
+              StampService.processSyncQueue();
+            }
           }
         });
       }

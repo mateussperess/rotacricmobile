@@ -260,27 +260,18 @@ export default function CarimbosScreen() {
         if (apId) collectedByApId.set(apId, us);
       });
 
-      // Mapear catálogo de carimbos ativos vinculados a pontos de apoio válidos
+      // Mapear catálogo de carimbos ativos
       const stampsListMap = new Map<string, any>();
       (stampsData || []).forEach((s: Stamp) => {
-        const apId = s.anchor_point_id ? s.anchor_point_id.toString() : null;
-        const ap = apId ? apMap.get(apId) : null;
-        // Excluir carimbos inativos ou órfãos (cujo ponto de apoio foi removido ou não existe)
-        const hasValidAnchorPoint = !apId || Boolean(ap);
-
-        if (s.active !== false && s.id && hasValidAnchorPoint) {
+        if (s.active !== false && s.id) {
           stampsListMap.set(s.id.toString(), s);
         }
       });
 
-      // Incluir na lista visual apenas carimbos que o usuário realmente coletou off-line/localmente
+      // Incluir na lista visual carimbos que o usuário coletou (preservando off-line)
       (userStampsData || []).forEach((us: any) => {
         const sId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
         const apId = (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString();
-        const ap = apId ? apMap.get(apId) : null;
-
-        // Se o carimbo estava vinculado a um ponto de apoio que foi excluído, ignorar
-        if (apId && !ap) return;
 
         if (sId && !stampsListMap.has(sId)) {
           stampsListMap.set(sId, {

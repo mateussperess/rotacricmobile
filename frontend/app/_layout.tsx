@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { AuthProvider } from "@/components/contexts/AuthContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
+import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
 
 // Manter a splash nativa visível até a inicialização inicial
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -27,6 +28,8 @@ export default function RootLayout() {
   useEffect(() => {
     // Oculta a splash nativa estática do sistema para exibir a AnimatedSplashScreen
     SplashScreen.hideAsync().catch(() => {});
+    // Garante o preenchimento do SQLite com cidades, rotas e pontos de apoio assim que o app e aberto online
+    BootstrapOfflineService.syncBootstrapData().catch(() => {});
   }, []);
 
   return (

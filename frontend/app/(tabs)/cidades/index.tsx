@@ -118,19 +118,26 @@ export default function Cidades() {
 
   const fetchCities = useCallback(async () => {
     try {
-      const data = await CitiesService.findAll();
+      const [data, allPoints] = await Promise.all([
+        CitiesService.findAll(),
+        AnchorPointsService.findAll().catch(() => []),
+      ]);
+
       if (!data) {
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
-      const withMeta = await Promise.all(
-        data.map(async (city) => {
-          const points = await AnchorPointsService.findAllByCity(city.id);
-          return { ...city, anchorCount: points?.length ?? 0 };
-        }),
-      );
+      const points = allPoints || [];
+      const withMeta = data.map((city) => {
+        const count = points.filter(
+          (ap) =>
+            (ap.city_id || (ap as any).city?.id)?.toString() ===
+            city.id.toString()
+        ).length;
+        return { ...city, anchorCount: count };
+      });
 
       setCities(withMeta);
     } catch (e) {

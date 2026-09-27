@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CityResponseDto } from 'src/cities/dto/city-response.dto';
+import { AnchorPointResponseDto } from 'src/anchor-points/dto/anchor-point-response.dto';
+import { AnchorPointCategoryResponseDto } from 'src/anchor-point-categories/dto/anchor-point-category-response.dto';
 
 @Injectable()
 export class SyncService {
@@ -27,18 +30,29 @@ export class SyncService {
         this.prisma.route.findMany({ where: { active: true } }),
         this.prisma.cityRoute.findMany(),
         this.prisma.anchorPointCategory.findMany({ where: { is_active: true } }),
-        this.prisma.anchorPoint.findMany({ where: { active: true } }),
+        this.prisma.anchorPoint.findMany({ where: { active: true }, include: { category: true } }),
         this.prisma.stamp.findMany({ where: { active: true } }),
       ]);
 
+    const mappedCities = cities.map((c) => new CityResponseDto(c));
+    const mappedAnchorPoints = anchorPoints.map((ap) => {
+      const dto = new AnchorPointResponseDto(ap);
+      return {
+        ...dto,
+        latitude: dto.lat,
+        longitude: dto.lng,
+        category: ap.category ? new AnchorPointCategoryResponseDto(ap.category) : null,
+      };
+    });
+
     return this.serializeBigInt({
       timestamp: new Date().toISOString(),
-      cities,
+      cities: mappedCities,
       cityImages,
       routes,
       cityRoutes,
       categories,
-      anchorPoints,
+      anchorPoints: mappedAnchorPoints,
       stamps,
     });
   }

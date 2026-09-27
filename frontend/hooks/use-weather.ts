@@ -145,9 +145,15 @@ export async function fetchAndSaveWeather(lat: number, lng: number): Promise<Wea
       await WeatherOfflineRepository.saveWeather(key, result);
       return result;
     } catch (err: any) {
+      const isNetworkError =
+        err?.name === "TypeError" ||
+        err?.message?.includes("Network request failed") ||
+        err?.message?.includes("Network Error") ||
+        err?.code === "ERR_NETWORK";
+
       if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
-        console.warn(`[Clima] Requisição de clima para (${key}) foi interrompida (timeout/abort).`);
-      } else {
+        // Timeout ou requisição abortada silenciosamente
+      } else if (!isNetworkError) {
         console.warn(`[Clima] Erro ao buscar API remota para (${key}):`, err?.message || err);
       }
       return null;
