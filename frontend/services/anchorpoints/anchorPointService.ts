@@ -112,10 +112,11 @@ export const AnchorPointsService = {
   deleteAnchorPoint: async (id: string): Promise<void> => {
     try {
       await api.delete(`/anchor-points/${id}`);
+      await AnchorPointsOfflineRepository.delete(id);
+      await StampsOfflineRepository.deleteByAnchorPoint(id);
     } catch (e) {
-      console.warn("Exclusão offline/erro no servidor ao remover ponto de apoio:", e);
+      console.warn("Erro ao remover ponto de apoio no servidor:", e);
+      throw e;
     }
-    await AnchorPointsOfflineRepository.delete(id);
-    await StampsOfflineRepository.deleteByAnchorPoint(id);
   },
 };

@@ -1,5 +1,6 @@
 import { useAuth } from "@/components/contexts/AuthContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
 import {
     AnchorPointCategory,
     AnchorPointCategoryService,
@@ -153,6 +154,7 @@ export default function AdminScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
+      BootstrapOfflineService.syncBootstrapData().catch(() => {});
       const [apData, stampsData, citiesData, categoriesData] =
         await Promise.all([
           AnchorPointsService.findAllAdmin().catch(() =>

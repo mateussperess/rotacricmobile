@@ -2,6 +2,7 @@ import NetInfo from "@react-native-community/netinfo";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  AppState,
   Easing,
   Pressable,
   StyleSheet,
@@ -50,6 +51,28 @@ export function useNetworkStatus() {
       // Ignorar caso NetInfo não esteja disponível
     }
 
+    // Sincronizar SQLite sempre que o app volta para primeiro plano (active) estando online
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        NetInfo.fetch().then((state) => {
+          const online = state.isConnected !== false && state.isInternetReachable !== false;
+          if (online) {
+            BootstrapOfflineService.syncBootstrapData().catch(() => {});
+          }
+        });
+      }
+    });
+
+    // Intervalo de sincronização periódica silenciosa em segundo plano a cada 2 minutos quando conectado
+    const autoSyncInterval = setInterval(() => {
+      NetInfo.fetch().then((state) => {
+        const online = state.isConnected !== false && state.isInternetReachable !== false;
+        if (online) {
+          BootstrapOfflineService.syncBootstrapData().catch(() => {});
+        }
+      });
+    }, 120000);
+
     const checkPending = async () => {
       try {
         const token = await tokenStorage.get();
@@ -74,6 +97,8 @@ export function useNetworkStatus() {
       try {
         unsubscribe();
       } catch {}
+      appStateSub.remove();
+      clearInterval(autoSyncInterval);
       if (timerRef.current) clearTimeout(timerRef.current);
       clearInterval(interval);
     };

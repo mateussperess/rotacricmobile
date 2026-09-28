@@ -117,8 +117,57 @@ export class AnchorPointsService {
       throw new NotFoundException('Ponto de apoio não encontrado');
     }
 
-    await this.prisma.anchorPoint.delete({
-      where: { id: numericId },
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Obter todos os IDs dos carimbos vinculados a este ponto
+      const stamps = await tx.stamp.findMany({
+        where: { anchor_point_id: numericId },
+        select: { id: true },
+      });
+      const stampIds = stamps.map((s) => s.id);
+
+      // 2. Remover registros de carimbos escaneados por usuários (por anchor_point_id ou stamp_id)
+      if (stampIds.length > 0) {
+        await tx.userStamp.deleteMany({
+          where: {
+            OR: [
+              { anchor_point_id: numericId },
+              { stamp_id: { in: stampIds } },
+            ],
+          },
+        });
+      } else {
+        await tx.userStamp.deleteMany({
+          where: { anchor_point_id: numericId },
+        });
+      }
+
+      // 3. Remover carimbos cadastrados para este ponto
+      await tx.stamp.deleteMany({
+        where: { anchor_point_id: numericId },
+      });
+
+      // 4. Remover relacionamentos em tabelas M2M de eventos e cidades caso existam
+      const tablesToClean = [
+        'event_anchorpoint',
+        'event_event_anchorpoint',
+        'city_anchorpoint',
+        'cities_city_anchorpoint',
+        'route_anchorpoint',
+      ];
+      for (const table of tablesToClean) {
+        try {
+          await tx.$executeRawUnsafe(
+            `DELETE FROM \`${table}\` WHERE anchorpoint_id = ? OR anchor_point_id = ?`,
+            numericId,
+            numericId,
+          );
+        } catch {}
+      }
+
+      // 5. Excluir o ponto de apoio
+      await tx.anchorPoint.delete({
+        where: { id: numericId },
+      });
     });
 
     return { message: 'Ponto de apoio removido com sucesso' };

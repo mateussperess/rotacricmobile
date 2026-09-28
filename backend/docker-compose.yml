@@ -1,34 +1,4 @@
 services:
-  db:
-    env_file:
-      - .env
-    image: mysql:8.0
-    container_name: rtcmobile-db
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_HOST: '%'
-    ports:
-      - '${DB_PORT}:3306'
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - /home/mateus/Downloads/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
-    healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          "mysql -h 127.0.0.1 -u root -p$MYSQL_ROOT_PASSWORD -e 'SELECT 1'",
-        ]
-      timeout: 20s
-      retries: 10
-      interval: 10s
-      start_period: 40s
-    networks:
-      - rtcmobile-network
-
   backend:
     env_file:
       - .env
@@ -41,9 +11,6 @@ services:
     container_name: api-backend-new
     restart: unless-stopped
     command: node dist/src/main.js
-    depends_on:
-      db:
-        condition: service_healthy
     network_mode: 'host'
     environment:
       - NODE_ENV=${NODE_ENV}
@@ -65,38 +32,3 @@ services:
       interval: 30s
       start_period: 15s
 
-  web-django:
-    build:
-      context: ../../projetocric-django
-      dockerfile: Dockerfile
-    container_name: rotacric-web-test
-    restart: unless-stopped
-    command: sh -c "python manage.py collectstatic --noinput && python manage.py runserver 0.0.0.0:8000"
-    volumes:
-      - ../../projetocric-django:/rotacric
-    ports:
-      - "${DJANGO_PORT:-8001}:8000"
-    environment:
-      - DB_ENGINE=django.db.backends.mysql
-      - DB_HOST=rtcmobile-db
-      - DB_PORT=3306
-      - DB_NAME=${MYSQL_DATABASE}
-      - DB_USER=${MYSQL_ROOT_USER}
-      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - SECRET_KEY=sua_secret_key_de_teste
-      - DEBUG=True
-      - ALLOWED_HOSTS=*
-      - FEATURE_EMAIL_ENABLED=False
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - rtcmobile-network
-
-volumes:
-  mysql_data:
-    driver: local
-
-networks:
-  rtcmobile-network:
-    driver: bridge
