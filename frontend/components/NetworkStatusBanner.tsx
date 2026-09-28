@@ -178,7 +178,7 @@ export function NetworkStatusInlineBadge({
           toValue: 1,
           duration: 1000,
           easing: Easing.linear,
-          useNativeDriver: false,
+          useNativeDriver: true,
           isInteraction: false,
         }),
       );
@@ -199,13 +199,13 @@ export function NetworkStatusInlineBadge({
           Animated.timing(pulseAnim, {
             toValue: 0.35,
             duration: 750,
-            useNativeDriver: false,
+            useNativeDriver: true,
             isInteraction: false,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
             duration: 750,
-            useNativeDriver: false,
+            useNativeDriver: true,
             isInteraction: false,
           }),
         ]),
@@ -291,12 +291,14 @@ export function NetworkStatusInlineBadge({
         onPress={onPress}
         style={[styles.inlinePill, { borderColor: borderColor as any }]}
       >
-        <Animated.View
-          style={[
-            styles.dot,
-            { backgroundColor: dotColor, opacity: pulseAnim },
-          ]}
-        />
+        <Animated.View style={{ opacity: pulseAnim }}>
+          <Animated.View
+            style={[
+              styles.dot,
+              { backgroundColor: dotColor },
+            ]}
+          />
+        </Animated.View>
         {statusState === "syncing" ? (
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
             <IconSymbol name="arrow.clockwise" size={15} color="#0284C7" />
@@ -370,12 +372,12 @@ export function NetworkStatusBanner() {
           Animated.timing(pulseAnim, {
             toValue: 0.4,
             duration: 800,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
             duration: 800,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
         ]),
       );
@@ -399,13 +401,13 @@ export function NetworkStatusBanner() {
     setExpanded(nextState);
     Animated.spring(scaleAnim, {
       toValue: nextState ? 1.03 : 1,
-      useNativeDriver: false,
+      useNativeDriver: true,
       speed: 25,
       bounciness: 6,
     }).start(() => {
       Animated.spring(scaleAnim, {
         toValue: 1,
-        useNativeDriver: false,
+        useNativeDriver: true,
         speed: 30,
       }).start();
     });
