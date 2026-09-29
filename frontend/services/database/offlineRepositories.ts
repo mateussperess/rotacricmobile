@@ -1251,19 +1251,17 @@ export const WeatherOfflineRepository = {
             return JSON.parse(row.data);
           }
         } catch (err: any) {
-          // Se a coluna antiga estiver corrompida, tratar silenciosamente
-          await runWithTransaction(async () => {
-            const db2 = await getDatabase();
-            if (!db2) return;
-            await db2.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
-            await db2.execAsync(`
+          // Se a coluna antiga estiver corrompida, recriar a tabela no próprio banco sem chamadas aninhadas a mutex
+          try {
+            await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
+            await db.execAsync(`
               CREATE TABLE IF NOT EXISTS weather_cache (
                 key TEXT PRIMARY KEY,
                 data TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
               );
             `);
-          });
+          } catch {}
         }
         return null;
       } catch {

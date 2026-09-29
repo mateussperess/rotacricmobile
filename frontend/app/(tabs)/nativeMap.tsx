@@ -10,6 +10,7 @@ import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
 import {
   BootstrapOfflineService,
+  CitiesOfflineRepository,
   AnchorPointsOfflineRepository,
   RoutesOfflineRepository,
   StampsOfflineRepository,
@@ -424,6 +425,30 @@ export default function NativeMap() {
     }
   }, [apId, apName, lat, lng, t]);
 
+  const matchNearestCityOffline = useCallback(async (latVal: number, lngVal: number) => {
+    try {
+      const cities = await CitiesOfflineRepository.getAll();
+      if (!cities || cities.length === 0) return null;
+      let closestCity: string | null = null;
+      let minDistance = Infinity;
+      for (const city of cities) {
+        const cLat = Number(city.lat ?? (city as any).latitude);
+        const cLng = Number(city.lng ?? (city as any).longitude);
+        if (!isNaN(cLat) && !isNaN(cLng) && (cLat !== 0 || cLng !== 0)) {
+          const dist = haversineMeters(latVal, lngVal, cLat, cLng);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestCity = city.name;
+          }
+        }
+      }
+      if (closestCity && minDistance <= 35000) {
+        return closestCity;
+      }
+    } catch {}
+    return null;
+  }, []);
+
   useEffect(() => {
     if (!location || geocodedRef.current) return;
 
@@ -437,30 +462,41 @@ export default function NativeMap() {
       return;
     }
 
-    const { latitude, longitude } = location.coords;
+    const { latitude: latVal, longitude: lngVal } = location.coords;
     (async () => {
       try {
         const netState = await NetInfo.fetch();
-        if (!netState.isConnected) return;
+        if (netState.isConnected) {
+          const results = await Location.reverseGeocodeAsync({
+            latitude: latVal,
+            longitude: lngVal,
+          }).catch(() => null);
 
-        const results = await Location.reverseGeocodeAsync({
-          latitude,
-          longitude,
-        }).catch(() => null);
-
-        if (results && results.length > 0) {
-          const place = results[0];
-          const name = place?.city ?? place?.subregion ?? null;
-          if (name) {
-            setCityName(name);
-            geocodedRef.current = true;
+          if (results && results.length > 0) {
+            const place = results[0];
+            const name = place?.city ?? place?.subregion ?? null;
+            if (name) {
+              setCityName(name);
+              geocodedRef.current = true;
+              return;
+            }
           }
         }
+
+        const offlineCity = await matchNearestCityOffline(latVal, lngVal);
+        if (offlineCity) {
+          setCityName(offlineCity);
+          geocodedRef.current = true;
+        }
       } catch {
-        // Geocodificação reversa exige internet. Ignorar silenciosamente offline.
+        const offlineCity = await matchNearestCityOffline(latVal, lngVal);
+        if (offlineCity) {
+          setCityName(offlineCity);
+          geocodedRef.current = true;
+        }
       }
     })();
-  }, [location, cityName]);
+  }, [location, cityName, matchNearestCityOffline]);
 
   const routeCoordinates = useMemo(() => {
     const activeRoutes = includeEventRoutes
@@ -514,6 +550,29 @@ export default function NativeMap() {
           setAcquiring(false);
         }
       }, MAX_WAIT_MS);
+
+      // 1. Obter posição cacheada imediatamente (0ms latency, funciona 100% offline!)
+      try {
+        const lastLoc = await Location.getLastKnownPositionAsync();
+        if (lastLoc) {
+          setLocation(lastLoc);
+          setGpsLoading(false);
+          animateToLocation(lastLoc);
+        }
+      } catch {}
+
+      // 2. Obter posição atual inicial
+      try {
+        const currentLoc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (currentLoc) {
+          setLocation(currentLoc);
+          setGpsLoading(false);
+          animateToLocation(currentLoc);
+        }
+      } catch {}
+
       subscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
@@ -768,6 +827,13 @@ export default function NativeMap() {
             }}
           >
             {renderedPolylines}
+
+            {location && location.coords && (
+              <UserMarker
+                latitude={location.coords.latitude}
+                longitude={location.coords.longitude}
+              />
+            )}
 
             {renderedAnchorPoints.map((ap) => {
               const isCollected =
