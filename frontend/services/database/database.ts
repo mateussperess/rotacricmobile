@@ -94,10 +94,23 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
             updated_at INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS notifications (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'info',
+            data TEXT,
+            read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'delivered'
+          );
+
           CREATE INDEX IF NOT EXISTS idx_anchor_points_coords ON anchor_points(lat, lng);
           CREATE INDEX IF NOT EXISTS idx_anchor_points_cat_city ON anchor_points(category_id, city_id, active);
           CREATE INDEX IF NOT EXISTS idx_routes_active ON routes(active, is_event_route);
           CREATE INDEX IF NOT EXISTS idx_stamps_anchor ON stamps(anchor_point_id, active);
+          CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+          CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
         `);
 
         // Migration para garantir coluna 'data' se a tabela já existia com schema antigo
