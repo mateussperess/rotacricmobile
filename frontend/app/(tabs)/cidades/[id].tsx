@@ -8,90 +8,103 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 import { CityImageCarousel } from "@/components/CityImageCarousel";
+import {
+    useNetworkStatus
+} from "@/components/NetworkStatusBanner";
 import { WeatherCard } from "@/components/WeatherCard";
+import { useAuth } from "@/components/contexts/AuthContext";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCityImages } from "@/hooks/use-city-images";
 import { useCityRouteDistance } from "@/hooks/use-city-route-distance";
 
 import {
-  AnchorPoint,
-  AnchorPointsService,
+    AnchorPointCategory,
+    AnchorPointCategoryService,
+} from "@/services/anchorpoints/anchorPointCategoryService";
+import {
+    AnchorPoint,
+    AnchorPointsService,
 } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Animated,
+    LayoutAnimation,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const CRIC_BLUE = "#2563EB";
 
 type Tab = "sobre" | "trecho" | "apoio";
-type ApoioFilter = "all" | "on_route" | "off_route";
+const TABS: Tab[] = ["sobre", "trecho", "apoio"];
+
+const TABS_CONFIG: {
+  key: Tab;
+  label: string;
+  icon: "building.2.fill" | "bicycle" | "mappin.and.ellipse";
+}[] = [
+  { key: "sobre", label: "Sobre", icon: "building.2.fill" },
+  { key: "trecho", label: "Trecho", icon: "bicycle" },
+  { key: "apoio", label: "Pontos de Apoio", icon: "mappin.and.ellipse" },
+];
 
 export default function CidadeDetalhe() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user, primaryColor } = useAuth();
+  const isAdmin = Boolean(user?.is_staff || user?.is_superuser);
+  const { width: windowWidth } = useWindowDimensions();
+  const tabWidth = Math.max((windowWidth - 48) / 3, 80);
+  const pagerRef = useRef<ScrollView>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
+
   const [city, setCity] = useState<City | null>(null);
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
+  const [categories, setCategories] = useState<AnchorPointCategory[]>([]);
   const [loadingCity, setLoadingCity] = useState(true);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("sobre");
-  const [apoioFilter, setApoioFilter] = useState<ApoioFilter>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const router = useRouter();
+  const { isOffline } = useNetworkStatus();
   const { data: routeDistance, loading: loadingDistance } =
     useCityRouteDistance(id);
   const { images: cityImages, loading: loadingImages } = useCityImages(id);
-  const touchStart = useRef<number | null>(null);
-  const indicatorPosition = useRef(new Animated.Value(0)).current;
 
-  const tabsArray: Tab[] = useMemo(() => ["sobre", "trecho", "apoio"], []);
-
-  const handleTouchStart = (e: any) => {
-    touchStart.current = e.nativeEvent.locationX;
-  };
-
-  const handleTouchEnd = (e: any) => {
-    if (touchStart.current === null) return;
-
-    const touchEnd = e.nativeEvent.locationX;
-    const distance = touchStart.current - touchEnd;
-    const isSwipe = Math.abs(distance) > 50;
-
-    if (isSwipe) {
-      const currentIndex = tabsArray.indexOf(activeTab);
-
-      if (distance > 0 && currentIndex < tabsArray.length - 1) {
-        const newIndex = currentIndex + 1;
-        setActiveTab(tabsArray[newIndex]);
-        animateIndicator(newIndex);
-      } else if (distance < 0 && currentIndex > 0) {
-        const newIndex = currentIndex - 1;
-        setActiveTab(tabsArray[newIndex]);
-        animateIndicator(newIndex);
-      }
-    }
-
-    touchStart.current = null;
-  };
+  const indicatorTranslateX = scrollX.interpolate({
+    inputRange: [0, windowWidth, windowWidth * 2],
+    outputRange: [0, tabWidth, tabWidth * 2],
+    extrapolate: "clamp",
+  });
 
   const handleTabPress = (tabIndex: number) => {
-    const tab = tabsArray[tabIndex];
+    const tab = TABS[tabIndex];
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setActiveTab(tab);
-    animateIndicator(tabIndex);
+    if (pagerRef.current) {
+      pagerRef.current.scrollTo({ x: tabIndex * windowWidth, animated: true });
+    }
   };
 
-  const animateIndicator = (index: number) => {
-    Animated.timing(indicatorPosition, {
-      toValue: index * 33.33,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
+  const handleMomentumScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / windowWidth);
+    const tab = TABS[index];
+    if (tab && tab !== activeTab) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setActiveTab(tab);
+    }
   };
 
   useEffect(() => {
@@ -102,11 +115,6 @@ export default function CidadeDetalhe() {
   }, [id]);
 
   useEffect(() => {
-    const initialIndex = tabsArray.indexOf(activeTab);
-    indicatorPosition.setValue(initialIndex * 33.33);
-  }, [activeTab, indicatorPosition, tabsArray]);
-
-  useEffect(() => {
     if (!id) return;
     setLoadingAnchor(true);
     AnchorPointsService.findAllByCity(id).then((data) => {
@@ -115,27 +123,87 @@ export default function CidadeDetalhe() {
     });
   }, [id]);
 
+  useEffect(() => {
+    AnchorPointCategoryService.findAll()
+      .then((data) => {
+        if (data && Array.isArray(data)) {
+          setCategories(data.filter((c) => c.is_active !== false));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const availableCategories = useMemo(() => {
+    const catMap = new Map<
+      string,
+      { id: string; name: string; icon_name?: string }
+    >();
+
+    categories.forEach((cat) => {
+      catMap.set(cat.id.toString(), {
+        id: cat.id.toString(),
+        name: cat.name,
+        icon_name: cat.icon_name,
+      });
+    });
+
+    anchorPoints.forEach((ap) => {
+      if (ap.category) {
+        const cId = ap.category.id.toString();
+        if (!catMap.has(cId)) {
+          catMap.set(cId, {
+            id: cId,
+            name: ap.category.name,
+            icon_name: ap.category.icon_name,
+          });
+        }
+      }
+    });
+
+    return Array.from(catMap.values());
+  }, [categories, anchorPoints]);
+
   const filteredPoints = anchorPoints.filter((ap) => {
-    if (apoioFilter === "on_route") return ap.on_route === true;
-    if (apoioFilter === "off_route") return ap.on_route === false;
-    return true;
+    if (selectedCategory === "all") return true;
+    const apCatId = (ap.category_id || ap.category?.id)?.toString();
+    const apCatName = ap.category?.name?.toLowerCase().trim();
+    const selectedCatObj = availableCategories.find(
+      (c) => c.id === selectedCategory,
+    );
+    const targetCatName = selectedCatObj?.name?.toLowerCase().trim();
+
+    return (
+      apCatId === selectedCategory ||
+      (apCatName && targetCatName && apCatName === targetCatName)
+    );
   });
 
   const handleGoToMap = () => {
     if (!city) return;
+    const targetLat = city.lat ?? (city as any).latitude ?? -28.6775;
+    const targetLng = city.lng ?? (city as any).longitude ?? -49.3703;
+    const targetZoom = city.zoom || 12;
     router.push({
       pathname: "/(tabs)/nativeMap",
-      params: { lat: city.lat, lng: city.lng, zoom: city.zoom, t: Date.now() },
+      params: {
+        lat: String(targetLat),
+        lng: String(targetLng),
+        zoom: String(targetZoom),
+        t: String(Date.now()),
+      },
     });
   };
 
   if (loadingCity) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: primaryColor }]}
+        edges={["top"]}
+      >
         <View style={styles.container}>
           <ActivityIndicator
             size="large"
-            color={CRIC_BLUE}
+            color={primaryColor}
             style={{ flex: 1 }}
           />
         </View>
@@ -145,7 +213,10 @@ export default function CidadeDetalhe() {
 
   if (!city) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: primaryColor }]}
+        edges={["top"]}
+      >
         <View style={styles.container}>
           <View style={styles.centered}>
             <Text style={styles.errorText}>Cidade não encontrada.</Text>
@@ -154,12 +225,6 @@ export default function CidadeDetalhe() {
       </SafeAreaView>
     );
   }
-
-  const APOIO_FILTERS: { key: ApoioFilter; label: string; icon: string }[] = [
-    { key: "all", label: "Todos", icon: "" },
-    { key: "on_route", label: "Na rota", icon: "" },
-    { key: "off_route", label: "Fora da rota", icon: "" },
-  ];
 
   const ICON_MAP: Record<
     string,
@@ -177,77 +242,169 @@ export default function CidadeDetalhe() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
       <View style={styles.container}>
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>‹</Text>
-            <Text style={styles.backLabel}>Cidades</Text>
-          </Pressable>
-
-          <Text style={styles.cityName}>{city.name}</Text>
-          <Text style={styles.cityCoords}>
-            {city.lat.toFixed(4)}, {city.lng.toFixed(4)}
-          </Text>
-
-          {/* Tabs */}
-          <View style={styles.tabs}>
-            {(["sobre", "trecho", "apoio"] as Tab[]).map((tab, index) => (
-              <Pressable
-                key={tab}
-                style={[styles.tab, activeTab === tab && styles.tabActive]}
-                onPress={() => handleTabPress(index)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab && styles.tabTextActive,
-                  ]}
-                >
-                  {tab === "sobre"
-                    ? "Sobre"
-                    : tab === "trecho"
-                      ? "Trecho"
-                      : "Pontos de Apoio"}
-                </Text>
-              </Pressable>
-            ))}
-            <Animated.View
-              style={[
-                styles.tabIndicator,
-                {
-                  left: indicatorPosition.interpolate({
-                    inputRange: [0, 100],
-                    outputRange: ["0%", "100%"],
-                  }),
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* ── Conteúdo ── */}
-        <View
-          style={styles.contentContainer}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+          nestedScrollEnabled
         >
-          <ScrollView
-            contentContainerStyle={styles.body}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={true}
+          {/* ── Header da Cidade ── */}
+          <View style={[styles.header, { backgroundColor: primaryColor }]}>
+            {/* Barra Superior: Botão Voltar Estilizado + Tag Rota */}
+            <View style={styles.headerTopBar}>
+              <Pressable
+                onPress={() => router.back()}
+                style={styles.backBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <View style={styles.backIconCircle}>
+                  <IconSymbol name="chevron.left" size={14} color="#FFFFFF" />
+                </View>
+                <Text style={styles.backLabel}>Cidades</Text>
+              </Pressable>
+
+              <View style={styles.adminPill}>
+                <Text style={styles.adminPillText}>
+                  {isAdmin ? "ADMINISTRADOR" : "ROTA CRIC"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Nome da Cidade */}
+            <Text style={styles.cityName}>{city.name}</Text>
+
+            {/* Linha de Badges Informativos (GPS, Pontos de Apoio, Distância) */}
+            <View style={styles.metaRow}>
+              <View style={styles.metaBadge}>
+                <IconSymbol
+                  name="mappin.circle.fill"
+                  size={13}
+                  color="rgba(255,255,255,0.85)"
+                />
+                <Text style={styles.metaBadgeText}>
+                  {city.lat.toFixed(3)}°, {city.lng.toFixed(3)}°
+                </Text>
+              </View>
+
+              <View style={styles.metaBadge}>
+                <IconSymbol
+                  name="mappin.and.ellipse"
+                  size={12}
+                  color="rgba(255,255,255,0.85)"
+                />
+                <Text style={styles.metaBadgeText}>
+                  {anchorPoints.length} ponto
+                  {anchorPoints.length !== 1 ? "s" : ""} de apoio
+                </Text>
+              </View>
+
+              {routeDistance && routeDistance.totalDistanceKm > 0 && (
+                <View style={styles.metaBadge}>
+                  <IconSymbol
+                    name="bicycle"
+                    size={13}
+                    color="rgba(255,255,255,0.85)"
+                  />
+                  <Text style={styles.metaBadgeText}>
+                    {routeDistance.totalDistanceKm} km
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Tabs Card com Divisores e Indicador Animado */}
+            <View style={styles.tabs}>
+              {TABS_CONFIG.map((tab, index) => (
+                <React.Fragment key={tab.key}>
+                  {index > 0 && <View style={styles.tabDivider} />}
+                  <Pressable
+                    style={styles.tab}
+                    onPress={() => handleTabPress(index)}
+                  >
+                    <IconSymbol
+                      name={tab.icon}
+                      size={20}
+                      color={
+                        activeTab === tab.key
+                          ? "#FFFFFF"
+                          : "rgba(255,255,255,0.55)"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === tab.key && styles.tabTextActive,
+                      ]}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                </React.Fragment>
+              ))}
+              <Animated.View
+                style={[
+                  styles.tabIndicatorContainer,
+                  {
+                    width: tabWidth,
+                    transform: [{ translateX: indicatorTranslateX }],
+                  },
+                ]}
+              >
+                <View style={styles.tabIndicatorBar} />
+              </Animated.View>
+            </View>
+          </View>
+
+          {/* ── Conteúdo com Pager Horizontal Animado ── */}
+          <Animated.ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+              { useNativeDriver: true },
+            )}
+            onMomentumScrollEnd={handleMomentumScrollEnd}
+            scrollEventThrottle={16}
+            style={styles.contentContainer}
+            contentContainerStyle={{ width: windowWidth * TABS.length }}
           >
-            {/* ── ABA: SOBRE ── */}
-            {activeTab === "sobre" && (
-              <>
+            {/* ── ABA 0: SOBRE ── */}
+            <View style={{ width: windowWidth }}>
+              <View style={styles.body}>
                 <View style={styles.card}>
                   <WeatherCard lat={city.lat} lng={city.lng} />
 
-                  {/* Carrossel de imagens */}
-                  {!loadingImages && cityImages.length > 0 && (
-                    <CityImageCarousel images={cityImages} />
-                  )}
+                  {/* Carrossel de imagens (oculto em modo off-line) */}
+                  {(() => {
+                    if (isOffline) return null;
+
+                    const displayImages =
+                      cityImages.length > 0
+                        ? cityImages
+                        : city?.banner_image
+                          ? [
+                              {
+                                id: `banner-${city.id}`,
+                                city_id: city.id,
+                                url: city.banner_image,
+                                caption: city.name,
+                                order: 0,
+                                created_at: new Date().toISOString(),
+                              },
+                            ]
+                          : [];
+
+                    if (loadingImages || displayImages.length === 0)
+                      return null;
+                    return <CityImageCarousel images={displayImages} />;
+                  })()}
 
                   <Text style={styles.cardTitle}>Sobre a cidade</Text>
                   <Text style={styles.cardText}>
@@ -256,109 +413,141 @@ export default function CidadeDetalhe() {
                       : "Informações sobre esta cidade em breve."}
                   </Text>
                 </View>
-              </>
-            )}
+              </View>
+            </View>
 
-            {/* ── ABA: TRECHO ── */}
-            {activeTab === "trecho" && (
-              <>
-                {/* Card de resumo */}
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Rotas pela cidade</Text>
-
-                  {loadingDistance ? (
-                    <ActivityIndicator
-                      color="#2563EB"
-                      style={{ marginVertical: 8 }}
-                    />
-                  ) : routeDistance && routeDistance.routes.length > 0 ? (
-                    <>
-                      {/* Stat de distância total */}
-                      <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>🚴</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.totalDistanceKm} km
-                          </Text>
-                          <Text style={styles.statLabel}>Total na cidade</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>🛣️</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.routes.length}
-                          </Text>
-                          <Text style={styles.statLabel}>
-                            {routeDistance.routes.length === 1
-                              ? "Rota"
-                              : "Rotas"}
-                          </Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>📍</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.radiusKm} km
-                          </Text>
-                          <Text style={styles.statLabel}>Raio usado</Text>
-                        </View>
-                      </View>
-
-                      {/* Divider */}
+            {/* ── ABA 1: TRECHO ── */}
+            <View style={{ width: windowWidth }}>
+              <View style={styles.body}>
+                {/* ── CARD: CONEXÕES DO TRECHO (ROTA CRIC) ── */}
+                {routeDistance &&
+                  routeDistance.connectedCities &&
+                  routeDistance.connectedCities.length > 0 && (
+                    <View style={styles.card}>
+                      <Text style={styles.cardTitle}>
+                        Conexões do Trecho (Rota CRIC)
+                      </Text>
+                      <Text style={styles.cardSubtitle}>
+                        Cidades vizinhas conectadas por este percurso:
+                      </Text>
                       <View style={styles.divider} />
-
-                      {/* Lista de rotas individuais */}
-                      {routeDistance.routes.map((route) => (
-                        <View key={route.routeId} style={styles.routeItem}>
-                          <View style={styles.routeItemLeft}>
-                            <View style={styles.routeDot} />
-                            <Text style={styles.routeName}>
-                              {route.routeName}
-                            </Text>
+                      {routeDistance.connectedCities.map((conn) => (
+                        <Pressable
+                          key={conn.cityId}
+                          style={styles.connectionItem}
+                          onPress={() =>
+                            router.push(`/(tabs)/cidades/${conn.cityId}`)
+                          }
+                        >
+                          <View style={styles.connectionLeft}>
+                            <Text style={styles.connectionIcon}>🚴‍♂️</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.connectionName}>
+                                {conn.cityName}
+                              </Text>
+                              <Text style={styles.connectionSub}>
+                                {conn.routeName || "Conexão Rota CRIC"}
+                              </Text>
+                            </View>
                           </View>
-                          <Text style={styles.routeDistance}>
-                            {route.distanceKm} km
-                          </Text>
-                        </View>
+                          <View style={styles.connectionRight}>
+                            <Text style={styles.connectionDist}>
+                              {conn.distanceKm} km
+                            </Text>
+                            <Text style={styles.connectionArrow}>➔</Text>
+                          </View>
+                        </Pressable>
                       ))}
-                    </>
-                  ) : (
-                    <Text style={styles.comingSoon}>
-                      Nenhuma rota cadastrada passando por esta cidade.
-                    </Text>
+                    </View>
                   )}
-                </View>
 
                 {/* Botão ver no mapa */}
                 <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
                   <Text style={styles.mapBtnText}>Ver no mapa</Text>
                 </Pressable>
-              </>
-            )}
+              </View>
+            </View>
 
-            {/* ── ABA: PONTOS DE APOIO ── */}
-            {activeTab === "apoio" && (
-              <>
-                {/* Filtros */}
-                <View style={styles.filterRow}>
-                  {APOIO_FILTERS.map((f) => (
-                    <Pressable
-                      key={f.key}
+            {/* ── ABA 2: PONTOS DE APOIO ── */}
+            <View style={{ width: windowWidth }}>
+              <View style={styles.body}>
+                {isAdmin && (
+                  <Pressable
+                    style={styles.adminApoioBtn}
+                    onPress={() => router.push("/(tabs)/admin")}
+                  >
+                    <IconSymbol
+                      size={18}
+                      name="plus.circle.fill"
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.adminApoioBtnText}>
+                      Painel Admin: Gerenciar Pontos & Carimbos
+                    </Text>
+                  </Pressable>
+                )}
+
+                {/* Filtros por Categoria de Ponto de Apoio */}
+                <View style={styles.filterWrapContainer}>
+                  <Pressable
+                    style={[
+                      styles.filterChip,
+                      selectedCategory === "all" && styles.filterChipActive,
+                    ]}
+                    onPress={() => setSelectedCategory("all")}
+                  >
+                    <Text
                       style={[
-                        styles.filterChip,
-                        apoioFilter === f.key && styles.filterChipActive,
+                        styles.filterChipText,
+                        selectedCategory === "all" &&
+                          styles.filterChipTextActive,
                       ]}
-                      onPress={() => setApoioFilter(f.key)}
                     >
-                      <Text style={styles.filterChipIcon}>{f.icon}</Text>
-                      <Text
+                      Todos ({anchorPoints.length})
+                    </Text>
+                  </Pressable>
+
+                  {availableCategories.map((cat) => {
+                    const IconComponent = cat.icon_name
+                      ? ICON_MAP[cat.icon_name]
+                      : null;
+                    const count = anchorPoints.filter((ap) => {
+                      const apCatId = (
+                        ap.category_id || ap.category?.id
+                      )?.toString();
+                      const apCatName = ap.category?.name?.toLowerCase().trim();
+                      return (
+                        apCatId === cat.id ||
+                        (apCatName &&
+                          apCatName === cat.name.toLowerCase().trim())
+                      );
+                    }).length;
+
+                    const isSelected = selectedCategory === cat.id;
+
+                    return (
+                      <Pressable
+                        key={cat.id}
                         style={[
-                          styles.filterChipText,
-                          apoioFilter === f.key && styles.filterChipTextActive,
+                          styles.filterChip,
+                          isSelected && styles.filterChipActive,
                         ]}
+                        onPress={() => setSelectedCategory(cat.id)}
                       >
-                        {f.label}
-                      </Text>
-                    </Pressable>
-                  ))}
+                        {IconComponent ? (
+                          <IconComponent width={14} height={14} />
+                        ) : null}
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            isSelected && styles.filterChipTextActive,
+                          ]}
+                        >
+                          {cat.name} ({count})
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
 
                 {/* Lista */}
@@ -372,7 +561,7 @@ export default function CidadeDetalhe() {
                     <Text style={styles.cardText}>
                       {anchorPoints.length === 0
                         ? "Nenhum ponto de apoio cadastrado para esta cidade."
-                        : "Nenhum ponto de apoio encontrado com este filtro."}
+                        : "Nenhum ponto de apoio encontrado com esta categoria."}
                     </Text>
                   </View>
                 ) : (
@@ -427,10 +616,10 @@ export default function CidadeDetalhe() {
                     </Text>
                   </>
                 )}
-              </>
-            )}
-          </ScrollView>
-        </View>
+              </View>
+            </View>
+          </Animated.ScrollView>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -448,74 +637,151 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: CRIC_BLUE,
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 32,
+    paddingTop: 16,
+    paddingBottom: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+  },
+  headerTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: 16,
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
-  backArrow: { fontSize: 24, color: "rgba(255,255,255,0.7)", lineHeight: 24 },
+  backIconCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backLabel: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    fontWeight: "500",
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  routeTag: {
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  routeTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "rgba(255, 255, 255, 0.8)",
+    letterSpacing: 1.5,
+  },
+  adminPill: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  adminPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 1.2,
   },
   cityName: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: "800",
-    color: "#fff",
+    color: "#FFFFFF",
     letterSpacing: -0.5,
-    marginBottom: 4,
+    marginBottom: 10,
   },
-  cityCoords: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 20,
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  metaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  metaBadgeText: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "600",
   },
 
   tabs: {
     flexDirection: "row",
-    borderBottomWidth: 2,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     position: "relative",
     marginTop: 8,
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
-    borderBottomWidth: 0,
-    borderBottomColor: "transparent",
+    gap: 4,
   },
-  tabActive: {
-    borderBottomColor: "transparent",
+  tabActive: {},
+  tabDivider: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
-  tabIndicator: {
+  tabIndicatorContainer: {
     position: "absolute",
-    bottom: -2,
-    width: "33.33%",
+    bottom: 3,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabIndicatorBar: {
+    width: 24,
     height: 3,
-    backgroundColor: "#fff",
-    borderRadius: 1.5,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 2,
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 3,
   },
   tabText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    fontWeight: "500",
+    color: "rgba(255,255,255,0.55)",
+    fontWeight: "600",
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
   tabTextActive: {
-    color: "#fff",
-    fontWeight: "700",
+    color: "#FFFFFF",
+    fontWeight: "800",
     fontSize: 12,
   },
 
@@ -563,19 +829,20 @@ const styles = StyleSheet.create({
   },
   mapBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
-  // Filtros
-  filterRow: {
+  // Filtros de Categoria
+  filterWrapContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
+    marginBottom: 4,
   },
   filterChip: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: "#fff",
     borderWidth: 1.5,
@@ -585,9 +852,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2FF",
     borderColor: CRIC_BLUE,
   },
-  filterChipIcon: { fontSize: 13 },
   filterChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  filterChipTextActive: { color: CRIC_BLUE },
+  filterChipTextActive: { color: CRIC_BLUE, fontWeight: "700" },
 
   // Anchor cards
   anchorCard: {
@@ -671,5 +937,74 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#2563EB",
+  },
+  adminApoioBtn: {
+    backgroundColor: CRIC_BLUE,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: CRIC_BLUE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  adminApoioBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: -2,
+    marginBottom: 4,
+  },
+  connectionItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    marginVertical: 4,
+  },
+  connectionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  connectionIcon: {
+    fontSize: 18,
+  },
+  connectionName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  connectionSub: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  connectionRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  connectionDist: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: CRIC_BLUE,
+  },
+  connectionArrow: {
+    fontSize: 14,
+    color: "#9CA3AF",
   },
 });

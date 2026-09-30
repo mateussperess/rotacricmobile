@@ -3,6 +3,7 @@ import { tokenStorage } from "./tokenStorage";
 
 const api = axios.create({
   baseURL: `http://${process.env.EXPO_PUBLIC_IP}:3000/api`, // definir o ip na .env da raiz
+  timeout: 3000,
 });
 
 api.interceptors.request.use(async (config) => {

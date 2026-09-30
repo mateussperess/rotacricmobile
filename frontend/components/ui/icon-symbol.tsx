@@ -18,6 +18,7 @@ const MAPPING = {
   "person.fill": "person",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
+  "chevron.left": "chevron-left",
   "arrow.forward.circle.fill": "directions",
   "barcode.viewfinder": "qr-code",
   "star.fill": "star",
@@ -36,6 +37,20 @@ const MAPPING = {
   "questionmark.circle.fill": "help-outline",
   "rectangle.portrait.and.arrow.right": "logout",
   bicycle: "directions-bike",
+  "plus.circle.fill": "add-circle",
+  "mappin.circle.fill": "location-on",
+  "arrow.clockwise": "refresh",
+  "xmark.circle.fill": "cancel",
+  qrcode: "qr-code",
+  magnifyingglass: "search",
+  "wifi.slash": "wifi-off",
+  wifi: "wifi",
+  "cloud.sync": "sync",
+  "slash.circle.fill": "block",
+  xmark: "close",
+  "checkmark.seal.fill": "verified",
+  "exclamationmark.triangle.fill": "warning",
+  "arrow.triangle.2.circlepath": "sync",
 } as const;
 
 /**
