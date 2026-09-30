@@ -876,7 +876,17 @@ export const StampsOfflineRepository = {
         for (const us of userStamps) {
           const stampId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
           const apId = (us.anchor_point_id || us.anchor_point?.id)?.toString();
-          const scannedAt = us.scanned_at || us.created_at || new Date().toISOString();
+          
+          let scannedAt: string = new Date().toISOString();
+          if (typeof us.scanned_at === "string" && us.scanned_at !== "[object Object]" && us.scanned_at.trim() !== "") {
+            scannedAt = us.scanned_at;
+          } else if (us.scanned_at instanceof Date && !isNaN(us.scanned_at.getTime())) {
+            scannedAt = us.scanned_at.toISOString();
+          } else if (typeof us.created_at === "string" && us.created_at !== "[object Object]") {
+            scannedAt = us.created_at;
+          } else if (typeof us.synced_at === "string" && us.synced_at !== "[object Object]") {
+            scannedAt = us.synced_at;
+          }
 
           if (stampId) {
             const res = await db.runAsync(
@@ -940,7 +950,7 @@ export const StampsOfflineRepository = {
           id: `us-${r.id}`,
           stamp_id: r.id,
           anchor_point_id: r.anchor_point_id,
-          scanned_at: r.scanned_at || new Date().toISOString(),
+          scanned_at: r.scanned_at && r.scanned_at !== "[object Object]" ? r.scanned_at : new Date().toISOString(),
           stamp: {
             id: r.id,
             name: r.name,
@@ -1251,19 +1261,17 @@ export const WeatherOfflineRepository = {
             return JSON.parse(row.data);
           }
         } catch (err: any) {
-          // Se a coluna antiga estiver corrompida, tratar silenciosamente
-          await runWithTransaction(async () => {
-            const db2 = await getDatabase();
-            if (!db2) return;
-            await db2.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
-            await db2.execAsync(`
+          // Se a coluna antiga estiver corrompida, recriar a tabela no próprio banco sem chamadas aninhadas a mutex
+          try {
+            await db.execAsync(`DROP TABLE IF EXISTS weather_cache;`);
+            await db.execAsync(`
               CREATE TABLE IF NOT EXISTS weather_cache (
                 key TEXT PRIMARY KEY,
                 data TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
               );
             `);
-          });
+          } catch {}
         }
         return null;
       } catch {

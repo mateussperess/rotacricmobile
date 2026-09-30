@@ -4,6 +4,7 @@ import {
   SyncQueueRepository,
 } from "../database/offlineRepositories";
 import { tokenStorage } from "../tokenStorage";
+import { notificationService } from "../notifications/notificationService";
 
 export interface Stamp {
   id: string;
@@ -99,6 +100,15 @@ export const StampService = {
         for (const action of stampActions) {
           await SyncQueueRepository.removeAction(action.id);
         }
+        try {
+          const count = stampActions.length;
+          await notificationService.notify(
+            "Carimbos Sincronizados!",
+            `${count} carimbo(s) gravado(s) offline foram sincronizados na nuvem.`,
+            "stamp",
+            { screen: "/(tabs)/carimbos" }
+          );
+        } catch {}
       }
       return true;
     } catch (err: any) {

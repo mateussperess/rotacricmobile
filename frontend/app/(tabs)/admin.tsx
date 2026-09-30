@@ -1,4 +1,5 @@
 import { useAuth } from "@/components/contexts/AuthContext";
+import { useNetworkStatus } from "@/components/NetworkStatusBanner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
 import {
@@ -54,6 +55,7 @@ function calculateHaversineDistance(
 
 export default function AdminScreen() {
   const { user, primaryColor } = useAuth();
+  const { isOffline } = useNetworkStatus();
   const router = useRouter();
   const isAdmin = Boolean(user?.is_staff || user?.is_superuser);
 
@@ -292,8 +294,20 @@ export default function AdminScreen() {
     }
   };
 
+  const checkOfflineAction = (): boolean => {
+    if (isOffline) {
+      Alert.alert(
+        "Painel Desabilitado (Modo Off-line)",
+        "O painel administrativo está desabilitado enquanto seu dispositivo estiver sem conexão à internet para evitar alterações de pontos de apoio sem rede.",
+      );
+      return true;
+    }
+    return false;
+  };
+
   // Salvar novo Ponto de Apoio
   const handleSaveAnchorPoint = async () => {
+    if (checkOfflineAction()) return;
     if (!apName.trim() || !apCityId) {
       Alert.alert("Atenção", "Preencha o nome e selecione uma cidade.");
       return;
@@ -332,6 +346,7 @@ export default function AdminScreen() {
 
   // Alternar Status Ativo/Inativo do Ponto de Apoio
   const handleToggleAnchorPointActive = async (ap: AnchorPoint) => {
+    if (checkOfflineAction()) return;
     try {
       await AnchorPointsService.toggleActive(ap.id.toString());
       Alert.alert(
@@ -349,6 +364,7 @@ export default function AdminScreen() {
 
   // Remover Ponto de Apoio
   const handleDeleteAnchorPoint = (ap: AnchorPoint) => {
+    if (checkOfflineAction()) return;
     Alert.alert(
       "Excluir Permanentemente",
       `Deseja realmente EXCLUIR o ponto de apoio "${ap.name}"?\n\nEsta ação removerá o ponto definitivamente do banco de dados. Se você deseja apenas ocultá-lo temporariamente, use a opção "Desativar".`,
@@ -373,6 +389,7 @@ export default function AdminScreen() {
 
   // Salvar novo Carimbo
   const handleSaveStamp = async () => {
+    if (checkOfflineAction()) return;
     if (!selectedAP || !stampName.trim()) {
       Alert.alert(
         "Atenção",
@@ -403,6 +420,7 @@ export default function AdminScreen() {
 
   // Alternar Status Ativo/Inativo do Carimbo
   const handleToggleStampActive = async (stamp: Stamp) => {
+    if (checkOfflineAction()) return;
     try {
       await StampService.toggleActive(stamp.id.toString());
       Alert.alert(
@@ -417,6 +435,7 @@ export default function AdminScreen() {
 
   // Remover Carimbo
   const handleDeleteStamp = (stamp: Stamp) => {
+    if (checkOfflineAction()) return;
     Alert.alert(
       "Confirmar Remoção",
       `Deseja realmente remover o carimbo "${stamp.name}"? Esta ação não pode ser desfeita.`,
@@ -480,8 +499,8 @@ export default function AdminScreen() {
         <View style={{ flex: 1, marginLeft: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={styles.headerTitle}>Painel Admin</Text>
-            <View style={[styles.adminHeaderBadge, { backgroundColor: primaryColor }]}>
-              <Text style={styles.adminHeaderBadgeText}>ADMIN</Text>
+            <View style={[styles.adminHeaderBadge, { backgroundColor: isOffline ? "#94A3B8" : primaryColor }]}>
+              <Text style={styles.adminHeaderBadgeText}>{isOffline ? "OFF-LINE" : "ADMIN"}</Text>
             </View>
           </View>
           <Text style={styles.headerSubtitle}>
@@ -492,6 +511,21 @@ export default function AdminScreen() {
           <IconSymbol size={18} name="arrow.clockwise" color={primaryColor} />
         </Pressable>
       </View>
+
+      {/* Aviso de Painel Admin Desabilitado Off-line */}
+      {isOffline && (
+        <View style={styles.offlineAdminBanner}>
+          <IconSymbol size={22} name="wifi.slash" color="#D97706" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.offlineAdminTitle}>
+              Painel Desabilitado (Modo Off-line)
+            </Text>
+            <Text style={styles.offlineAdminText}>
+              Seu dispositivo está sem conexão à internet. Para evitar divergências de dados, as edições e cadastros estão bloqueados no modo off-line.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Cards de Métricas */}
       <View style={styles.metricsContainer}>
@@ -539,11 +573,19 @@ export default function AdminScreen() {
       {/* Ações Rápida */}
       <View style={styles.actionsBar}>
         <Pressable
-          style={[styles.btnPrimary, { backgroundColor: primaryColor, shadowColor: primaryColor }]}
-          onPress={() => setModalAPVisible(true)}
+          style={[
+            styles.btnPrimary,
+            { backgroundColor: isOffline ? "#94A3B8" : primaryColor, shadowColor: primaryColor },
+          ]}
+          onPress={() => {
+            if (checkOfflineAction()) return;
+            setModalAPVisible(true);
+          }}
         >
-          <IconSymbol size={18} name="plus.circle.fill" color="#FFFFFF" />
-          <Text style={styles.btnPrimaryText}>Novo Ponto de Apoio</Text>
+          <IconSymbol size={18} name={isOffline ? "lock.fill" : "plus.circle.fill"} color="#FFFFFF" />
+          <Text style={styles.btnPrimaryText}>
+            {isOffline ? "Indisponível Off-line" : "Novo Ponto de Apoio"}
+          </Text>
         </Pressable>
       </View>
 
@@ -1169,6 +1211,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+  },
+  offlineAdminBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FEF3C7",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+  },
+  offlineAdminTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#B45309",
+    marginBottom: 2,
+  },
+  offlineAdminText: {
+    fontSize: 11,
+    color: "#92400E",
+    lineHeight: 15,
   },
   restrictedContainer: {
     flex: 1,

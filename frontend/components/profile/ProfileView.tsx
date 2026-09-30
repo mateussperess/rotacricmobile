@@ -1,4 +1,6 @@
 import { useAuth } from "@/components/contexts/AuthContext";
+import { useNotificationsContext } from "@/components/contexts/NotificationContext";
+import { useNetworkStatus } from "@/components/NetworkStatusBanner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { updateUserProfile } from "@/services/users/userService";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -13,6 +15,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -24,6 +27,8 @@ const CRIC_BLUE = "#2563EB";
 
 export function ProfileView() {
   const { user, logout, refreshUser, primaryColor, isAdmin } = useAuth();
+  const { notificationsEnabled, setNotificationsEnabled } = useNotificationsContext();
+  const { isOffline } = useNetworkStatus();
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -268,23 +273,67 @@ export function ProfileView() {
             </View>
           </View>
 
+          {/* Card: Preferências do Aplicativo (Toggle Notificações) */}
+          <View style={styles.settingsCard}>
+            <View style={styles.infoCardHeader}>
+              <MaterialIcons name="settings" size={20} color={primaryColor} />
+              <Text style={styles.infoCardTitle}>Preferências do Aplicativo</Text>
+            </View>
+
+            <View style={styles.settingToggleRow}>
+              <View style={styles.settingToggleInfo}>
+                <View style={styles.settingToggleTitleRow}>
+                  <MaterialIcons name="notifications-active" size={18} color="#475569" />
+                  <Text style={styles.settingToggleLabel}>Notificações do Aplicativo</Text>
+                </View>
+                <Text style={styles.settingToggleSubtext}>
+                  Receba alertas sobre conquistas, carimbos, sincronizações e avisos da rota.
+                </Text>
+              </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={(value) => setNotificationsEnabled(value)}
+                trackColor={{ false: "#CBD5E1", true: primaryColor + "80" }}
+                thumbColor={notificationsEnabled ? primaryColor : "#94A3B8"}
+              />
+            </View>
+          </View>
+
           {/* Card: Painel de Administração (Exclusivo Staff/Admin) */}
           {(user?.is_staff || user?.is_superuser) && (
-            <View style={styles.adminCard}>
+            <View style={[styles.adminCard, isOffline && styles.adminCardOffline]}>
               <View style={styles.adminCardHeader}>
-                <MaterialIcons name="admin-panel-settings" size={22} color={primaryColor} />
-                <Text style={[styles.adminCardTitle, { color: primaryColor }]}>Painel Administrativo</Text>
+                <MaterialIcons name="admin-panel-settings" size={22} color={isOffline ? "#94A3B8" : primaryColor} />
+                <Text style={[styles.adminCardTitle, { color: isOffline ? "#64748B" : primaryColor }]}>
+                  Painel Administrativo {isOffline && "(Desabilitado Off-line)"}
+                </Text>
               </View>
               <Text style={styles.adminCardSubtitle}>
-                Acesso aos recursos de cadastro e gestão de Pontos de Apoio e Carimbos.
+                {isOffline
+                  ? "O gerenciamento de Pontos de Apoio e Carimbos está temporariamente desabilitado pois seu dispositivo está sem conexão à internet."
+                  : "Acesso aos recursos de cadastro e gestão de Pontos de Apoio e Carimbos."}
               </Text>
               <TouchableOpacity
-                style={[styles.btnAdminPanel, { backgroundColor: primaryColor }]}
-                onPress={() => router.push("/(tabs)/admin")}
+                style={[
+                  styles.btnAdminPanel,
+                  { backgroundColor: isOffline ? "#94A3B8" : primaryColor },
+                ]}
+                onPress={() => {
+                  if (isOffline) {
+                    Alert.alert(
+                      "Modo Off-line",
+                      "O Painel Administrativo está desabilitado no modo off-line para evitar alterações de pontos de apoio sem conexão com a internet.",
+                    );
+                    return;
+                  }
+                  router.push("/(tabs)/admin");
+                }}
                 activeOpacity={0.8}
               >
-                <MaterialIcons name="tune" size={18} color="#FFFFFF" />
-                <Text style={styles.btnAdminPanelText}>Gerenciar Pontos & Carimbos</Text>
+                <MaterialIcons name={isOffline ? "lock" : "tune"} size={18} color="#FFFFFF" />
+                <Text style={styles.btnAdminPanelText}>
+                  {isOffline ? "Indisponível Off-line" : "Gerenciar Pontos & Carimbos"}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -669,6 +718,45 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     fontWeight: "600",
   },
+  settingsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 16,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  settingToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+    gap: 12,
+  },
+  settingToggleInfo: {
+    flex: 1,
+  },
+  settingToggleTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  settingToggleLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  settingToggleSubtext: {
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 16,
+  },
   adminCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -681,6 +769,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     borderWidth: 1,
     borderColor: "#DBEAFE",
+  },
+  adminCardOffline: {
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
   },
   adminCardHeader: {
     flexDirection: "row",

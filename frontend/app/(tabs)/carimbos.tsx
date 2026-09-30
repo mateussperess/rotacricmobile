@@ -5,18 +5,27 @@ import { CitiesService } from "@/services/cities/citiesService";
 import { Stamp, StampService } from "@/services/stamps/stampService";
 import * as Location from "expo-location";
 import { router, useFocusEffect } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Animated,
+    LayoutAnimation,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+type FilterType = "all" | "collected" | "pending";
+const FILTERS: FilterType[] = ["all", "collected", "pending"];
 
 const CRIC_BLUE = "#2563EB";
 
@@ -46,34 +55,83 @@ function formatDistance(meters?: number | null): string | null {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-function formatScannedDate(dateVal?: any): string {
-  if (!dateVal) return "Coletado";
-  let target = dateVal;
-  if (typeof dateVal === "object" && !(dateVal instanceof Date)) {
-    if (dateVal.toISOString && typeof dateVal.toISOString === "function") {
-      target = dateVal.toISOString();
-    } else {
-      return "Coletado";
+function parseDateRobust(val: any): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+
+  if (typeof val === "object") {
+    if (val.toISOString && typeof val.toISOString === "function") {
+      try {
+        const d = new Date(val.toISOString());
+        if (!isNaN(d.getTime())) return d;
+      } catch {}
     }
+    const innerDate =
+      val.scanned_at ||
+      val.scannedAt ||
+      val.created_at ||
+      val.createdAt ||
+      val.synced_at ||
+      val.syncedAt;
+    if (innerDate && innerDate !== val) {
+      return parseDateRobust(innerDate);
+    }
+    return null;
   }
-  try {
-    const d = new Date(target);
-    if (isNaN(d.getTime())) return "Coletado";
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, "0");
-    const minutes = String(d.getMinutes()).padStart(2, "0");
-    return `${day}/${month}/${year} às ${hours}:${minutes}`;
-  } catch {
-    return "Coletado";
+
+  let str = String(val).trim();
+  if (!str || str === "[object Object]") return null;
+
+  // Se for timestamp numérico em milissegundos ou segundos
+  if (!isNaN(Number(str))) {
+    const num = Number(str);
+    const d = new Date(num > 1e11 ? num : num * 1000);
+    return isNaN(d.getTime()) ? null : d;
   }
+
+  // Se houver frações de milissegundos longas como em MySQL "2026-09-28 04:04:16.321000", truncar para 3 dígitos
+  str = str.replace(/(\.\d{3})\d+/, "$1");
+
+  // Substituir espaço por T para compatibilidade ISO
+  const isoFormatted = str.replace(" ", "T");
+
+  let d = new Date(isoFormatted);
+  if (!isNaN(d.getTime())) return d;
+
+  // Fallback via expressão regular para formatos SQL "YYYY-MM-DD HH:mm:ss"
+  const match = str.match(
+    /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/,
+  );
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    const hour = match[4] ? parseInt(match[4], 10) : 0;
+    const min = match[5] ? parseInt(match[5], 10) : 0;
+    const sec = match[6] ? parseInt(match[6], 10) : 0;
+    const parsed = new Date(year, month, day, hour, min, sec);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+}
+
+function formatScannedDate(dateVal?: any): string {
+  const d = parseDateRobust(dateVal);
+  if (!d) return "Coletado";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `Coletado em ${day}/${month}/${year} às ${hours}:${minutes}`;
 }
 
 function resolveCityName(
   ap: any,
   citiesList: any[],
-  cityMap: Map<string, string>
+  cityMap: Map<string, string>,
 ): string {
   if (!ap) return "Rota CRIC";
   const explicitCityId = (ap.city_id || ap.city?.id)?.toString();
@@ -143,7 +201,9 @@ function StampCard({ stamp }: { stamp: any }) {
             <IconSymbol name="lock.fill" size={22} color="#94A3B8" />
           )}
           {stamp.collected && (
-            <View style={[styles.checkBadge, { backgroundColor: primaryColor }]}>
+            <View
+              style={[styles.checkBadge, { backgroundColor: primaryColor }]}
+            >
               <IconSymbol
                 name="checkmark.circle.fill"
                 size={12}
@@ -170,8 +230,20 @@ function StampCard({ stamp }: { stamp: any }) {
 
           {/* Badge de Distância GPS visível em TODOS os carimbos */}
           {stamp.distText ? (
-            <View style={[styles.distBadge, { borderColor: primaryColor + "30", backgroundColor: primaryColor + "10" }]}>
-              <IconSymbol name="mappin.circle.fill" size={11} color={primaryColor} />
+            <View
+              style={[
+                styles.distBadge,
+                {
+                  borderColor: primaryColor + "30",
+                  backgroundColor: primaryColor + "10",
+                },
+              ]}
+            >
+              <IconSymbol
+                name="mappin.circle.fill"
+                size={11}
+                color={primaryColor}
+              />
               <Text style={[styles.distBadgeText, { color: primaryColor }]}>
                 A {stamp.distText} de você
               </Text>
@@ -181,7 +253,9 @@ function StampCard({ stamp }: { stamp: any }) {
           {stamp.collected ? (
             <View style={styles.row}>
               <IconSymbol name="clock.fill" size={10} color={primaryColor} />
-              <Text style={[styles.dateText, { color: primaryColor }]}>{stamp.collectedAt}</Text>
+              <Text style={[styles.dateText, { color: primaryColor }]}>
+                {stamp.collectedAt}
+              </Text>
             </View>
           ) : (
             <Text style={styles.lockedLabel}>Bloqueado — Não coletado</Text>
@@ -198,7 +272,16 @@ function StampCard({ stamp }: { stamp: any }) {
       {/* Botão Ver no Mapa ativo e clicável em TODOS os carimbos */}
       {stamp.apLat !== null && stamp.apLng !== null && (
         <View style={styles.cardFooterAction}>
-          <Pressable style={[styles.btnViewOnMap, { borderColor: primaryColor + "40", backgroundColor: primaryColor + "10" }]} onPress={handleOpenOnMap}>
+          <Pressable
+            style={[
+              styles.btnViewOnMap,
+              {
+                borderColor: primaryColor + "40",
+                backgroundColor: primaryColor + "10",
+              },
+            ]}
+            onPress={handleOpenOnMap}
+          >
             <IconSymbol name="map.fill" size={14} color={primaryColor} />
             <Text style={[styles.btnViewOnMapText, { color: primaryColor }]}>
               {stamp.collected
@@ -214,10 +297,47 @@ function StampCard({ stamp }: { stamp: any }) {
 
 export default function CarimbosScreen() {
   const { isLoggedIn, primaryColor, isAdmin } = useAuth();
+  const { width: windowWidth } = useWindowDimensions();
+  const pageWidth = Math.max(windowWidth - 40, 200);
+  const boxWidth = Math.max((windowWidth - 48) / 3, 80);
+  const pagerRef = useRef<ScrollView>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [displayStamps, setDisplayStamps] = useState<any[]>([]);
   const [stats, setStats] = useState({ collected: 0, total: 0, progress: 0 });
+  const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
+
+  const scrollX = useRef(
+    new Animated.Value(FILTERS.indexOf("all") * pageWidth),
+  ).current;
+
+  const indicatorTranslateX = scrollX.interpolate({
+    inputRange: [0, pageWidth, pageWidth * 2],
+    outputRange: [0, boxWidth, boxWidth * 2],
+    extrapolate: "clamp",
+  });
+
+  const handleFilterChange = (filter: FilterType) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSelectedFilter(filter);
+    const index = FILTERS.indexOf(filter);
+    if (index !== -1 && pagerRef.current) {
+      pagerRef.current.scrollTo({ x: index * pageWidth, animated: true });
+    }
+  };
+
+  const handleMomentumScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / pageWidth);
+    const filter = FILTERS[index];
+    if (filter && filter !== selectedFilter) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setSelectedFilter(filter);
+    }
+  };
 
   const loadStamps = async () => {
     try {
@@ -228,7 +348,9 @@ export default function CarimbosScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === "granted") {
-          userLocation = await Location.getLastKnownPositionAsync().catch(() => null);
+          userLocation = await Location.getLastKnownPositionAsync().catch(
+            () => null,
+          );
         }
       } catch (e) {
         console.log("GPS não disponível no momento:", e);
@@ -250,12 +372,14 @@ export default function CarimbosScreen() {
         apMap.set(ap.id.toString(), ap);
       });
 
-      // Mapear carimbos coletados pelo usuário separando ID do carimbo e ID do ponto de apoio
+      // Mapear carimbos coletados pelo usuário (conexão direta com user_stamp)
       const collectedByStampId = new Map<string, any>();
       const collectedByApId = new Map<string, any>();
       (userStampsData || []).forEach((us: any) => {
         const sId = (us.stamp_id || us.stamp?.id)?.toString();
-        const apId = (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString();
+        const apId = (
+          us.anchor_point_id || us.stamp?.anchor_point_id
+        )?.toString();
         if (sId) collectedByStampId.set(sId, us);
         if (apId) collectedByApId.set(apId, us);
       });
@@ -271,7 +395,9 @@ export default function CarimbosScreen() {
       // Incluir na lista visual carimbos que o usuário coletou (preservando off-line)
       (userStampsData || []).forEach((us: any) => {
         const sId = (us.stamp_id || us.stamp?.id || us.id)?.toString();
-        const apId = (us.anchor_point_id || us.stamp?.anchor_point_id)?.toString();
+        const apId = (
+          us.anchor_point_id || us.stamp?.anchor_point_id
+        )?.toString();
 
         if (sId && !stampsListMap.has(sId)) {
           stampsListMap.set(sId, {
@@ -287,56 +413,78 @@ export default function CarimbosScreen() {
       const validStampsList = Array.from(stampsListMap.values());
 
       if (validStampsList.length > 0) {
-        items = validStampsList.map((stamp: any) => {
-          const stampIdStr = stamp.id.toString();
-          const apIdStr = stamp.anchor_point_id ? stamp.anchor_point_id.toString() : null;
-
-          const collectedEntry =
-            collectedByStampId.get(stampIdStr) ||
-            (apIdStr ? collectedByApId.get(apIdStr) : null);
-
-          const isCollected = Boolean(collectedEntry);
-
-          const ap = apIdStr ? apMap.get(apIdStr) : stamp.anchor_point;
-          const apName = ap?.name || stamp.name || "Ponto de Apoio";
-          const cityName = resolveCityName(ap, citiesData || [], cityMap);
-          const localText = `${apName} • ${cityName}`;
-
-          const rawLat = ap?.lat ?? ap?.latitude;
-          const rawLng = ap?.lng ?? ap?.longitude;
-          const apLat =
-            rawLat !== undefined && rawLat !== null && !isNaN(Number(rawLat))
-              ? Number(rawLat)
-              : null;
-          const apLng =
-            rawLng !== undefined && rawLng !== null && !isNaN(Number(rawLng))
-              ? Number(rawLng)
+        items = validStampsList
+          .map((stamp: any) => {
+            const stampIdStr = stamp.id.toString();
+            const apIdStr = stamp.anchor_point_id
+              ? stamp.anchor_point_id.toString()
               : null;
 
-          let distMeters: number | null = null;
-          if (userLocation && apLat !== null && apLng !== null) {
-            distMeters = haversineMeters(
-              userLocation.coords.latitude,
-              userLocation.coords.longitude,
+            const ap = apIdStr ? apMap.get(apIdStr) : stamp.anchor_point;
+            // Ponto de Apoio deve ser ativo
+            if (!ap || ap.active === false) return null;
+
+            // Deve possuir QRCode vinculado
+            const hasQrCode = Boolean(
+              stamp.qr_code_token || apIdStr || stamp.anchor_point_id,
+            );
+            if (!hasQrCode) return null;
+
+            const collectedEntry =
+              collectedByStampId.get(stampIdStr) ||
+              (apIdStr ? collectedByApId.get(apIdStr) : null);
+
+            const isCollected = Boolean(collectedEntry);
+
+            const apName = ap?.name || stamp.name || "Ponto de Apoio";
+            const cityName = resolveCityName(ap, citiesData || [], cityMap);
+            const localText = `${apName} • ${cityName}`;
+
+            const rawLat = ap?.lat ?? ap?.latitude;
+            const rawLng = ap?.lng ?? ap?.longitude;
+            const apLat =
+              rawLat !== undefined && rawLat !== null && !isNaN(Number(rawLat))
+                ? Number(rawLat)
+                : null;
+            const apLng =
+              rawLng !== undefined && rawLng !== null && !isNaN(Number(rawLng))
+                ? Number(rawLng)
+                : null;
+
+            let distMeters: number | null = null;
+            if (userLocation && apLat !== null && apLng !== null) {
+              distMeters = haversineMeters(
+                userLocation.coords.latitude,
+                userLocation.coords.longitude,
+                apLat,
+                apLng,
+              );
+            }
+
+            return {
+              id: stampIdStr,
+              anchorPointId: apIdStr,
+              name: stamp.name || `Carimbo ${apName}`,
+              local: localText,
               apLat,
               apLng,
-            );
-          }
-
-          return {
-            id: stampIdStr,
-            anchorPointId: apIdStr,
-            name: stamp.name || `Carimbo ${apName}`,
-            local: localText,
-            apLat,
-            apLng,
-            distText: formatDistance(distMeters),
-            collected: isCollected,
-            collectedAt: isCollected
-              ? formatScannedDate(collectedEntry.scanned_at || collectedEntry.created_at)
-              : null,
-          };
-        });
+              distText: formatDistance(distMeters),
+              collected: isCollected,
+              collectedAt: isCollected
+                ? formatScannedDate(
+                    collectedEntry?.scanned_at ||
+                      collectedEntry?.scannedAt ||
+                      collectedEntry?.created_at ||
+                      collectedEntry?.createdAt ||
+                      collectedEntry?.synced_at ||
+                      collectedEntry?.syncedAt ||
+                      collectedEntry?.stamp?.created_at ||
+                      collectedEntry?.stamp?.createdAt,
+                  )
+                : null,
+            };
+          })
+          .filter(Boolean);
       }
 
       setDisplayStamps(items);
@@ -359,10 +507,16 @@ export default function CarimbosScreen() {
     }
   };
 
+  const filteredStamps = displayStamps.filter((s) => {
+    if (selectedFilter === "collected") return s.collected;
+    if (selectedFilter === "pending") return !s.collected;
+    return true;
+  });
+
   useFocusEffect(
     React.useCallback(() => {
       loadStamps();
-    }, [isLoggedIn])
+    }, [isLoggedIn]),
   );
 
   const onRefresh = () => {
@@ -371,10 +525,19 @@ export default function CarimbosScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
       <View style={styles.container}>
         <View style={[styles.headerBlue, { backgroundColor: primaryColor }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
             <Text style={styles.brand}>ROTA CRIC</Text>
             {isAdmin && (
               <View style={styles.adminPill}>
@@ -388,24 +551,87 @@ export default function CarimbosScreen() {
             descontos especiais nos pontos de apoio parceiros.
           </Text>
           <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{stats.collected}</Text>
-              <Text style={styles.statLabel}>Coletados</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>
-                {stats.total - stats.collected}
-              </Text>
-              <Text style={styles.statLabel}>Restantes</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>
+            <TouchableOpacity
+              style={styles.statBox}
+              onPress={() => handleFilterChange("all")}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  selectedFilter === "all" && styles.statValueActive,
+                ]}
+              >
                 {Math.round(stats.progress)}%
               </Text>
-              <Text style={styles.statLabel}>Progresso</Text>
-            </View>
+              <Text
+                style={[
+                  styles.statLabel,
+                  selectedFilter === "all" && styles.statLabelActive,
+                ]}
+              >
+                Progresso
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.statDivider} />
+            <TouchableOpacity
+              style={styles.statBox}
+              onPress={() => handleFilterChange("collected")}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  selectedFilter === "collected" && styles.statValueActive,
+                ]}
+              >
+                {stats.collected}
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  selectedFilter === "collected" && styles.statLabelActive,
+                ]}
+              >
+                Coletados
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.statDivider} />
+            <TouchableOpacity
+              style={styles.statBox}
+              onPress={() => handleFilterChange("pending")}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  selectedFilter === "pending" && styles.statValueActive,
+                ]}
+              >
+                {stats.total - stats.collected}
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  selectedFilter === "pending" && styles.statLabelActive,
+                ]}
+              >
+                Restantes
+              </Text>
+            </TouchableOpacity>
+
+            {/* Tracinho Indicador Animado Deslizante Em Tempo Real */}
+            <Animated.View
+              style={[
+                styles.activeStatIndicatorContainer,
+                {
+                  width: boxWidth,
+                  transform: [{ translateX: indicatorTranslateX }],
+                },
+              ]}
+            >
+              <View style={styles.activeStatIndicatorBar} />
+            </Animated.View>
           </View>
           <View style={styles.progressBarBg}>
             <View
@@ -445,8 +671,84 @@ export default function CarimbosScreen() {
             </View>
           )}
 
+          {/* Chips de Filtro por Status */}
+          <View style={styles.filterChipRow}>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedFilter === "all" && {
+                  backgroundColor: primaryColor,
+                  borderColor: primaryColor,
+                },
+              ]}
+              onPress={() => handleFilterChange("all")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedFilter === "all" && styles.filterChipTextActive,
+                ]}
+              >
+                Todos ({stats.total})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedFilter === "collected" && {
+                  backgroundColor: primaryColor,
+                  borderColor: primaryColor,
+                },
+              ]}
+              onPress={() => handleFilterChange("collected")}
+              activeOpacity={0.8}
+            >
+              <IconSymbol
+                name="star.fill"
+                size={12}
+                color={selectedFilter === "collected" ? "#FFF" : primaryColor}
+              />
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedFilter === "collected" && styles.filterChipTextActive,
+                ]}
+              >
+                Coletados ({stats.collected})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedFilter === "pending" && {
+                  backgroundColor: primaryColor,
+                  borderColor: primaryColor,
+                },
+              ]}
+              onPress={() => handleFilterChange("pending")}
+              activeOpacity={0.8}
+            >
+              <IconSymbol
+                name="lock.fill"
+                size={12}
+                color={selectedFilter === "pending" ? "#FFF" : "#64748B"}
+              />
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedFilter === "pending" && styles.filterChipTextActive,
+                ]}
+              >
+                Faltando ({stats.total - stats.collected})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.sectionLabel}>
-            PONTOS DA ROTA ({stats.collected}/{stats.total})
+            PONTOS DA ROTA ({filteredStamps.length} EXIBIDOS)
           </Text>
 
           {loading ? (
@@ -456,19 +758,61 @@ export default function CarimbosScreen() {
                 Calculando distâncias e carregando carimbos...
               </Text>
             </View>
-          ) : displayStamps.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <IconSymbol name="star.fill" size={36} color="#94A3B8" />
-              <Text style={styles.emptyTitle}>Nenhum carimbo cadastrado</Text>
-              <Text style={styles.emptySub}>
-                Os administradores do RotaCRIC em breve cadastrarão carimbos
-                digitais nos pontos de apoio da rota.
-              </Text>
-            </View>
           ) : (
-            displayStamps.map((stamp) => (
-              <StampCard key={stamp.id} stamp={stamp} />
-            ))
+            <Animated.ScrollView
+              ref={pagerRef}
+              horizontal
+              pagingEnabled
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                { useNativeDriver: true },
+              )}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              scrollEventThrottle={16}
+              contentContainerStyle={{ width: pageWidth * FILTERS.length }}
+            >
+              {FILTERS.map((filter) => {
+                const stamps = displayStamps.filter((s) => {
+                  if (filter === "collected") return s.collected;
+                  if (filter === "pending") return !s.collected;
+                  return true;
+                });
+
+                return (
+                  <View key={filter} style={{ width: pageWidth }}>
+                    {stamps.length === 0 ? (
+                      <View style={styles.emptyCard}>
+                        <IconSymbol
+                          name="star.fill"
+                          size={36}
+                          color="#94A3B8"
+                        />
+                        <Text style={styles.emptyTitle}>
+                          {filter === "collected"
+                            ? "Nenhum carimbo coletado ainda"
+                            : filter === "pending"
+                              ? "Parabéns! Todos os carimbos foram coletados"
+                              : "Nenhum carimbo encontrado"}
+                        </Text>
+                        <Text style={styles.emptySub}>
+                          {filter === "collected"
+                            ? "Visite os pontos de apoio da rota e escaneie o QRCode para registrar seu carimbo."
+                            : filter === "pending"
+                              ? "Você concluiu todos os carimbos disponíveis na Rota CRIC!"
+                              : "Tente ajustar o filtro para visualizar mais carimbos."}
+                        </Text>
+                      </View>
+                    ) : (
+                      stamps.map((stamp) => (
+                        <StampCard key={stamp.id} stamp={stamp} />
+                      ))
+                    )}
+                  </View>
+                );
+              })}
+            </Animated.ScrollView>
           )}
         </ScrollView>
       </View>
@@ -522,14 +866,52 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
     marginBottom: 16,
   },
-  statBox: { flex: 1, alignItems: "center", gap: 4 },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    paddingVertical: 4,
+    position: "relative",
+  },
+  statBoxActive: {},
   statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
-  statValue: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.55)",
+  },
+  statValueActive: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+  },
   statLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.45)",
     fontWeight: "600",
     letterSpacing: 0.5,
+  },
+  statLabelActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  activeStatIndicatorContainer: {
+    position: "absolute",
+    bottom: 3,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeStatIndicatorBar: {
+    width: 22,
+    height: 3,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 2,
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 3,
   },
   progressBarBg: {
     height: 6,
@@ -549,6 +931,30 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 48,
+  },
+  filterChipRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  filterChipTextActive: {
+    color: "#FFFFFF",
   },
   sectionLabel: {
     fontSize: 11,

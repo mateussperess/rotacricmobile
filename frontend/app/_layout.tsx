@@ -10,9 +10,12 @@ import * as SplashScreen from "expo-splash-screen";
 
 import { useEffect, useState } from "react";
 import { AuthProvider } from "@/components/contexts/AuthContext";
+import { NotificationProvider } from "@/components/contexts/NotificationContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
 import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
+import "@/services/notifications/backgroundGeofenceTask";
+import { proximityService } from "@/services/notifications/proximityService";
 
 // Manter a splash nativa visível até a inicialização inicial
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -28,28 +31,36 @@ export default function RootLayout() {
   useEffect(() => {
     // Oculta a splash nativa estática do sistema para exibir a AnimatedSplashScreen
     SplashScreen.hideAsync().catch(() => {});
-    // Garante o preenchimento do SQLite com cidades, rotas e pontos de apoio assim que o app e aberto online
-    BootstrapOfflineService.syncBootstrapData().catch(() => {});
+    // Garante o preenchimento do SQLite com cidades, rotas e pontos de apoio e ativa o Geofencing
+    BootstrapOfflineService.syncBootstrapData()
+      .then(() => {
+        proximityService.startGeofencing().catch(() => {});
+      })
+      .catch(() => {
+        proximityService.startGeofencing().catch(() => {});
+      });
   }, []);
 
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="admin/index" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="modal"
-            options={{ presentation: "modal", title: "Modal" }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
-        {!splashAnimationDone && (
-          <AnimatedSplashScreen
-            onAnimationFinish={() => setSplashAnimationDone(true)}
-          />
-        )}
-      </ThemeProvider>
+      <NotificationProvider>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="admin/index" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="modal"
+              options={{ presentation: "modal", title: "Modal" }}
+            />
+          </Stack>
+          <StatusBar style="auto" />
+          {!splashAnimationDone && (
+            <AnimatedSplashScreen
+              onAnimationFinish={() => setSplashAnimationDone(true)}
+            />
+          )}
+        </ThemeProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

@@ -46,6 +46,10 @@ const MAPPING = {
   wifi: "wifi",
   "cloud.sync": "sync",
   "slash.circle.fill": "block",
+  xmark: "close",
+  "checkmark.seal.fill": "verified",
+  "exclamationmark.triangle.fill": "warning",
+  "arrow.triangle.2.circlepath": "sync",
 } as const;
 
 /**

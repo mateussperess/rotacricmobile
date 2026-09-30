@@ -13,7 +13,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
         const db = await SQLite.openDatabaseAsync("rotacric.db");
         await db.execAsync(`
           PRAGMA journal_mode = WAL;
-          PRAGMA busy_timeout = 5000;
+          PRAGMA busy_timeout = 10000;
           
           CREATE TABLE IF NOT EXISTS cities (
             id TEXT PRIMARY KEY,
@@ -94,10 +94,23 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase | null> {
             updated_at INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS notifications (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'info',
+            data TEXT,
+            read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'delivered'
+          );
+
           CREATE INDEX IF NOT EXISTS idx_anchor_points_coords ON anchor_points(lat, lng);
           CREATE INDEX IF NOT EXISTS idx_anchor_points_cat_city ON anchor_points(category_id, city_id, active);
           CREATE INDEX IF NOT EXISTS idx_routes_active ON routes(active, is_event_route);
           CREATE INDEX IF NOT EXISTS idx_stamps_anchor ON stamps(anchor_point_id, active);
+          CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+          CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
         `);
 
         // Migration para garantir coluna 'data' se a tabela já existia com schema antigo
@@ -149,21 +162,35 @@ export async function runWithTransaction<T>(
 
     let lastError: any;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      let inTx = false;
       try {
-        await db.execAsync("BEGIN IMMEDIATE;");
-        inTx = true;
-        const result = await fn();
-        await db.execAsync("COMMIT;");
-        return result;
+        const dbAny = db as any;
+        if (typeof dbAny.withExclusiveTransactionAsync === "function") {
+          return await dbAny.withExclusiveTransactionAsync(async () => {
+            return await fn();
+          });
+        } else if (typeof dbAny.withTransactionAsync === "function") {
+          return await dbAny.withTransactionAsync(async () => {
+            return await fn();
+          });
+        } else {
+          let inTx = false;
+          try {
+            await db.execAsync("BEGIN IMMEDIATE;");
+            inTx = true;
+            const res = await fn();
+            await db.execAsync("COMMIT;");
+            return res;
+          } catch (txErr) {
+            if (inTx) {
+              try {
+                await db.execAsync("ROLLBACK;");
+              } catch {}
+            }
+            throw txErr;
+          }
+        }
       } catch (err: any) {
         lastError = err;
-        if (inTx) {
-          try {
-            await db.execAsync("ROLLBACK;");
-          } catch {}
-        }
-
         const errStr = String(err?.message || err || "");
         const isLocked =
           errStr.includes("database is locked") ||

@@ -10,6 +10,9 @@ export class StampsService {
   private serializeBigInt(obj: any): any {
     if (obj === null || obj === undefined) return obj;
     if (typeof obj === 'bigint') return obj.toString();
+    if (obj instanceof Date || Object.prototype.toString.call(obj) === '[object Date]') {
+      return obj.toISOString();
+    }
     if (Array.isArray(obj)) return obj.map((item) => this.serializeBigInt(item));
     if (typeof obj === 'object') {
       const res: any = {};
