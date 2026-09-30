@@ -26,6 +26,8 @@ import { Stamp, StampService } from "@/services/stamps/stampService";
 import { CitiesService } from "@/services/cities/citiesService";
 import { Route, RoutesService } from "@/services/routes/routeService";
 import { useWeather } from "@/hooks/use-weather";
+import { useTotalDistance } from "@/hooks/use-total-distance";
+import { Feather } from "@expo/vector-icons";
 import {
   useNetworkStatus,
   NetworkStatusInlineBadge,
@@ -109,12 +111,6 @@ function formatDist(meters: number): string {
     : `${(meters / 1000).toFixed(1)} km`;
 }
 
-const MOCK_ROUTE_INFO = {
-  label: "ROTA CRIC — Principal",
-  distance: "42 km",
-  time: "3h 20min",
-  elevation: "+280 m",
-};
 
 const AnchorMarker = React.memo(
   ({ ap, isCollected }: { ap: AnchorPoint; isCollected?: boolean }) => {
@@ -750,6 +746,32 @@ export default function NativeMap() {
     return set;
   }, [isLoggedIn, stamps, userStamps]);
 
+  const { data: distanceData } = useTotalDistance();
+
+  const totalKmDisplay = useMemo(() => {
+    if (distanceData?.totalKm) {
+      return `${Math.round(distanceData.totalKm)} km`;
+    }
+    if (routes.length > 0) {
+      const sum = routes.reduce((acc, r) => acc + Number(r.distance || 0), 0);
+      if (sum > 0) return `${Math.round(sum)} km`;
+    }
+    return "180 km";
+  }, [distanceData, routes]);
+
+  const totalAnchorsCount = useMemo(() => {
+    return anchorPoints.length;
+  }, [anchorPoints]);
+
+  const stampProgressDisplay = useMemo(() => {
+    const totalStamps = stamps.length > 0 ? stamps.length : anchorPoints.length;
+    if (!isLoggedIn) {
+      return totalStamps > 0 ? `${totalStamps} locais` : "0";
+    }
+    const collectedCount = collectedApSet.size;
+    return `${collectedCount} / ${totalStamps || 0}`;
+  }, [isLoggedIn, stamps, anchorPoints, collectedApSet]);
+
   const visibleAnchorPoints = useMemo(() => {
     let list = anchorPoints;
     if (categoryFilter.size > 0) {
@@ -931,7 +953,11 @@ export default function NativeMap() {
               ]}
               onPress={openModal}
             >
-              <Text style={styles.fabBtnIcon}>⚙️</Text>
+              <Feather
+                name="sliders"
+                size={20}
+                color={categoryFilter.size > 0 ? (primaryColor || "#2563EB") : "#334155"}
+              />
               {categoryFilter.size > 0 && (
                 <View style={styles.filterBadge}>
                   <Text style={styles.filterBadgeText}>
@@ -963,7 +989,7 @@ export default function NativeMap() {
           {/* Header clicável do Bottom Sheet */}
           <Pressable onPress={toggleSheet} style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sheetLabel}>{MOCK_ROUTE_INFO.label}</Text>
+              <Text style={styles.sheetLabel}>ROTA CRIC — Principal</Text>
               <Text style={styles.sheetRoute} numberOfLines={1}>
                 {cityName ? `Você está em ${cityName}` : "ROTA CRIC"}
               </Text>
@@ -991,30 +1017,59 @@ export default function NativeMap() {
           >
             {/* Grid de Estatísticas da Rota */}
             <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Text style={styles.statIcon}>🚴</Text>
+              <View style={styles.statBox}>
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    { backgroundColor: primaryColor ? `${primaryColor}15` : "#EFF6FF" },
+                  ]}
+                >
+                  <Feather
+                    name="navigation"
+                    size={13}
+                    color={primaryColor || "#2563EB"}
+                  />
                 </View>
-                <Text style={styles.statLabel}>Distância</Text>
-                <Text style={styles.statValue}>{MOCK_ROUTE_INFO.distance}</Text>
+                <Text style={styles.statValue}>{totalKmDisplay}</Text>
+                <Text style={styles.statLabel}>EXTENSÃO TOTAL</Text>
               </View>
+
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Text style={styles.statIcon}>🕐</Text>
+
+              <View style={styles.statBox}>
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    { backgroundColor: primaryColor ? `${primaryColor}15` : "#EFF6FF" },
+                  ]}
+                >
+                  <Feather
+                    name="map-pin"
+                    size={13}
+                    color={primaryColor || "#2563EB"}
+                  />
                 </View>
-                <Text style={styles.statLabel}>Tempo est.</Text>
-                <Text style={styles.statValue}>{MOCK_ROUTE_INFO.time}</Text>
+                <Text style={styles.statValue}>{totalAnchorsCount}</Text>
+                <Text style={styles.statLabel}>LOCAIS DE APOIO</Text>
               </View>
+
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Text style={styles.statIcon}>↑</Text>
+
+              <View style={styles.statBox}>
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    { backgroundColor: primaryColor ? `${primaryColor}15` : "#EFF6FF" },
+                  ]}
+                >
+                  <Feather
+                    name="award"
+                    size={13}
+                    color={primaryColor || "#2563EB"}
+                  />
                 </View>
-                <Text style={styles.statLabel}>Elevação</Text>
-                <Text style={[styles.statValue, { color: "#D97706" }]}>
-                  {MOCK_ROUTE_INFO.elevation}
-                </Text>
+                <Text style={styles.statValue}>{stampProgressDisplay}</Text>
+                <Text style={styles.statLabel}>PASSAPORTE</Text>
               </View>
             </View>
 
@@ -1125,7 +1180,7 @@ export default function NativeMap() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalHeaderTitleRow}>
                   <View style={styles.modalHeaderIconWrap}>
-                    <Text style={{ fontSize: 16 }}>⚙️</Text>
+                    <Feather name="sliders" size={18} color={primaryColor || "#2563EB"} />
                   </View>
                   <View>
                     <Text style={styles.modalTitle}>Filtros do Mapa</Text>
@@ -1531,33 +1586,46 @@ const styles = StyleSheet.create({
   /* Stats Grid */
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
     backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    paddingVertical: 12,
+    borderRadius: 18,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  statItem: { alignItems: "center", gap: 3, flex: 1 },
-  statIconWrap: {
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  statIconWrapper: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    marginBottom: 2,
   },
-  statIcon: { fontSize: 14 },
-  statDivider: { width: 1, backgroundColor: "#E2E8F0", marginVertical: 4 },
-  statLabel: { fontSize: 10, color: "#64748B", fontWeight: "600" },
-  statValue: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
+  statDivider: {
+    width: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 4,
+  },
+  statValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.3,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: "#64748B",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
 
   sectionHeaderRow: {
     flexDirection: "row",
