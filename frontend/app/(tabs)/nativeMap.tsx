@@ -46,6 +46,7 @@ import React, {
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   PanResponder,
   Pressable,
   ScrollView,
@@ -216,9 +217,10 @@ export default function NativeMap() {
   const [showOfflineCardModal, setShowOfflineCardModal] = useState(false);
 
   // ── Animações ──
-  const sheetAnim = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(0)).current;
   const chevronAnim = useRef(new Animated.Value(0)).current;
-  const sheetOpen = useRef(false);
+  const sheetOpenRef = useRef(false);
   const dragStart = useRef(0);
   const modalAnim = useRef(new Animated.Value(0)).current;
 
@@ -244,45 +246,45 @@ export default function NativeMap() {
   const [includeEventRoutes, setIncludeEventRoutes] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const animateSheet = (open: boolean) => {
-    Animated.parallel([
-      Animated.spring(sheetAnim, {
-        toValue: open ? SHEET_EXPANDED : SHEET_COLLAPSED,
-        useNativeDriver: false,
-        tension: 60,
-        friction: 12,
-      }),
-      Animated.timing(chevronAnim, {
-        toValue: open ? 1 : 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+  const animateSheet = useCallback(
+    (open: boolean) => {
+      sheetOpenRef.current = open;
+      setIsSheetOpen(open);
+      Animated.parallel([
+        Animated.timing(sheetAnim, {
+          toValue: open ? 1 : 0,
+          duration: 220,
+          easing: Easing.out(Easing.poly(4)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(chevronAnim, {
+          toValue: open ? 1 : 0,
+          duration: 220,
+          easing: Easing.out(Easing.poly(4)),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    [sheetAnim, chevronAnim],
+  );
 
-  const toggleSheet = () => {
-    sheetOpen.current = !sheetOpen.current;
-    animateSheet(sheetOpen.current);
-  };
+  const toggleSheet = useCallback(() => {
+    animateSheet(!sheetOpenRef.current);
+  }, [animateSheet]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        dragStart.current = sheetOpen.current
-          ? SHEET_EXPANDED
-          : SHEET_COLLAPSED;
+        dragStart.current = sheetOpenRef.current ? 1 : 0;
       },
       onPanResponderMove: (_, g) => {
-        const next = Math.max(
-          SHEET_COLLAPSED,
-          Math.min(SHEET_EXPANDED, dragStart.current - g.dy),
-        );
+        const delta = -g.dy / (SHEET_EXPANDED - SHEET_COLLAPSED);
+        const next = Math.max(0, Math.min(1, dragStart.current + delta));
         sheetAnim.setValue(next);
       },
       onPanResponderRelease: (_, g) => {
-        const snap = g.dy < -30 || (sheetOpen.current && g.dy < 30);
-        sheetOpen.current = snap;
+        const snap = g.dy < -30 || (sheetOpenRef.current && g.dy < 30);
         animateSheet(snap);
       },
     }),
@@ -819,9 +821,14 @@ export default function NativeMap() {
       .slice(0, 4);
   }, [visibleAnchorPoints, latitude, longitude]);
 
-  const mapHeight = sheetAnim.interpolate({
-    inputRange: [SHEET_COLLAPSED, SHEET_EXPANDED],
-    outputRange: ["92%", "62%"],
+  const sheetTranslateY = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SHEET_EXPANDED - SHEET_COLLAPSED, 0],
+  });
+
+  const fabTranslateY = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -(SHEET_EXPANDED - SHEET_COLLAPSED)],
   });
 
   const chevronRotate = chevronAnim.interpolate({
@@ -833,7 +840,7 @@ export default function NativeMap() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
         {/* ── Mapa ── */}
-        <Animated.View style={[styles.mapWrapper, { height: mapHeight }]}>
+        <View style={styles.mapWrapper}>
           <MapView
             ref={mapRef}
             style={styles.map}
@@ -944,7 +951,12 @@ export default function NativeMap() {
           )}
 
           {/* Deck Flutuante de Botões de Ação do Mapa (FAB Deck) */}
-          <View style={styles.fabDeck}>
+          <Animated.View
+            style={[
+              styles.fabDeck,
+              { transform: [{ translateY: fabTranslateY }] },
+            ]}
+          >
             <TouchableOpacity
               activeOpacity={0.8}
               style={[
@@ -976,11 +988,16 @@ export default function NativeMap() {
                 <Text style={styles.fabBtnIcon}>📍</Text>
               </TouchableOpacity>
             )}
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </View>
 
         {/* ── Bottom Sheet (Menu Expandível) ── */}
-        <Animated.View style={[styles.sheet, { height: sheetAnim }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            { transform: [{ translateY: sheetTranslateY }] },
+          ]}
+        >
           {/* Handle de drag */}
           <View {...panResponder.panHandlers} style={styles.handleArea}>
             <View style={styles.handle} />
@@ -996,7 +1013,7 @@ export default function NativeMap() {
             </View>
             <View style={styles.expandTogglePill}>
               <Text style={styles.expandToggleText}>
-                {sheetOpen.current ? "Recolher" : "Menu"}
+                {isSheetOpen ? "Recolher" : "Menu"}
               </Text>
               <Animated.Text
                 style={[
@@ -1384,7 +1401,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7F8FC",
   },
-  mapWrapper: { width: "100%", overflow: "hidden" },
+  mapWrapper: { flex: 1, width: "100%" },
   map: { flex: 1 },
   userDot: {
     width: 18,
@@ -1489,7 +1506,7 @@ const styles = StyleSheet.create({
   /* Deck Flutuante de Ações */
   fabDeck: {
     position: "absolute",
-    bottom: 14,
+    bottom: SHEET_COLLAPSED + 14,
     right: 14,
     gap: 10,
     alignItems: "center",
@@ -1530,15 +1547,21 @@ const styles = StyleSheet.create({
 
   /* Bottom Sheet Otimizado */
   sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: SHEET_EXPANDED,
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 12,
     overflow: "hidden",
+    zIndex: 30,
   },
   handleArea: { alignItems: "center", paddingTop: 10, paddingBottom: 8 },
   handle: { width: 36, height: 4, backgroundColor: "#CBD5E1", borderRadius: 2 },
