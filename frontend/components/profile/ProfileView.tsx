@@ -3,7 +3,7 @@ import { useNotificationsContext } from "@/components/contexts/NotificationConte
 import { useNetworkStatus } from "@/components/NetworkStatusBanner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { updateUserProfile } from "@/services/users/userService";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -161,194 +161,244 @@ export function ProfileView() {
   };
 
   const stats = [
-    { label: "Carimbos", value: String(user?.stampsCount ?? 0) },
-    { label: "Km rodados", value: "127" },
-    { label: "Rotas", value: "2" },
+    { label: "Carimbos", value: String(user?.stampsCount ?? 0), icon: "award" as const },
+    { label: "Km rodados", value: "127", icon: "navigation" as const },
+    { label: "Rotas", value: "2", icon: "map" as const },
   ];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
       <View style={styles.container}>
-        {/* Header Hero Dynamic Theme */}
-        <View style={[styles.headerBlue, { backgroundColor: primaryColor }]}>
-          <View style={styles.userInfoRow}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.avatarText}>
-                {user?.name?.charAt(0).toUpperCase() || "C"}
-              </Text>
-            </View>
-            <View style={styles.userInfoText}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={styles.brand}>ROTA CRIC</Text>
-                {isAdmin && (
-                  <View style={styles.adminBadgeTag}>
-                    <Text style={styles.adminBadgeTagText}>ADMIN</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.title}>{user?.name || "Ciclista"}</Text>
-              <Text style={styles.subtitle}>{user?.email}</Text>
-
-              <TouchableOpacity
-                style={styles.btnEditHeader}
-                onPress={handleOpenEdit}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="edit" size={14} color="#FFFFFF" />
-                <Text style={styles.btnEditHeaderText}>
-                  Editar Informações Pessoais
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Stats Bar */}
-          <View style={styles.statsRow}>
-            {stats.map((s, i) => (
-              <React.Fragment key={s.label}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>{s.value}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-                {i < stats.length - 1 && <View style={styles.statDivider} />}
-              </React.Fragment>
-            ))}
-          </View>
-        </View>
-
-        {/* Content Body */}
         <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.scrollPadding}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
               colors={[primaryColor]}
+              tintColor="#ffffff"
             />
           }
         >
-          {/* Card: Informações Pessoais (Matching Web Django) */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoCardHeader}>
-              <MaterialIcons name="badge" size={20} color={primaryColor} />
-              <Text style={styles.infoCardTitle}>Informações Pessoais</Text>
+          {/* Header Hero Dynamic Theme */}
+          <View style={[styles.headerBlue, { backgroundColor: primaryColor }]}>
+            {/* Tag de Marca Superior */}
+            <View style={styles.brandBadge}>
+              <MaterialIcons name="directions-bike" size={13} color="#FFFFFF" />
+              <Text style={styles.brandBadgeText}>PORTAL DO CICLISTA</Text>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Nome Completo</Text>
-              <Text style={styles.infoValue}>{user?.name || "--"}</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{user?.email || "--"}</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Rede Social</Text>
-              <Text style={styles.infoValue}>
-                {user?.social_network || "--"}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Data de Nascimento</Text>
-              <Text style={styles.infoValue}>
-                {formatDate(user?.birth_date)}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>RG / Documento</Text>
-              <Text style={styles.infoValue}>{user?.document || "--"}</Text>
-            </View>
-
-            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.infoLabel}>Identificação</Text>
-              <Text style={styles.infoValue}>
-                {user?.document_type || "--"}
-              </Text>
-            </View>
-          </View>
-
-          {/* Card: Preferências do Aplicativo (Toggle Notificações) */}
-          <View style={styles.settingsCard}>
-            <View style={styles.infoCardHeader}>
-              <MaterialIcons name="settings" size={20} color={primaryColor} />
-              <Text style={styles.infoCardTitle}>Preferências do Aplicativo</Text>
-            </View>
-
-            <View style={styles.settingToggleRow}>
-              <View style={styles.settingToggleInfo}>
-                <View style={styles.settingToggleTitleRow}>
-                  <MaterialIcons name="notifications-active" size={18} color="#475569" />
-                  <Text style={styles.settingToggleLabel}>Notificações do Aplicativo</Text>
+            <View style={styles.userInfoRow}>
+              <View style={styles.iconCircle}>
+                <Text style={styles.avatarText}>
+                  {user?.name?.charAt(0).toUpperCase() || "C"}
+                </Text>
+              </View>
+              <View style={styles.userInfoText}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <Text style={styles.brand}>ROTA CRIC</Text>
+                  {isAdmin && (
+                    <View style={styles.adminBadgeTag}>
+                      <Text style={styles.adminBadgeTagText}>ADMIN</Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={styles.settingToggleSubtext}>
-                  Receba alertas sobre conquistas, carimbos, sincronizações e avisos da rota.
-                </Text>
+                <Text style={styles.title} numberOfLines={1}>{user?.name || "Ciclista"}</Text>
+                <Text style={styles.subtitle} numberOfLines={1}>{user?.email}</Text>
+
+                <TouchableOpacity
+                  style={styles.btnEditHeader}
+                  onPress={handleOpenEdit}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="edit-3" size={12} color="#FFFFFF" />
+                  <Text style={styles.btnEditHeaderText}>
+                    Editar Perfil
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={(value) => setNotificationsEnabled(value)}
-                trackColor={{ false: "#CBD5E1", true: primaryColor + "80" }}
-                thumbColor={notificationsEnabled ? primaryColor : "#94A3B8"}
-              />
+            </View>
+
+            {/* Stats Bar em Vidro Fosco */}
+            <View style={styles.statsRow}>
+              {stats.map((s, i) => (
+                <React.Fragment key={s.label}>
+                  <View style={styles.statBox}>
+                    <View style={styles.statIconWrapper}>
+                      <Feather name={s.icon} size={14} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.statValue}>{s.value}</Text>
+                    <Text style={styles.statLabel}>{s.label}</Text>
+                  </View>
+                  {i < stats.length - 1 && <View style={styles.statDivider} />}
+                </React.Fragment>
+              ))}
             </View>
           </View>
 
-          {/* Card: Painel de Administração (Exclusivo Staff/Admin) */}
-          {(user?.is_staff || user?.is_superuser) && (
-            <View style={[styles.adminCard, isOffline && styles.adminCardOffline]}>
-              <View style={styles.adminCardHeader}>
-                <MaterialIcons name="admin-panel-settings" size={22} color={isOffline ? "#94A3B8" : primaryColor} />
-                <Text style={[styles.adminCardTitle, { color: isOffline ? "#64748B" : primaryColor }]}>
-                  Painel Administrativo {isOffline && "(Desabilitado Off-line)"}
+          {/* Content Body */}
+          <View style={styles.scrollPadding}>
+            {/* Card: Informações Pessoais */}
+            <View style={styles.infoCard}>
+              <View style={styles.infoCardHeader}>
+                <View style={styles.infoCardTitleGroup}>
+                  <View style={[styles.cardHeaderIconBox, { backgroundColor: primaryColor + "15" }]}>
+                    <MaterialIcons name="badge" size={18} color={primaryColor} />
+                  </View>
+                  <Text style={styles.infoCardTitle}>Informações Pessoais</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.quickEditBtn, { backgroundColor: primaryColor + "12" }]}
+                  onPress={handleOpenEdit}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="edit-2" size={12} color={primaryColor} />
+                  <Text style={[styles.quickEditText, { color: primaryColor }]}>Editar</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialIcons name="person-outline" size={16} color="#64748B" />
+                  <Text style={styles.infoLabel}>Nome Completo</Text>
+                </View>
+                <Text style={styles.infoValue}>{user?.name || "--"}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialIcons name="mail-outline" size={16} color="#64748B" />
+                  <Text style={styles.infoLabel}>E-mail</Text>
+                </View>
+                <Text style={styles.infoValue}>{user?.email || "--"}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <Feather name="at-sign" size={15} color="#64748B" />
+                  <Text style={styles.infoLabel}>Rede Social</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {user?.social_network || "--"}
                 </Text>
               </View>
-              <Text style={styles.adminCardSubtitle}>
-                {isOffline
-                  ? "O gerenciamento de Pontos de Apoio e Carimbos está temporariamente desabilitado pois seu dispositivo está sem conexão à internet."
-                  : "Acesso aos recursos de cadastro e gestão de Pontos de Apoio e Carimbos."}
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.btnAdminPanel,
-                  { backgroundColor: isOffline ? "#94A3B8" : primaryColor },
-                ]}
-                onPress={() => {
-                  if (isOffline) {
-                    Alert.alert(
-                      "Modo Off-line",
-                      "O Painel Administrativo está desabilitado no modo off-line para evitar alterações de pontos de apoio sem conexão com a internet.",
-                    );
-                    return;
-                  }
-                  router.push("/(tabs)/admin");
-                }}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name={isOffline ? "lock" : "tune"} size={18} color="#FFFFFF" />
-                <Text style={styles.btnAdminPanelText}>
-                  {isOffline ? "Indisponível Off-line" : "Gerenciar Pontos & Carimbos"}
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialIcons name="cake" size={16} color="#64748B" />
+                  <Text style={styles.infoLabel}>Data de Nascimento</Text>
+                </View>
+                <Text style={styles.infoValue}>
+                  {formatDate(user?.birth_date)}
                 </Text>
-              </TouchableOpacity>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialIcons name="credit-card" size={16} color="#64748B" />
+                  <Text style={styles.infoLabel}>Documento</Text>
+                </View>
+                <Text style={styles.infoValue}>{user?.document || "--"}</Text>
+              </View>
+
+              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <View style={styles.infoLabelContainer}>
+                  <MaterialIcons name="assignment-ind" size={16} color="#64748B" />
+                  <Text style={styles.infoLabel}>Tipo</Text>
+                </View>
+                <View style={[styles.docTypeTag, { backgroundColor: primaryColor + "15" }]}>
+                  <Text style={[styles.docTypeTagText, { color: primaryColor }]}>
+                    {user?.document_type || "RG"}
+                  </Text>
+                </View>
+              </View>
             </View>
-          )}
 
-          {/* Botão Sair */}
-          <TouchableOpacity style={styles.buttonLogout} onPress={logout}>
-            <IconSymbol
-              name="rectangle.portrait.and.arrow.right"
-              size={18}
-              color="white"
-            />
-            <Text style={styles.logoutText}>Sair da conta</Text>
-          </TouchableOpacity>
+            {/* Card: Preferências do Aplicativo */}
+            <View style={styles.settingsCard}>
+              <View style={styles.infoCardHeader}>
+                <View style={styles.infoCardTitleGroup}>
+                  <View style={[styles.cardHeaderIconBox, { backgroundColor: primaryColor + "15" }]}>
+                    <MaterialIcons name="tune" size={18} color={primaryColor} />
+                  </View>
+                  <Text style={styles.infoCardTitle}>Preferências do Aplicativo</Text>
+                </View>
+              </View>
 
-          <Text style={styles.versionText}>ROTA CRIC Mobile v1.0.0</Text>
+              <View style={styles.settingToggleRow}>
+                <View style={styles.settingToggleInfo}>
+                  <View style={styles.settingToggleTitleRow}>
+                    <MaterialIcons name="notifications-active" size={17} color="#334155" />
+                    <Text style={styles.settingToggleLabel}>Notificações do Aplicativo</Text>
+                  </View>
+                  <Text style={styles.settingToggleSubtext}>
+                    Receba alertas sobre conquistas, carimbos, sincronizações e avisos da rota.
+                  </Text>
+                </View>
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={(value) => setNotificationsEnabled(value)}
+                  trackColor={{ false: "#CBD5E1", true: primaryColor + "80" }}
+                  thumbColor={notificationsEnabled ? primaryColor : "#94A3B8"}
+                />
+              </View>
+            </View>
+
+            {/* Card: Painel de Administração (Exclusivo Staff/Admin) */}
+            {(user?.is_staff || user?.is_superuser) && (
+              <View style={[styles.adminCard, isOffline && styles.adminCardOffline]}>
+                <View style={styles.adminCardHeader}>
+                  <View style={[styles.cardHeaderIconBox, { backgroundColor: isOffline ? "#E2E8F0" : primaryColor + "15" }]}>
+                    <MaterialIcons name="admin-panel-settings" size={20} color={isOffline ? "#94A3B8" : primaryColor} />
+                  </View>
+                  <Text style={[styles.adminCardTitle, { color: isOffline ? "#64748B" : "#0F172A" }]}>
+                    Painel Administrativo {isOffline && "(Off-line)"}
+                  </Text>
+                </View>
+                <Text style={styles.adminCardSubtitle}>
+                  {isOffline
+                    ? "O gerenciamento de Pontos de Apoio e Carimbos está temporariamente desabilitado pois seu dispositivo está sem conexão."
+                    : "Acesso aos recursos de cadastro e gestão de Pontos de Apoio e Carimbos."}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.btnAdminPanel,
+                    { backgroundColor: isOffline ? "#94A3B8" : primaryColor },
+                  ]}
+                  onPress={() => {
+                    if (isOffline) {
+                      Alert.alert(
+                        "Modo Off-line",
+                        "O Painel Administrativo está desabilitado no modo off-line para evitar alterações de pontos de apoio sem conexão com a internet.",
+                      );
+                      return;
+                    }
+                    router.push("/(tabs)/admin");
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name={isOffline ? "lock" : "tune"} size={17} color="#FFFFFF" />
+                  <Text style={styles.btnAdminPanelText}>
+                    {isOffline ? "Indisponível Off-line" : "Gerenciar Pontos & Carimbos"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Botão Sair */}
+            <TouchableOpacity style={styles.buttonLogout} onPress={logout} activeOpacity={0.85}>
+              <IconSymbol
+                name="rectangle.portrait.and.arrow.right"
+                size={18}
+                color="#EF4444"
+              />
+              <Text style={styles.logoutText}>Sair da conta</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.versionText}>ROTA CRIC Mobile v1.0.0</Text>
+          </View>
         </ScrollView>
 
         {/* Modal de Edição de Informações Pessoais */}
@@ -361,9 +411,12 @@ export function ProfileView() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Editar Informações</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <MaterialIcons name="close" size={24} color="#64748B" />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <MaterialIcons name="edit" size={20} color={primaryColor} />
+                  <Text style={styles.modalTitle}>Editar Informações</Text>
+                </View>
+                <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
+                  <MaterialIcons name="close" size={20} color="#64748B" />
                 </TouchableOpacity>
               </View>
 
@@ -382,6 +435,7 @@ export function ProfileView() {
                       }
                       style={styles.inputModal}
                       placeholder="Nome"
+                      placeholderTextColor="#94A3B8"
                     />
                   </View>
 
@@ -394,6 +448,7 @@ export function ProfileView() {
                       }
                       style={styles.inputModal}
                       placeholder="Sobrenome"
+                      placeholderTextColor="#94A3B8"
                     />
                   </View>
                 </View>
@@ -410,6 +465,7 @@ export function ProfileView() {
                     autoCapitalize="none"
                     style={styles.inputModal}
                     placeholder="email@exemplo.com"
+                    placeholderTextColor="#94A3B8"
                   />
                 </View>
 
@@ -424,6 +480,7 @@ export function ProfileView() {
                     autoCapitalize="none"
                     style={styles.inputModal}
                     placeholder="@seu_instagram"
+                    placeholderTextColor="#94A3B8"
                   />
                 </View>
 
@@ -481,6 +538,7 @@ export function ProfileView() {
                       }
                       style={styles.inputModal}
                       placeholder="1134711538"
+                      placeholderTextColor="#94A3B8"
                     />
                   </View>
 
@@ -498,15 +556,19 @@ export function ProfileView() {
                           }
                           style={[
                             styles.docTypeBtn,
-                            editForm.document_type === type &&
+                            editForm.document_type === type && [
                               styles.docTypeBtnActive,
+                              { borderColor: primaryColor, backgroundColor: primaryColor + "12" },
+                            ],
                           ]}
                         >
                           <Text
                             style={[
                               styles.docTypeText,
-                              editForm.document_type === type &&
+                              editForm.document_type === type && [
                                 styles.docTypeTextActive,
+                                { color: primaryColor },
+                              ],
                             ]}
                           >
                             {type}
@@ -529,7 +591,11 @@ export function ProfileView() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.btnSaveModal, saving && { opacity: 0.6 }]}
+                  style={[
+                    styles.btnSaveModal,
+                    { backgroundColor: primaryColor },
+                    saving && { opacity: 0.6 },
+                  ]}
                   onPress={handleSaveProfile}
                   disabled={saving}
                 >
@@ -562,8 +628,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 16,
     paddingBottom: 28,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  brandBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  brandBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.8,
+    color: "#FFFFFF",
   },
   userInfoRow: {
     flexDirection: "row",
@@ -572,9 +657,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: "rgba(255, 255, 255, 0.22)",
     alignItems: "center",
     justifyContent: "center",
@@ -582,8 +667,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.35)",
   },
   avatarText: {
-    color: "white",
-    fontSize: 24,
+    color: "#FFFFFF",
+    fontSize: 26,
     fontWeight: "800",
   },
   userInfoText: {
@@ -593,17 +678,15 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 2,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 2,
+    color: "rgba(255, 255, 255, 0.6)",
   },
   adminBadgeTag: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
-    marginBottom: 2,
   },
   adminBadgeTagText: {
     color: "#FFFFFF",
@@ -612,66 +695,76 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   title: {
-    color: "white",
-    fontSize: 20,
+    color: "#FFFFFF",
+    fontSize: 21,
     fontWeight: "800",
     letterSpacing: -0.3,
   },
   subtitle: {
-    color: "rgba(255, 255, 255, 0.75)",
+    color: "rgba(255, 255, 255, 0.78)",
     fontSize: 12,
     marginTop: 1,
   },
   btnEditHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     alignSelf: "flex-start",
     marginTop: 8,
-    gap: 4,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.22)",
   },
   btnEditHeaderText: {
     color: "#FFFFFF",
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   statsRow: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 14,
-    paddingVertical: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
   statBox: {
     flex: 1,
     alignItems: "center",
-    gap: 2,
+    justifyContent: "center",
+    gap: 3,
+  },
+  statIconWrapper: {
+    marginBottom: 2,
+    opacity: 0.85,
   },
   statDivider: {
     width: 1,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    marginVertical: 4,
   },
   statValue: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "800",
+    letterSpacing: -0.3,
   },
   statLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(255, 255, 255, 0.7)",
     fontWeight: "600",
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   content: {
     flex: 1,
   },
   scrollPadding: {
-    padding: 18,
-    paddingTop: 20,
+    padding: 16,
+    paddingTop: 18,
     paddingBottom: 40,
   },
   infoCard: {
@@ -679,34 +772,63 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 18,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   infoCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 16,
+    justifyContent: "space-between",
+    marginBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
     paddingBottom: 12,
+  },
+  infoCardTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardHeaderIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoCardTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#0F172A",
   },
+  quickEditBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  quickEditText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: "#F8FAFC",
+  },
+  infoLabelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   infoLabel: {
     fontSize: 13,
@@ -714,9 +836,19 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   infoValue: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: "#0F172A",
     fontWeight: "600",
+  },
+  docTypeTag: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  docTypeTagText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   settingsCard: {
     backgroundColor: "#FFFFFF",
@@ -724,10 +856,10 @@ const styles = StyleSheet.create({
     padding: 18,
     marginTop: 16,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -763,10 +895,10 @@ const styles = StyleSheet.create({
     padding: 18,
     marginTop: 16,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     borderWidth: 1,
     borderColor: "#DBEAFE",
   },
@@ -777,16 +909,15 @@ const styles = StyleSheet.create({
   adminCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
+    gap: 10,
+    marginBottom: 8,
   },
   adminCardTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1E3A8A",
   },
   adminCardSubtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: "#64748B",
     marginBottom: 14,
     lineHeight: 18,
@@ -802,7 +933,7 @@ const styles = StyleSheet.create({
   },
   btnAdminPanelText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "700",
   },
   buttonLogout: {
@@ -812,17 +943,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 16,
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
     gap: 8,
-    elevation: 2,
-    shadowColor: "#EF4444",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
   },
   logoutText: {
-    color: "white",
-    fontWeight: "bold",
+    color: "#EF4444",
+    fontWeight: "700",
     fontSize: 14,
   },
   versionText: {
@@ -830,6 +958,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 11,
     marginTop: 20,
+    fontWeight: "500",
   },
   modalOverlay: {
     flex: 1,
@@ -859,9 +988,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
     color: "#0F172A",
+  },
+  modalCloseBtn: {
+    padding: 4,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
   },
   inputGroupModal: {
     marginBottom: 14,
@@ -875,7 +1009,7 @@ const styles = StyleSheet.create({
   inputModal: {
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: "#E2E8F0",
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 46,
@@ -894,7 +1028,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: "#E2E8F0",
   },
   docTypeBtnActive: {
     backgroundColor: "#EFF6FF",
@@ -919,9 +1053,10 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#F8FAFC",
   },
   btnCancelText: {
     color: "#475569",
