@@ -198,15 +198,65 @@ export default function CidadeDetalhe() {
       <View style={styles.container}>
         {/* ── Header ── */}
         <View style={[styles.header, { backgroundColor: primaryColor }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>‹</Text>
-            <Text style={styles.backLabel}>Cidades</Text>
-          </Pressable>
+          {/* Barra Superior: Botão Voltar Estilizado + Tag Rota */}
+          <View style={styles.headerTopBar}>
+            <Pressable
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <View style={styles.backIconCircle}>
+                <IconSymbol name="chevron.left" size={14} color="#FFFFFF" />
+              </View>
+              <Text style={styles.backLabel}>Cidades</Text>
+            </Pressable>
 
+            <View style={styles.routeTag}>
+              <Text style={styles.routeTagText}>ROTA CRIC</Text>
+            </View>
+          </View>
+
+          {/* Nome da Cidade */}
           <Text style={styles.cityName}>{city.name}</Text>
-          <Text style={styles.cityCoords}>
-            {city.lat.toFixed(4)}, {city.lng.toFixed(4)}
-          </Text>
+
+          {/* Linha de Badges Informativos (GPS, Pontos de Apoio, Distância) */}
+          <View style={styles.metaRow}>
+            <View style={styles.metaBadge}>
+              <IconSymbol
+                name="mappin.circle.fill"
+                size={13}
+                color="rgba(255,255,255,0.85)"
+              />
+              <Text style={styles.metaBadgeText}>
+                {city.lat.toFixed(3)}°, {city.lng.toFixed(3)}°
+              </Text>
+            </View>
+
+            <View style={styles.metaBadge}>
+              <IconSymbol
+                name="mappin.and.ellipse"
+                size={12}
+                color="rgba(255,255,255,0.85)"
+              />
+              <Text style={styles.metaBadgeText}>
+                {anchorPoints.length} ponto
+                {anchorPoints.length !== 1 ? "s" : ""} de apoio
+              </Text>
+            </View>
+
+            {routeDistance && routeDistance.totalDistanceKm > 0 && (
+              <View style={styles.metaBadge}>
+                <IconSymbol
+                  name="bicycle"
+                  size={13}
+                  color="rgba(255,255,255,0.85)"
+                />
+                <Text style={styles.metaBadgeText}>
+                  {routeDistance.totalDistanceKm} km
+                </Text>
+              </View>
+            )}
+          </View>
 
           {/* Tabs Card com Divisores e Indicador Animado */}
           <View style={styles.tabs}>
@@ -496,34 +546,84 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: CRIC_BLUE,
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 32,
+    paddingTop: 16,
+    paddingBottom: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+  },
+  headerTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: 16,
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
-  backArrow: { fontSize: 24, color: "rgba(255,255,255,0.7)", lineHeight: 24 },
+  backIconCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backLabel: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    fontWeight: "500",
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  routeTag: {
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  routeTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "rgba(255, 255, 255, 0.8)",
+    letterSpacing: 1.5,
   },
   cityName: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: "800",
-    color: "#fff",
+    color: "#FFFFFF",
     letterSpacing: -0.5,
-    marginBottom: 4,
+    marginBottom: 10,
   },
-  cityCoords: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 20,
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  metaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  metaBadgeText: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "600",
   },
 
   tabs: {
