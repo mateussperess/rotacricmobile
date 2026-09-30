@@ -127,9 +127,17 @@ export default function CidadeDetalhe() {
 
   const handleGoToMap = () => {
     if (!city) return;
+    const targetLat = city.lat ?? (city as any).latitude ?? -28.6775;
+    const targetLng = city.lng ?? (city as any).longitude ?? -49.3703;
+    const targetZoom = city.zoom || 12;
     router.push({
       pathname: "/(tabs)/nativeMap",
-      params: { lat: city.lat, lng: city.lng, zoom: city.zoom, t: Date.now() },
+      params: {
+        lat: String(targetLat),
+        lng: String(targetLng),
+        zoom: String(targetZoom),
+        t: String(Date.now()),
+      },
     });
   };
 

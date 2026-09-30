@@ -12,14 +12,14 @@ async function syncProdToLocal() {
 
   const localPool = mariadb.createPool({
     host: '127.0.0.1',
-    port: 3308,
+    port: 3306,
     user: 'root',
     password: 'root',
     database: 'rotacric',
     multipleStatements: true,
   });
 
-  console.log('🔄 Iniciando cópia fiel do banco de Produção (3307) -> Local Docker (3308)...');
+  console.log('🔄 Iniciando cópia fiel do banco de Produção (3307) -> Local Docker (3306)...');
 
   let prodConn, localConn;
   try {

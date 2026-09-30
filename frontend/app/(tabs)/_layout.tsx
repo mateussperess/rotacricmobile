@@ -1,9 +1,9 @@
-import { Tabs } from "expo-router";
-import React from "react";
-
+import { NetworkStatusBanner } from "@/components/NetworkStatusBanner";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Tabs } from "expo-router";
+import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 const TAB_BAR_HEIGHT = 64;
@@ -37,17 +37,19 @@ export default function TabLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: primaryColor,
-        tabBarInactiveTintColor: "#9CA3AF",
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
-        tabBarItemStyle: styles.tabBarItem,
-      }}
-    >
+    <View style={{ flex: 1 }}>
+      <NetworkStatusBanner />
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: primaryColor,
+          tabBarInactiveTintColor: "#9CA3AF",
+          headerShown: false,
+          tabBarButton: HapticTab,
+          tabBarStyle: styles.tabBar,
+          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarItemStyle: styles.tabBarItem,
+        }}
+      >
       <Tabs.Screen
         name="nativeMap"
         options={{
@@ -140,6 +142,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
 

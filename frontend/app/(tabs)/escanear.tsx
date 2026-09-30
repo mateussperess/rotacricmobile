@@ -2,6 +2,10 @@ import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPoint, AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { Stamp, StampService } from "@/services/stamps/stampService";
+import {
+  StampsOfflineRepository,
+  SyncQueueRepository,
+} from "@/services/database/offlineRepositories";
 import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
@@ -54,11 +58,19 @@ function formatDistance(meters?: number | null): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return "";
+function formatDate(dateVal?: any): string {
+  if (!dateVal) return "";
+  let target = dateVal;
+  if (typeof dateVal === "object" && !(dateVal instanceof Date)) {
+    if (dateVal.toISOString && typeof dateVal.toISOString === "function") {
+      target = dateVal.toISOString();
+    } else {
+      return "";
+    }
+  }
   try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    const d = new Date(target);
+    if (isNaN(d.getTime())) return "";
     const day = String(d.getDate()).padStart(2, "0");
     const month = String(d.getMonth() + 1).padStart(2, "0");
     const year = d.getFullYear();
@@ -66,14 +78,55 @@ function formatDate(dateStr?: string | null): string {
     const minutes = String(d.getMinutes()).padStart(2, "0");
     return `${day}/${month}/${year} às ${hours}:${minutes}`;
   } catch {
-    return dateStr;
+    return "";
   }
+}
+
+function resolveCityName(
+  ap: AnchorPoint | undefined | null,
+  citiesList: City[],
+  citiesMap: Map<string, string>
+): string {
+  if (!ap) return "Rota CRIC";
+  const explicitCityId = (ap.city_id || (ap as any).city?.id)?.toString();
+  if (explicitCityId && citiesMap.has(explicitCityId)) {
+    return citiesMap.get(explicitCityId)!;
+  }
+  if ((ap as any).city?.name) {
+    return (ap as any).city.name;
+  }
+  const apLat = Number(ap.lat ?? (ap as any).latitude);
+  const apLng = Number(ap.lng ?? (ap as any).longitude);
+  if (
+    !isNaN(apLat) &&
+    !isNaN(apLng) &&
+    apLat !== 0 &&
+    apLng !== 0 &&
+    citiesList &&
+    citiesList.length > 0
+  ) {
+    let minDistance = Infinity;
+    let closestCityName = "Rota CRIC";
+    for (const city of citiesList) {
+      const cLat = Number(city.lat ?? (city as any).latitude);
+      const cLng = Number(city.lng ?? (city as any).longitude);
+      if (!isNaN(cLat) && !isNaN(cLng) && cLat !== 0 && cLng !== 0) {
+        const dist = haversineMeters(apLat, apLng, cLat, cLng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestCityName = city.name;
+        }
+      }
+    }
+    return closestCityName;
+  }
+  return "Rota CRIC";
 }
 
 interface NeighborPoint {
   id: string;
   name: string;
-  cityName: string;
+  cityName?: string;
   distMeters: number;
   lat: number;
   lng: number;
@@ -107,6 +160,7 @@ export default function EscanearScreen() {
   const [userStamps, setUserStamps] = useState<any[]>([]);
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
   const [citiesMap, setCitiesMap] = useState<Map<string, string>>(new Map());
+  const [citiesList, setCitiesList] = useState<City[]>([]);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [isOnline, setIsOnline] = useState(true);
 
@@ -114,6 +168,10 @@ export default function EscanearScreen() {
   const [scanResult, setScanResult] = useState<ScannedValidationResult | null>(null);
   const [collecting, setCollecting] = useState(false);
   const [collectSuccess, setCollectSuccess] = useState(false);
+
+  // Refs de controle para escaneamento contínuo
+  const lastScannedDataRef = useRef<string | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
 
   // Animações
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -226,6 +284,7 @@ export default function EscanearScreen() {
       setStamps(stampsData || []);
       setUserStamps(userStampsData || []);
       setAnchorPoints(apData || []);
+      setCitiesList(citiesData || []);
 
       const cMap = new Map<string, string>();
       (citiesData || []).forEach((c: City) => cMap.set(c.id.toString(), c.name));
@@ -269,10 +328,21 @@ export default function EscanearScreen() {
 
   // Manipular escaneamento de QR Code
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
-    if (scanned) return;
-    setScanned(true);
-
     const cleanData = (data || "").trim();
+    if (!cleanData) return;
+
+    const now = Date.now();
+    // Se for o mesmo código escaneado há menos de 2.5s, ignorar para evitar acionamentos contínuos
+    if (cleanData === lastScannedDataRef.current && now - lastScanTimeRef.current < 2500) {
+      return;
+    }
+
+    lastScannedDataRef.current = cleanData;
+    lastScanTimeRef.current = now;
+
+    setScanned(true);
+    setCollectSuccess(false);
+
     const currentOnline = await checkConnectivity();
     setIsOnline(currentOnline);
 
@@ -319,9 +389,8 @@ export default function EscanearScreen() {
       (ap) => ap.id.toString() === matchedStamp.anchor_point_id.toString()
     ) || matchedStamp.anchor_point;
 
-    // Cidade do Ponto
-    const cityId = linkedAp?.city_id?.toString() || linkedAp?.category_id;
-    const cityName = cityId && citiesMap.has(cityId) ? citiesMap.get(cityId) : "Rota CRIC";
+    // Cidade do Ponto usando resolução refinada
+    const cityName = resolveCityName(linkedAp, citiesList, citiesMap);
     const routeSegmentName = `Trecho Rota CRIC • ${cityName}`;
 
     // Status de Coleta do Usuário
@@ -362,8 +431,7 @@ export default function EscanearScreen() {
             !isNaN(nLat) && !isNaN(nLng)
               ? haversineMeters(apLat, apLng, nLat, nLng)
               : 999999;
-          const cId = ap.city_id?.toString() || ap.category_id;
-          const cName = cId && citiesMap.has(cId) ? citiesMap.get(cId) : "Rota CRIC";
+          const cName = resolveCityName(ap, citiesList, citiesMap);
           return {
             id: ap.id.toString(),
             name: ap.name,
@@ -404,6 +472,8 @@ export default function EscanearScreen() {
 
   const handleResetScan = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    lastScannedDataRef.current = null;
+    lastScanTimeRef.current = 0;
     setScanned(false);
     setScanResult(null);
     setCollectSuccess(false);
@@ -411,12 +481,56 @@ export default function EscanearScreen() {
   };
 
   const handleCollectStamp = async () => {
-    if (!scanResult || !scanResult.stamp) return;
+    if (!scanResult || !scanResult.stamp || scanResult.isCollected) return;
+    if (!isLoggedIn) {
+      router.push("/(tabs)/profile");
+      return;
+    }
     setCollecting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
     try {
-      await new Promise((res) => setTimeout(res, 600));
+      const stampId = scanResult.stamp.id?.toString();
+      const apId = (scanResult.anchorPoint?.id || scanResult.stamp.anchor_point_id)?.toString();
+
+      if (stampId || apId) {
+        await StampsOfflineRepository.markAsCollected(
+          stampId || "",
+          apId || ""
+        );
+
+        // Verificar se a ação já existe na fila para evitar enfileiramento duplicado
+        const pendingQueue = await SyncQueueRepository.getPendingActions();
+        const isAlreadyEnqueued = pendingQueue.some((action) => {
+          if (action.action_type !== "COLLECT_STAMP") return false;
+          const p = action.payload || {};
+          return (
+            (stampId && p.stamp_id?.toString() === stampId) ||
+            (apId && p.anchor_point_id?.toString() === apId)
+          );
+        });
+
+        if (!isAlreadyEnqueued) {
+          const clientUuid = `mobile-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          await SyncQueueRepository.enqueueAction("COLLECT_STAMP", {
+            stamp_id: stampId,
+            anchor_point_id: apId,
+            client_uuid: clientUuid,
+            scanned_at: new Date().toISOString(),
+            latitude:
+              userLocation?.coords.latitude ||
+              scanResult.anchorPoint?.lat ||
+              null,
+            longitude:
+              userLocation?.coords.longitude ||
+              scanResult.anchorPoint?.lng ||
+              null,
+          });
+        }
+
+        StampService.processSyncQueue();
+      }
+      await new Promise((res) => setTimeout(res, 500));
 
       setCollectSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -491,7 +605,7 @@ export default function EscanearScreen() {
               style={StyleSheet.absoluteFillObject}
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-              onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+              onBarcodeScanned={handleBarcodeScanned}
             />
 
             {/* Overlay da Câmera com Mira e Laser */}
@@ -573,7 +687,7 @@ export default function EscanearScreen() {
               <View style={styles.idleInstructionCard}>
                 <View style={styles.instructionHeaderRow}>
                   <View style={styles.instructionIconWrap}>
-                    <Feather name="qr-code" size={18} color={CRIC_BLUE} />
+                    <Feather name="code" size={18} color={CRIC_BLUE} />
                   </View>
                   <Text style={styles.instructionTitle}>Como escanear seu carimbo</Text>
                 </View>
@@ -735,31 +849,47 @@ export default function EscanearScreen() {
                   </Pressable>
 
                   {!scanResult.isCollected && !collectSuccess ? (
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.collectBtn,
-                        scanResult.isOnline ? styles.collectBtnOnline : styles.collectBtnOffline,
-                        (!scanResult.isWithinRadius || collecting) && styles.btnDisabled,
-                        pressed && scanResult.isWithinRadius && styles.btnPressed,
-                      ]}
-                      onPress={handleCollectStamp}
-                      disabled={!scanResult.isWithinRadius || collecting}
-                    >
-                      {collecting ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Feather name={scanResult.isOnline ? "check" : "save"} size={18} color="#fff" />
-                          <Text style={styles.collectBtnText}>
-                            {scanResult.isWithinRadius
-                              ? scanResult.isOnline
-                                ? "Coletar Carimbo (Online)"
-                                : "Coletar Carimbo (Off-line)"
-                              : `Fora do Raio (< ${RADIUS_LIMIT_METERS}m)`}
-                          </Text>
-                        </>
-                      )}
-                    </Pressable>
+                    !isLoggedIn ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.collectBtn,
+                          styles.collectBtnOnline,
+                          pressed && styles.btnPressed,
+                        ]}
+                        onPress={() => router.push("/(tabs)/profile")}
+                      >
+                        <Feather name="log-in" size={18} color="#fff" />
+                        <Text style={styles.collectBtnText}>
+                          Faça login para coletar este carimbo
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.collectBtn,
+                          scanResult.isOnline ? styles.collectBtnOnline : styles.collectBtnOffline,
+                          (!scanResult.isWithinRadius || collecting) && styles.btnDisabled,
+                          pressed && scanResult.isWithinRadius && styles.btnPressed,
+                        ]}
+                        onPress={handleCollectStamp}
+                        disabled={!scanResult.isWithinRadius || collecting}
+                      >
+                        {collecting ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Feather name={scanResult.isOnline ? "check" : "save"} size={18} color="#fff" />
+                            <Text style={styles.collectBtnText}>
+                              {scanResult.isWithinRadius
+                                ? scanResult.isOnline
+                                  ? "Coletar Carimbo (Online)"
+                                  : "Coletar Carimbo (Off-line)"
+                                : `Fora do Raio (< ${RADIUS_LIMIT_METERS}m)`}
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    )
                   ) : (
                     <Pressable
                       style={({ pressed }) => [styles.mapBtn, pressed && styles.btnPressed]}
@@ -802,7 +932,7 @@ const styles = StyleSheet.create({
   },
   headerHero: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 36,
     paddingBottom: 16,
     backgroundColor: CRIC_BLUE,
     borderBottomLeftRadius: 20,
