@@ -56,7 +56,7 @@ export const CitiesService = {
         // Pre-carregar imagens de capa no cache de disco nativo para acesso off-line
         const bannerUrls = data
           .map((c: City) => c.banner_image)
-          .filter((url: string | null): url is string => Boolean(url) && (url.startsWith("http://") || url.startsWith("https://")));
+          .filter((url): url is string => Boolean(url && typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))));
         if (bannerUrls.length > 0) {
           Image.prefetch(bannerUrls, "disk").catch(() => {});
         }

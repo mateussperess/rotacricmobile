@@ -8,7 +8,9 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 import { CityImageCarousel } from "@/components/CityImageCarousel";
-import { NetworkStatusBanner, useNetworkStatus } from "@/components/NetworkStatusBanner";
+import {
+    useNetworkStatus
+} from "@/components/NetworkStatusBanner";
 import { WeatherCard } from "@/components/WeatherCard";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -224,8 +226,6 @@ export default function CidadeDetalhe() {
     );
   }
 
-
-
   const ICON_MAP: Record<
     string,
     React.FC<{ width: number; height: number }>
@@ -401,7 +401,8 @@ export default function CidadeDetalhe() {
                             ]
                           : [];
 
-                    if (loadingImages || displayImages.length === 0) return null;
+                    if (loadingImages || displayImages.length === 0)
+                      return null;
                     return <CityImageCarousel images={displayImages} />;
                   })()}
 
@@ -418,67 +419,47 @@ export default function CidadeDetalhe() {
             {/* ── ABA 1: TRECHO ── */}
             <View style={{ width: windowWidth }}>
               <View style={styles.body}>
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Rotas pela cidade</Text>
-
-                  {loadingDistance ? (
-                    <ActivityIndicator
-                      color="#2563EB"
-                      style={{ marginVertical: 8 }}
-                    />
-                  ) : routeDistance && routeDistance.routes.length > 0 ? (
-                    <>
-                      {/* Stat de distância total */}
-                      <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>🚴</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.totalDistanceKm} km
-                          </Text>
-                          <Text style={styles.statLabel}>Total na cidade</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>🛣️</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.routes.length}
-                          </Text>
-                          <Text style={styles.statLabel}>
-                            {routeDistance.routes.length === 1 ? "Rota" : "Rotas"}
-                          </Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>📍</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.radiusKm} km
-                          </Text>
-                          <Text style={styles.statLabel}>Raio usado</Text>
-                        </View>
-                      </View>
-
-                      {/* Divider */}
+                {/* ── CARD: CONEXÕES DO TRECHO (ROTA CRIC) ── */}
+                {routeDistance &&
+                  routeDistance.connectedCities &&
+                  routeDistance.connectedCities.length > 0 && (
+                    <View style={styles.card}>
+                      <Text style={styles.cardTitle}>
+                        Conexões do Trecho (Rota CRIC)
+                      </Text>
+                      <Text style={styles.cardSubtitle}>
+                        Cidades vizinhas conectadas por este percurso:
+                      </Text>
                       <View style={styles.divider} />
-
-                      {/* Lista de rotas individuais */}
-                      {routeDistance.routes.map((route) => (
-                        <View key={route.routeId} style={styles.routeItem}>
-                          <View style={styles.routeItemLeft}>
-                            <View style={styles.routeDot} />
-                            <Text style={styles.routeName}>
-                              {route.routeName}
-                            </Text>
+                      {routeDistance.connectedCities.map((conn) => (
+                        <Pressable
+                          key={conn.cityId}
+                          style={styles.connectionItem}
+                          onPress={() =>
+                            router.push(`/(tabs)/cidades/${conn.cityId}`)
+                          }
+                        >
+                          <View style={styles.connectionLeft}>
+                            <Text style={styles.connectionIcon}>🚴‍♂️</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.connectionName}>
+                                {conn.cityName}
+                              </Text>
+                              <Text style={styles.connectionSub}>
+                                {conn.routeName || "Conexão Rota CRIC"}
+                              </Text>
+                            </View>
                           </View>
-                          <Text style={styles.routeDistance}>
-                            {route.distanceKm} km
-                          </Text>
-                        </View>
+                          <View style={styles.connectionRight}>
+                            <Text style={styles.connectionDist}>
+                              {conn.distanceKm} km
+                            </Text>
+                            <Text style={styles.connectionArrow}>➔</Text>
+                          </View>
+                        </Pressable>
                       ))}
-                    </>
-                  ) : (
-                    <Text style={styles.comingSoon}>
-                      Nenhuma rota cadastrada passando por esta cidade.
-                    </Text>
+                    </View>
                   )}
-                </View>
 
                 {/* Botão ver no mapa */}
                 <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
@@ -518,7 +499,8 @@ export default function CidadeDetalhe() {
                     <Text
                       style={[
                         styles.filterChipText,
-                        selectedCategory === "all" && styles.filterChipTextActive,
+                        selectedCategory === "all" &&
+                          styles.filterChipTextActive,
                       ]}
                     >
                       Todos ({anchorPoints.length})
@@ -570,7 +552,10 @@ export default function CidadeDetalhe() {
 
                 {/* Lista */}
                 {loadingAnchor ? (
-                  <ActivityIndicator color="#2563EB" style={{ marginTop: 32 }} />
+                  <ActivityIndicator
+                    color="#2563EB"
+                    style={{ marginTop: 32 }}
+                  />
                 ) : filteredPoints.length === 0 ? (
                   <View style={styles.card}>
                     <Text style={styles.cardText}>
@@ -973,5 +958,53 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: -2,
+    marginBottom: 4,
+  },
+  connectionItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    marginVertical: 4,
+  },
+  connectionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  connectionIcon: {
+    fontSize: 18,
+  },
+  connectionName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  connectionSub: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  connectionRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  connectionDist: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: CRIC_BLUE,
+  },
+  connectionArrow: {
+    fontSize: 14,
+    color: "#9CA3AF",
   },
 });
