@@ -1175,7 +1175,7 @@ export const CityImagesOfflineRepository = {
         const rows = images.map((img) => [
           img.id.toString(),
           cityId.toString(),
-          img.url || "",
+          img.url || (img as any).image_path || (img as any).image || "",
           img.caption || null,
           img.order || 0,
           img.created_at || new Date().toISOString(),

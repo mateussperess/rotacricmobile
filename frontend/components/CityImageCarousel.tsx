@@ -29,9 +29,13 @@ export function CityImageCarousel({ images }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const dotAnims = useRef(
-    images.map((_, i) => new Animated.Value(i === 0 ? 1 : 0)),
-  ).current;
+  const dotAnims = useRef<Animated.Value[]>([]);
+
+  if (dotAnims.current.length !== images.length) {
+    dotAnims.current = images.map(
+      (_, i) => new Animated.Value(i === activeIndex ? 1 : 0),
+    );
+  }
 
   const loopedImages =
     images.length > 1
@@ -40,9 +44,15 @@ export function CityImageCarousel({ images }: Props) {
 
   const isLoop = images.length > 1;
 
+  useEffect(() => {
+    if (isLoop && scrollRef.current) {
+      scrollRef.current.scrollTo({ x: SNAP_INTERVAL, animated: false });
+    }
+  }, [isLoop, images]);
+
   const animateDots = useCallback(
     (index: number) => {
-      dotAnims.forEach((anim, i) => {
+      dotAnims.current.forEach((anim, i) => {
         Animated.spring(anim, {
           toValue: i === index ? 1 : 0,
           useNativeDriver: false,
@@ -51,7 +61,7 @@ export function CityImageCarousel({ images }: Props) {
         }).start();
       });
     },
-    [dotAnims],
+    [],
   );
 
   const handleNext = () => {
@@ -138,30 +148,42 @@ export function CityImageCarousel({ images }: Props) {
           horizontal
           pagingEnabled={false}
           showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: isLoop ? SNAP_INTERVAL : 0, y: 0 }}
           onMomentumScrollEnd={handleScroll}
           snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
           contentContainerStyle={styles.scrollContent}
           scrollEventThrottle={16}
         >
-          {(isLoop ? loopedImages : images).map((img, i) => (
-            <View key={`${img.id}-${i}`} style={styles.imageWrapper}>
-              <Image
-                source={{ uri: img.url }}
-                style={styles.image}
-                contentFit="cover"
-                cachePolicy="disk"
-                transition={300}
-              />
-              {img.caption && (
-                <View style={styles.captionContainer}>
-                  <Text style={styles.caption} numberOfLines={1}>
-                    {img.caption}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ))}
+          {(isLoop ? loopedImages : images).map((img, i) => {
+            const imageUrl =
+              img.url ||
+              (img as any).image_path ||
+              (img as any).image ||
+              (img as any).uri ||
+              "";
+
+            return (
+              <View key={`${img.id}-${i}`} style={styles.imageWrapper}>
+                {imageUrl ? (
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.image}
+                    contentFit="cover"
+                    cachePolicy="disk"
+                    transition={300}
+                  />
+                ) : null}
+                {img.caption && (
+                  <View style={styles.captionContainer}>
+                    <Text style={styles.caption} numberOfLines={1}>
+                      {img.caption}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -169,11 +191,13 @@ export function CityImageCarousel({ images }: Props) {
       {images.length > 1 && (
         <View style={styles.dots}>
           {images.map((_, i) => {
-            const width = dotAnims[i].interpolate({
+            const anim =
+              dotAnims.current[i] || new Animated.Value(i === 0 ? 1 : 0);
+            const width = anim.interpolate({
               inputRange: [0, 1],
               outputRange: [6, 18],
             });
-            const opacity = dotAnims[i].interpolate({
+            const opacity = anim.interpolate({
               inputRange: [0, 1],
               outputRange: [0.35, 1],
             });

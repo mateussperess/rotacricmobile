@@ -8,6 +8,7 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 import { CityImageCarousel } from "@/components/CityImageCarousel";
+import { NetworkStatusBanner, useNetworkStatus } from "@/components/NetworkStatusBanner";
 import { WeatherCard } from "@/components/WeatherCard";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -68,6 +69,7 @@ export default function CidadeDetalhe() {
   const [activeTab, setActiveTab] = useState<Tab>("sobre");
   const [apoioFilter, setApoioFilter] = useState<ApoioFilter>("all");
   const router = useRouter();
+  const { isOffline } = useNetworkStatus();
   const { data: routeDistance, loading: loadingDistance } =
     useCityRouteDistance(id);
   const { images: cityImages, loading: loadingImages } = useCityImages(id);
@@ -326,10 +328,29 @@ export default function CidadeDetalhe() {
               <View style={styles.card}>
                 <WeatherCard lat={city.lat} lng={city.lng} />
 
-                {/* Carrossel de imagens */}
-                {!loadingImages && cityImages.length > 0 && (
-                  <CityImageCarousel images={cityImages} />
-                )}
+                {/* Carrossel de imagens (oculto em modo off-line) */}
+                {(() => {
+                  if (isOffline) return null;
+
+                  const displayImages =
+                    cityImages.length > 0
+                      ? cityImages
+                      : city?.banner_image
+                        ? [
+                            {
+                              id: `banner-${city.id}`,
+                              city_id: city.id,
+                              url: city.banner_image,
+                              caption: city.name,
+                              order: 0,
+                              created_at: new Date().toISOString(),
+                            },
+                          ]
+                        : [];
+
+                  if (loadingImages || displayImages.length === 0) return null;
+                  return <CityImageCarousel images={displayImages} />;
+                })()}
 
                 <Text style={styles.cardTitle}>Sobre a cidade</Text>
                 <Text style={styles.cardText}>

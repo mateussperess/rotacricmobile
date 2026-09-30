@@ -7,8 +7,9 @@ export function useCityImages(cityId: string) {
 
   useEffect(() => {
     if (!cityId) return;
+    setLoading(true);
     CitiesService.findImages(cityId).then((data) => {
-      setImages(data);
+      setImages(data ?? []);
       setLoading(false);
     });
   }, [cityId]);
