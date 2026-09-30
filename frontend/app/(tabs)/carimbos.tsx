@@ -12,7 +12,6 @@ import {
     LayoutAnimation,
     NativeScrollEvent,
     NativeSyntheticEvent,
-    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -570,7 +569,7 @@ export default function CarimbosScreen() {
                   selectedFilter === "all" && styles.statLabelActive,
                 ]}
               >
-                Progresso
+                PROGRESSO
               </Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
@@ -593,7 +592,7 @@ export default function CarimbosScreen() {
                   selectedFilter === "collected" && styles.statLabelActive,
                 ]}
               >
-                Coletados
+                COLETADOS
               </Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
@@ -616,7 +615,7 @@ export default function CarimbosScreen() {
                   selectedFilter === "pending" && styles.statLabelActive,
                 ]}
               >
-                Restantes
+                RESTANTES
               </Text>
             </TouchableOpacity>
 
