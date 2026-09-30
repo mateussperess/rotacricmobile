@@ -1,4 +1,5 @@
 import { CityCard } from "@/components/CityCard";
+import { CyclistManual } from "@/components/CyclistManual";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { useTotalDistance } from "@/hooks/use-total-distance";
 import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
@@ -12,6 +13,7 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -110,6 +112,7 @@ export default function Cidades() {
   const [cities, setCities] = useState<CityWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<"cidades" | "manual">("cidades");
   const router = useRouter();
 
   const { data: distanceData } = useTotalDistance();
@@ -165,7 +168,7 @@ export default function Cidades() {
     >
       <View style={styles.mainContainer}>
         <FlatList
-          data={cities}
+          data={activeTab === "cidades" ? cities : []}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
@@ -200,10 +203,13 @@ export default function Cidades() {
                   </View>
                 </View>
 
-                <Text style={styles.heroTitle}>Cidades da Rota</Text>
+                <Text style={styles.heroTitle}>
+                  {activeTab === "cidades" ? "Cidades da Rota" : "Manual do Ciclista"}
+                </Text>
                 <Text style={styles.heroSub}>
-                  Conheça cada município que compõe esta rota histórica pelo
-                  carvão gaúcho.
+                  {activeTab === "cidades"
+                    ? "Conheça cada município que compõe esta rota histórica pelo carvão gaúcho."
+                    : "Orientações fundamentais de segurança, saúde e preservação para sua pedalada."}
                 </Text>
 
                 {/* Container de Estatísticas */}
@@ -240,39 +246,105 @@ export default function Cidades() {
                     <Text style={styles.statLabel}>PONTOS DE APOIO</Text>
                   </View>
                 </View>
+
+                {/* Alternador de Abas (Cidades / Manual) */}
+                <View style={styles.tabToggleContainer}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.tabToggleButton,
+                      activeTab === "cidades" && styles.tabToggleButtonActive,
+                    ]}
+                    onPress={() => setActiveTab("cidades")}
+                  >
+                    <Feather
+                      name="map"
+                      size={14}
+                      color={
+                        activeTab === "cidades"
+                          ? primaryColor
+                          : "rgba(255,255,255,0.85)"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.tabToggleText,
+                        activeTab === "cidades"
+                          ? { color: primaryColor, fontWeight: "700" }
+                          : { color: "#FFFFFF" },
+                      ]}
+                    >
+                      Cidades
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.tabToggleButton,
+                      activeTab === "manual" && styles.tabToggleButtonActive,
+                    ]}
+                    onPress={() => setActiveTab("manual")}
+                  >
+                    <Feather
+                      name="book-open"
+                      size={14}
+                      color={
+                        activeTab === "manual"
+                          ? primaryColor
+                          : "rgba(255,255,255,0.85)"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.tabToggleText,
+                        activeTab === "manual"
+                          ? { color: primaryColor, fontWeight: "700" }
+                          : { color: "#FFFFFF" },
+                      ]}
+                    >
+                      Manual do Ciclista
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Rótulo da Seção */}
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionLabel}>MUNICÍPIOS DA ROTA</Text>
-                {cities.length > 0 && (
-                  <View style={styles.countBadge}>
-                    <Text style={styles.countBadgeText}>
-                      {cities.length} CIDADES
-                    </Text>
-                  </View>
-                )}
-              </View>
+              {/* Rótulo da Seção (quando na aba cidades) */}
+              {activeTab === "cidades" && (
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionLabel}>MUNICÍPIOS DA ROTA</Text>
+                  {cities.length > 0 && (
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countBadgeText}>
+                        {cities.length} CIDADES
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           }
           ListEmptyComponent={
-            loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={primaryColor} />
-                <Text style={styles.loadingText}>
-                  Carregando cidades da rota...
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Feather name="map-pin" size={32} color="#94A3B8" />
-                <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
-                <Text style={styles.emptySubtext}>
-                  Puxe para baixo para tentar atualizar a lista.
-                </Text>
-              </View>
-            )
+            activeTab === "cidades" ? (
+              loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={primaryColor} />
+                  <Text style={styles.loadingText}>
+                    Carregando cidades da rota...
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Feather name="map-pin" size={32} color="#94A3B8" />
+                  <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
+                  <Text style={styles.emptySubtext}>
+                    Puxe para baixo para tentar atualizar a lista.
+                  </Text>
+                </View>
+              )
+            ) : null
           }
+          ListFooterComponent={<CyclistManual />}
           renderItem={({ item }) => (
             <CityCard
               item={item}
@@ -444,5 +516,33 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 12,
     color: "#94A3B8",
+  },
+  tabToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0, 0, 0, 0.16)",
+    borderRadius: 14,
+    padding: 4,
+    marginTop: 18,
+  },
+  tabToggleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  tabToggleButtonActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
