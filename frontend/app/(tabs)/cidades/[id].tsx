@@ -15,20 +15,24 @@ import { useCityImages } from "@/hooks/use-city-images";
 import { useCityRouteDistance } from "@/hooks/use-city-route-distance";
 
 import {
-  AnchorPoint,
-  AnchorPointsService,
+    AnchorPoint,
+    AnchorPointsService,
 } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Animated,
+    LayoutAnimation,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,11 +40,27 @@ const CRIC_BLUE = "#2563EB";
 
 type Tab = "sobre" | "trecho" | "apoio";
 type ApoioFilter = "all" | "on_route" | "off_route";
+const TABS: Tab[] = ["sobre", "trecho", "apoio"];
+
+const TABS_CONFIG: {
+  key: Tab;
+  label: string;
+  icon: "building.2.fill" | "bicycle" | "mappin.and.ellipse";
+}[] = [
+  { key: "sobre", label: "Sobre", icon: "building.2.fill" },
+  { key: "trecho", label: "Trecho", icon: "bicycle" },
+  { key: "apoio", label: "Pontos de Apoio", icon: "mappin.and.ellipse" },
+];
 
 export default function CidadeDetalhe() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, primaryColor } = useAuth();
   const isAdmin = Boolean(user?.is_staff || user?.is_superuser);
+  const { width: windowWidth } = useWindowDimensions();
+  const tabWidth = Math.max((windowWidth - 48) / 3, 80);
+  const pagerRef = useRef<ScrollView>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
+
   const [city, setCity] = useState<City | null>(null);
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
   const [loadingCity, setLoadingCity] = useState(true);
@@ -51,51 +71,32 @@ export default function CidadeDetalhe() {
   const { data: routeDistance, loading: loadingDistance } =
     useCityRouteDistance(id);
   const { images: cityImages, loading: loadingImages } = useCityImages(id);
-  const touchStart = useRef<number | null>(null);
-  const indicatorPosition = useRef(new Animated.Value(0)).current;
 
-  const tabsArray: Tab[] = useMemo(() => ["sobre", "trecho", "apoio"], []);
-
-  const handleTouchStart = (e: any) => {
-    touchStart.current = e.nativeEvent.locationX;
-  };
-
-  const handleTouchEnd = (e: any) => {
-    if (touchStart.current === null) return;
-
-    const touchEnd = e.nativeEvent.locationX;
-    const distance = touchStart.current - touchEnd;
-    const isSwipe = Math.abs(distance) > 50;
-
-    if (isSwipe) {
-      const currentIndex = tabsArray.indexOf(activeTab);
-
-      if (distance > 0 && currentIndex < tabsArray.length - 1) {
-        const newIndex = currentIndex + 1;
-        setActiveTab(tabsArray[newIndex]);
-        animateIndicator(newIndex);
-      } else if (distance < 0 && currentIndex > 0) {
-        const newIndex = currentIndex - 1;
-        setActiveTab(tabsArray[newIndex]);
-        animateIndicator(newIndex);
-      }
-    }
-
-    touchStart.current = null;
-  };
+  const indicatorTranslateX = scrollX.interpolate({
+    inputRange: [0, windowWidth, windowWidth * 2],
+    outputRange: [0, tabWidth, tabWidth * 2],
+    extrapolate: "clamp",
+  });
 
   const handleTabPress = (tabIndex: number) => {
-    const tab = tabsArray[tabIndex];
+    const tab = TABS[tabIndex];
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setActiveTab(tab);
-    animateIndicator(tabIndex);
+    if (pagerRef.current) {
+      pagerRef.current.scrollTo({ x: tabIndex * windowWidth, animated: true });
+    }
   };
 
-  const animateIndicator = (index: number) => {
-    Animated.timing(indicatorPosition, {
-      toValue: index * 33.33,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
+  const handleMomentumScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / windowWidth);
+    const tab = TABS[index];
+    if (tab && tab !== activeTab) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setActiveTab(tab);
+    }
   };
 
   useEffect(() => {
@@ -104,11 +105,6 @@ export default function CidadeDetalhe() {
       setLoadingCity(false);
     });
   }, [id]);
-
-  useEffect(() => {
-    const initialIndex = tabsArray.indexOf(activeTab);
-    indicatorPosition.setValue(initialIndex * 33.33);
-  }, [activeTab, indicatorPosition, tabsArray]);
 
   useEffect(() => {
     if (!id) return;
@@ -143,7 +139,10 @@ export default function CidadeDetalhe() {
 
   if (loadingCity) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: primaryColor }]}
+        edges={["top"]}
+      >
         <View style={styles.container}>
           <ActivityIndicator
             size="large"
@@ -157,7 +156,10 @@ export default function CidadeDetalhe() {
 
   if (!city) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: primaryColor }]}
+        edges={["top"]}
+      >
         <View style={styles.container}>
           <View style={styles.centered}>
             <Text style={styles.errorText}>Cidade não encontrada.</Text>
@@ -189,7 +191,10 @@ export default function CidadeDetalhe() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
       <View style={styles.container}>
         {/* ── Header ── */}
         <View style={[styles.header, { backgroundColor: primaryColor }]}>
@@ -203,258 +208,277 @@ export default function CidadeDetalhe() {
             {city.lat.toFixed(4)}, {city.lng.toFixed(4)}
           </Text>
 
-          {/* Tabs */}
+          {/* Tabs Card com Divisores e Indicador Animado */}
           <View style={styles.tabs}>
-            {(["sobre", "trecho", "apoio"] as Tab[]).map((tab, index) => (
-              <Pressable
-                key={tab}
-                style={[styles.tab, activeTab === tab && styles.tabActive]}
-                onPress={() => handleTabPress(index)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab && styles.tabTextActive,
-                  ]}
+            {TABS_CONFIG.map((tab, index) => (
+              <React.Fragment key={tab.key}>
+                {index > 0 && <View style={styles.tabDivider} />}
+                <Pressable
+                  style={styles.tab}
+                  onPress={() => handleTabPress(index)}
                 >
-                  {tab === "sobre"
-                    ? "Sobre"
-                    : tab === "trecho"
-                      ? "Trecho"
-                      : "Pontos de Apoio"}
-                </Text>
-              </Pressable>
+                  <IconSymbol
+                    name={tab.icon}
+                    size={20}
+                    color={
+                      activeTab === tab.key
+                        ? "#FFFFFF"
+                        : "rgba(255,255,255,0.55)"
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === tab.key && styles.tabTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              </React.Fragment>
             ))}
             <Animated.View
               style={[
-                styles.tabIndicator,
+                styles.tabIndicatorContainer,
                 {
-                  left: indicatorPosition.interpolate({
-                    inputRange: [0, 100],
-                    outputRange: ["0%", "100%"],
-                  }),
+                  width: tabWidth,
+                  transform: [{ translateX: indicatorTranslateX }],
                 },
               ]}
-            />
+            >
+              <View style={styles.tabIndicatorBar} />
+            </Animated.View>
           </View>
         </View>
 
-        {/* ── Conteúdo ── */}
-        <View
+        {/* ── Conteúdo com Pager Horizontal Animado ── */}
+        <Animated.ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            { useNativeDriver: true },
+          )}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+          scrollEventThrottle={16}
           style={styles.contentContainer}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
+          contentContainerStyle={{ width: windowWidth * TABS.length }}
         >
-          <ScrollView
-            contentContainerStyle={styles.body}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={true}
-          >
-            {/* ── ABA: SOBRE ── */}
-            {activeTab === "sobre" && (
-              <>
-                <View style={styles.card}>
-                  <WeatherCard lat={city.lat} lng={city.lng} />
+          {/* ── ABA 0: SOBRE ── */}
+          <View style={{ width: windowWidth }}>
+            <ScrollView
+              contentContainerStyle={styles.body}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.card}>
+                <WeatherCard lat={city.lat} lng={city.lng} />
 
-                  {/* Carrossel de imagens */}
-                  {!loadingImages && cityImages.length > 0 && (
-                    <CityImageCarousel images={cityImages} />
-                  )}
-
-                  <Text style={styles.cardTitle}>Sobre a cidade</Text>
-                  <Text style={styles.cardText}>
-                    {city.about?.trim()
-                      ? city.about
-                      : "Informações sobre esta cidade em breve."}
-                  </Text>
-                </View>
-              </>
-            )}
-
-            {/* ── ABA: TRECHO ── */}
-            {activeTab === "trecho" && (
-              <>
-                {/* Card de resumo */}
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Rotas pela cidade</Text>
-
-                  {loadingDistance ? (
-                    <ActivityIndicator
-                      color="#2563EB"
-                      style={{ marginVertical: 8 }}
-                    />
-                  ) : routeDistance && routeDistance.routes.length > 0 ? (
-                    <>
-                      {/* Stat de distância total */}
-                      <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>🚴</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.totalDistanceKm} km
-                          </Text>
-                          <Text style={styles.statLabel}>Total na cidade</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>🛣️</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.routes.length}
-                          </Text>
-                          <Text style={styles.statLabel}>
-                            {routeDistance.routes.length === 1
-                              ? "Rota"
-                              : "Rotas"}
-                          </Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statIcon}>📍</Text>
-                          <Text style={styles.statValue}>
-                            {routeDistance.radiusKm} km
-                          </Text>
-                          <Text style={styles.statLabel}>Raio usado</Text>
-                        </View>
-                      </View>
-
-                      {/* Divider */}
-                      <View style={styles.divider} />
-
-                      {/* Lista de rotas individuais */}
-                      {routeDistance.routes.map((route) => (
-                        <View key={route.routeId} style={styles.routeItem}>
-                          <View style={styles.routeItemLeft}>
-                            <View style={styles.routeDot} />
-                            <Text style={styles.routeName}>
-                              {route.routeName}
-                            </Text>
-                          </View>
-                          <Text style={styles.routeDistance}>
-                            {route.distanceKm} km
-                          </Text>
-                        </View>
-                      ))}
-                    </>
-                  ) : (
-                    <Text style={styles.comingSoon}>
-                      Nenhuma rota cadastrada passando por esta cidade.
-                    </Text>
-                  )}
-                </View>
-
-                {/* Botão ver no mapa */}
-                <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
-                  <Text style={styles.mapBtnText}>Ver no mapa</Text>
-                </Pressable>
-              </>
-            )}
-
-            {/* ── ABA: PONTOS DE APOIO ── */}
-            {activeTab === "apoio" && (
-              <>
-                {isAdmin && (
-                  <Pressable
-                    style={styles.adminApoioBtn}
-                    onPress={() => router.push("/(tabs)/admin")}
-                  >
-                    <IconSymbol size={18} name="plus.circle.fill" color="#FFFFFF" />
-                    <Text style={styles.adminApoioBtnText}>
-                      Painel Admin: Gerenciar Pontos & Carimbos
-                    </Text>
-                  </Pressable>
+                {/* Carrossel de imagens */}
+                {!loadingImages && cityImages.length > 0 && (
+                  <CityImageCarousel images={cityImages} />
                 )}
 
-                {/* Filtros */}
-                <View style={styles.filterRow}>
-                  {APOIO_FILTERS.map((f) => (
-                    <Pressable
-                      key={f.key}
-                      style={[
-                        styles.filterChip,
-                        apoioFilter === f.key && styles.filterChipActive,
-                      ]}
-                      onPress={() => setApoioFilter(f.key)}
-                    >
-                      <Text style={styles.filterChipIcon}>{f.icon}</Text>
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          apoioFilter === f.key && styles.filterChipTextActive,
-                        ]}
-                      >
-                        {f.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <Text style={styles.cardTitle}>Sobre a cidade</Text>
+                <Text style={styles.cardText}>
+                  {city.about?.trim()
+                    ? city.about
+                    : "Informações sobre esta cidade em breve."}
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
 
-                {/* Lista */}
-                {loadingAnchor ? (
+          {/* ── ABA 1: TRECHO ── */}
+          <View style={{ width: windowWidth }}>
+            <ScrollView
+              contentContainerStyle={styles.body}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Card de resumo */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Rotas pela cidade</Text>
+
+                {loadingDistance ? (
                   <ActivityIndicator
                     color="#2563EB"
-                    style={{ marginTop: 32 }}
+                    style={{ marginVertical: 8 }}
                   />
-                ) : filteredPoints.length === 0 ? (
-                  <View style={styles.card}>
-                    <Text style={styles.cardText}>
-                      {anchorPoints.length === 0
-                        ? "Nenhum ponto de apoio cadastrado para esta cidade."
-                        : "Nenhum ponto de apoio encontrado com este filtro."}
-                    </Text>
-                  </View>
-                ) : (
+                ) : routeDistance && routeDistance.routes.length > 0 ? (
                   <>
-                    {filteredPoints.map((ap) => {
-                      const IconComponent = ap.category?.icon_name
-                        ? ICON_MAP[ap.category.icon_name]
-                        : null;
+                    {/* Stat de distância total */}
+                    <View style={styles.statsRow}>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statIcon}>🚴</Text>
+                        <Text style={styles.statValue}>
+                          {routeDistance.totalDistanceKm} km
+                        </Text>
+                        <Text style={styles.statLabel}>Total na cidade</Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statIcon}>🛣️</Text>
+                        <Text style={styles.statValue}>
+                          {routeDistance.routes.length}
+                        </Text>
+                        <Text style={styles.statLabel}>
+                          {routeDistance.routes.length === 1 ? "Rota" : "Rotas"}
+                        </Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statIcon}>📍</Text>
+                        <Text style={styles.statValue}>
+                          {routeDistance.radiusKm} km
+                        </Text>
+                        <Text style={styles.statLabel}>Raio usado</Text>
+                      </View>
+                    </View>
 
-                      return (
-                        <View key={ap.id} style={styles.anchorCard}>
-                          <View
-                            style={[
-                              styles.anchorIcon,
-                              ap.on_route && styles.anchorIconOnRoute,
-                            ]}
-                          >
-                            {IconComponent ? (
-                              <IconComponent width={22} height={22} />
-                            ) : (
-                              <Text style={styles.anchorIconText}>📍</Text>
-                            )}
-                          </View>
-                          <View style={styles.anchorInfo}>
-                            <View style={styles.anchorNameRow}>
-                              <Text style={styles.anchorName}>{ap.name}</Text>
-                              {ap.on_route && (
-                                <View style={styles.onRouteBadge}>
-                                  <Text style={styles.onRouteBadgeText}>
-                                    Na rota
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            {ap.business_hours && (
-                              <Text style={styles.anchorDetail}>
-                                🕐 {ap.business_hours}
-                              </Text>
-                            )}
-                            {ap.phone && (
-                              <Text style={styles.anchorDetail}>
-                                📞 {ap.phone}
-                              </Text>
-                            )}
-                          </View>
+                    {/* Divider */}
+                    <View style={styles.divider} />
+
+                    {/* Lista de rotas individuais */}
+                    {routeDistance.routes.map((route) => (
+                      <View key={route.routeId} style={styles.routeItem}>
+                        <View style={styles.routeItemLeft}>
+                          <View style={styles.routeDot} />
+                          <Text style={styles.routeName}>
+                            {route.routeName}
+                          </Text>
                         </View>
-                      );
-                    })}
-                    <Text style={styles.anchorCount}>
-                      {filteredPoints.length} ponto
-                      {filteredPoints.length !== 1 ? "s" : ""} em {city.name}
-                    </Text>
+                        <Text style={styles.routeDistance}>
+                          {route.distanceKm} km
+                        </Text>
+                      </View>
+                    ))}
                   </>
+                ) : (
+                  <Text style={styles.comingSoon}>
+                    Nenhuma rota cadastrada passando por esta cidade.
+                  </Text>
                 )}
-              </>
-            )}
-          </ScrollView>
-        </View>
+              </View>
+
+              {/* Botão ver no mapa */}
+              <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
+                <Text style={styles.mapBtnText}>Ver no mapa</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+
+          {/* ── ABA 2: PONTOS DE APOIO ── */}
+          <View style={{ width: windowWidth }}>
+            <ScrollView
+              contentContainerStyle={styles.body}
+              showsVerticalScrollIndicator={false}
+            >
+              {isAdmin && (
+                <Pressable
+                  style={styles.adminApoioBtn}
+                  onPress={() => router.push("/(tabs)/admin")}
+                >
+                  <IconSymbol
+                    size={18}
+                    name="plus.circle.fill"
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.adminApoioBtnText}>
+                    Painel Admin: Gerenciar Pontos & Carimbos
+                  </Text>
+                </Pressable>
+              )}
+
+              {/* Filtros */}
+              <View style={styles.filterRow}>
+                {APOIO_FILTERS.map((f) => (
+                  <Pressable
+                    key={f.key}
+                    style={[
+                      styles.filterChip,
+                      apoioFilter === f.key && styles.filterChipActive,
+                    ]}
+                    onPress={() => setApoioFilter(f.key)}
+                  >
+                    <Text style={styles.filterChipIcon}>{f.icon}</Text>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        apoioFilter === f.key && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Lista */}
+              {loadingAnchor ? (
+                <ActivityIndicator color="#2563EB" style={{ marginTop: 32 }} />
+              ) : filteredPoints.length === 0 ? (
+                <View style={styles.card}>
+                  <Text style={styles.cardText}>
+                    {anchorPoints.length === 0
+                      ? "Nenhum ponto de apoio cadastrado para esta cidade."
+                      : "Nenhum ponto de apoio encontrado com este filtro."}
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {filteredPoints.map((ap) => {
+                    const IconComponent = ap.category?.icon_name
+                      ? ICON_MAP[ap.category.icon_name]
+                      : null;
+
+                    return (
+                      <View key={ap.id} style={styles.anchorCard}>
+                        <View
+                          style={[
+                            styles.anchorIcon,
+                            ap.on_route && styles.anchorIconOnRoute,
+                          ]}
+                        >
+                          {IconComponent ? (
+                            <IconComponent width={22} height={22} />
+                          ) : (
+                            <Text style={styles.anchorIconText}>📍</Text>
+                          )}
+                        </View>
+                        <View style={styles.anchorInfo}>
+                          <View style={styles.anchorNameRow}>
+                            <Text style={styles.anchorName}>{ap.name}</Text>
+                            {ap.on_route && (
+                              <View style={styles.onRouteBadge}>
+                                <Text style={styles.onRouteBadgeText}>
+                                  Na rota
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          {ap.business_hours && (
+                            <Text style={styles.anchorDetail}>
+                              🕐 {ap.business_hours}
+                            </Text>
+                          )}
+                          {ap.phone && (
+                            <Text style={styles.anchorDetail}>
+                              📞 {ap.phone}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                  <Text style={styles.anchorCount}>
+                    {filteredPoints.length} ponto
+                    {filteredPoints.length !== 1 ? "s" : ""} em {city.name}
+                  </Text>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </Animated.ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -504,42 +528,55 @@ const styles = StyleSheet.create({
 
   tabs: {
     flexDirection: "row",
-    borderBottomWidth: 2,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     position: "relative",
     marginTop: 8,
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
-    borderBottomWidth: 0,
-    borderBottomColor: "transparent",
+    gap: 4,
   },
-  tabActive: {
-    borderBottomColor: "transparent",
+  tabActive: {},
+  tabDivider: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
-  tabIndicator: {
+  tabIndicatorContainer: {
     position: "absolute",
-    bottom: -2,
-    width: "33.33%",
+    bottom: 3,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabIndicatorBar: {
+    width: 24,
     height: 3,
-    backgroundColor: "#fff",
-    borderRadius: 1.5,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 2,
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 3,
   },
   tabText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    fontWeight: "500",
+    color: "rgba(255,255,255,0.55)",
+    fontWeight: "600",
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
   tabTextActive: {
-    color: "#fff",
-    fontWeight: "700",
+    color: "#FFFFFF",
+    fontWeight: "800",
     fontSize: 12,
   },
 
