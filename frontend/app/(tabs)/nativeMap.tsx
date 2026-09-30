@@ -8,54 +8,53 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
-import {
-  BootstrapOfflineService,
-  CitiesOfflineRepository,
-  AnchorPointsOfflineRepository,
-  RoutesOfflineRepository,
-  StampsOfflineRepository,
-} from "@/services/database/offlineRepositories";
-import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
-import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useAuth } from "@/components/contexts/AuthContext";
 import {
-  AnchorPoint,
-  AnchorPointsService,
-} from "@/services/anchorpoints/anchorPointService";
-import { Stamp, StampService } from "@/services/stamps/stampService";
-import { CitiesService } from "@/services/cities/citiesService";
-import { Route, RoutesService } from "@/services/routes/routeService";
-import { useWeather } from "@/hooks/use-weather";
-import { useTotalDistance } from "@/hooks/use-total-distance";
-import { Feather } from "@expo/vector-icons";
-import {
-  useNetworkStatus,
-  NetworkStatusInlineBadge,
+    NetworkStatusInlineBadge,
+    useNetworkStatus,
 } from "@/components/NetworkStatusBanner";
+import { useTotalDistance } from "@/hooks/use-total-distance";
+import { useWeather } from "@/hooks/use-weather";
+import {
+    AnchorPoint,
+    AnchorPointsService,
+} from "@/services/anchorpoints/anchorPointService";
+import {
+    AnchorPointsOfflineRepository,
+    BootstrapOfflineService,
+    CitiesOfflineRepository,
+    RoutesOfflineRepository,
+    StampsOfflineRepository,
+} from "@/services/database/offlineRepositories";
+import { Route, RoutesService } from "@/services/routes/routeService";
+import { Stamp, StampService } from "@/services/stamps/stampService";
+import { Feather } from "@expo/vector-icons";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import polyline from "@mapbox/polyline";
-import * as Location from "expo-location";
 import NetInfo from "@react-native-community/netinfo";
+import * as Location from "expo-location";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Easing,
+    PanResponder,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Circle, Marker, Polyline, Region } from "react-native-maps";
+import MapView, { Marker, Polyline, Region } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type LocationData = Location.LocationObject | null;
@@ -112,7 +111,6 @@ function formatDist(meters: number): string {
     : `${(meters / 1000).toFixed(1)} km`;
 }
 
-
 const AnchorMarker = React.memo(
   ({ ap, isCollected }: { ap: AnchorPoint; isCollected?: boolean }) => {
     const [tracksViewChanges, setTracksViewChanges] = useState(true);
@@ -156,7 +154,7 @@ const AnchorMarker = React.memo(
     prevProps.ap.business_hours === nextProps.ap.business_hours &&
     prevProps.ap.category_id === nextProps.ap.category_id &&
     prevProps.ap.category?.icon_name === nextProps.ap.category?.icon_name &&
-    prevProps.isCollected === nextProps.isCollected
+    prevProps.isCollected === nextProps.isCollected,
 );
 
 AnchorMarker.displayName = "AnchorMarker";
@@ -200,7 +198,9 @@ export default function NativeMap() {
 
   const [viewingCity, setViewingCity] = useState(!!cityTarget);
   const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
-  const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(null);
+  const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(
+    null,
+  );
   const [singleApName, setSingleApName] = useState<string | null>(null);
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
@@ -358,7 +358,7 @@ export default function NativeMap() {
   useFocusEffect(
     useCallback(() => {
       loadMapData();
-    }, [loadMapData])
+    }, [loadMapData]),
   );
 
   useEffect(() => {
@@ -414,8 +414,13 @@ export default function NativeMap() {
           setFollowing(false);
           requestAnimationFrame(() => {
             mapRef.current?.animateToRegion(
-              { latitude, longitude, latitudeDelta: 0.012, longitudeDelta: 0.012 },
-              400
+              {
+                latitude,
+                longitude,
+                latitudeDelta: 0.012,
+                longitudeDelta: 0.012,
+              },
+              400,
             );
           });
         }
@@ -423,29 +428,32 @@ export default function NativeMap() {
     }
   }, [apId, apName, lat, lng, t]);
 
-  const matchNearestCityOffline = useCallback(async (latVal: number, lngVal: number) => {
-    try {
-      const cities = await CitiesOfflineRepository.getAll();
-      if (!cities || cities.length === 0) return null;
-      let closestCity: string | null = null;
-      let minDistance = Infinity;
-      for (const city of cities) {
-        const cLat = Number(city.lat ?? (city as any).latitude);
-        const cLng = Number(city.lng ?? (city as any).longitude);
-        if (!isNaN(cLat) && !isNaN(cLng) && (cLat !== 0 || cLng !== 0)) {
-          const dist = haversineMeters(latVal, lngVal, cLat, cLng);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestCity = city.name;
+  const matchNearestCityOffline = useCallback(
+    async (latVal: number, lngVal: number) => {
+      try {
+        const cities = await CitiesOfflineRepository.getAll();
+        if (!cities || cities.length === 0) return null;
+        let closestCity: string | null = null;
+        let minDistance = Infinity;
+        for (const city of cities) {
+          const cLat = Number(city.lat ?? (city as any).latitude);
+          const cLng = Number(city.lng ?? (city as any).longitude);
+          if (!isNaN(cLat) && !isNaN(cLng) && (cLat !== 0 || cLng !== 0)) {
+            const dist = haversineMeters(latVal, lngVal, cLat, cLng);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestCity = city.name;
+            }
           }
         }
-      }
-      if (closestCity && minDistance <= 35000) {
-        return closestCity;
-      }
-    } catch {}
-    return null;
-  }, []);
+        if (closestCity && minDistance <= 35000) {
+          return closestCity;
+        }
+      } catch {}
+      return null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!location || geocodedRef.current) return;
@@ -615,7 +623,14 @@ export default function NativeMap() {
 
     try {
       if (router && typeof router.setParams === "function") {
-        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined, zoom: undefined });
+        router.setParams({
+          apId: undefined,
+          apName: undefined,
+          lat: undefined,
+          lng: undefined,
+          t: undefined,
+          zoom: undefined,
+        });
       }
     } catch {}
 
@@ -628,7 +643,9 @@ export default function NativeMap() {
       );
     } else {
       try {
-        const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const currentLoc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
         if (currentLoc?.coords) {
           setLocation(currentLoc);
           mapRef.current?.animateToRegion(
@@ -657,7 +674,13 @@ export default function NativeMap() {
 
     try {
       if (router && typeof router.setParams === "function") {
-        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined });
+        router.setParams({
+          apId: undefined,
+          apName: undefined,
+          lat: undefined,
+          lng: undefined,
+          t: undefined,
+        });
       }
     } catch {}
 
@@ -679,7 +702,12 @@ export default function NativeMap() {
 
     try {
       if (router && typeof router.setParams === "function") {
-        router.setParams({ lat: undefined, lng: undefined, zoom: undefined, t: undefined });
+        router.setParams({
+          lat: undefined,
+          lng: undefined,
+          zoom: undefined,
+          t: undefined,
+        });
       }
     } catch {}
 
@@ -713,7 +741,9 @@ export default function NativeMap() {
   const stampsApSet = useMemo(() => {
     const set = new Set<string>();
     (stamps || []).forEach((s) => {
-      const apId = (s.anchor_point_id || (s as any).anchor_point?.id)?.toString();
+      const apId = (
+        s.anchor_point_id || (s as any).anchor_point?.id
+      )?.toString();
       if (apId) set.add(apId);
     });
     return set;
@@ -731,8 +761,7 @@ export default function NativeMap() {
 
     (userStamps || []).forEach((us) => {
       const explicitApId = (
-        us.anchor_point_id ||
-        us.stamp?.anchor_point_id
+        us.anchor_point_id || us.stamp?.anchor_point_id
       )?.toString();
       if (explicitApId) {
         set.add(explicitApId);
@@ -780,7 +809,9 @@ export default function NativeMap() {
       list = anchorPoints.filter((ap) => {
         const iconName =
           ap.category?.icon_name ||
-          (ap.category_id ? CATEGORY_LABELS[ap.category_id.toString()] : null) ||
+          (ap.category_id
+            ? CATEGORY_LABELS[ap.category_id.toString()]
+            : null) ||
           "store";
         return categoryFilter.has(iconName);
       });
@@ -837,7 +868,10 @@ export default function NativeMap() {
   });
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
       <View style={styles.container}>
         {/* ── Mapa ── */}
         <View style={styles.mapWrapper}>
@@ -897,7 +931,9 @@ export default function NativeMap() {
                 {weatherData && (
                   <View style={styles.weatherBadge}>
                     <Text style={styles.weatherEmoji}>{weatherData.emoji}</Text>
-                    <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
+                    <Text style={styles.weatherTemp}>
+                      {weatherData.temperature}°C
+                    </Text>
                   </View>
                 )}
               </View>
@@ -912,7 +948,9 @@ export default function NativeMap() {
 
             {/* Sub-banner para exibição de Cidade ou Ponto de Apoio Selecionado */}
             {selectedSingleApId ? (
-              <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+              <View
+                style={[styles.cityBanner, { backgroundColor: primaryColor }]}
+              >
                 <Text style={styles.cityBannerText} numberOfLines={1}>
                   Visualizando {singleApName || "ponto de apoio"}
                 </Text>
@@ -925,8 +963,11 @@ export default function NativeMap() {
                 </Pressable>
               </View>
             ) : (
-              viewingCity && cityTarget && (
-                <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+              viewingCity &&
+              cityTarget && (
+                <View
+                  style={[styles.cityBanner, { backgroundColor: primaryColor }]}
+                >
                   <Text style={styles.cityBannerText} numberOfLines={1}>
                     Visualizando cidade
                   </Text>
@@ -968,7 +1009,11 @@ export default function NativeMap() {
               <Feather
                 name="sliders"
                 size={20}
-                color={categoryFilter.size > 0 ? (primaryColor || "#2563EB") : "#334155"}
+                color={
+                  categoryFilter.size > 0
+                    ? primaryColor || "#2563EB"
+                    : "#334155"
+                }
               />
               {categoryFilter.size > 0 && (
                 <View style={styles.filterBadge}>
@@ -985,7 +1030,15 @@ export default function NativeMap() {
                 style={styles.fabBtn}
                 onPress={handleRecenter}
               >
-                <Text style={styles.fabBtnIcon}>📍</Text>
+                <FontAwesome6
+                  name="location-crosshairs"
+                  size={18}
+                  color={
+                    categoryFilter.size > 0
+                      ? primaryColor || "#2563EB"
+                      : "#334155"
+                  }
+                />
               </TouchableOpacity>
             )}
           </Animated.View>
@@ -1038,7 +1091,11 @@ export default function NativeMap() {
                 <View
                   style={[
                     styles.statIconWrapper,
-                    { backgroundColor: primaryColor ? `${primaryColor}15` : "#EFF6FF" },
+                    {
+                      backgroundColor: primaryColor
+                        ? `${primaryColor}15`
+                        : "#EFF6FF",
+                    },
                   ]}
                 >
                   <Feather
@@ -1057,7 +1114,11 @@ export default function NativeMap() {
                 <View
                   style={[
                     styles.statIconWrapper,
-                    { backgroundColor: primaryColor ? `${primaryColor}15` : "#EFF6FF" },
+                    {
+                      backgroundColor: primaryColor
+                        ? `${primaryColor}15`
+                        : "#EFF6FF",
+                    },
                   ]}
                 >
                   <Feather
@@ -1076,7 +1137,11 @@ export default function NativeMap() {
                 <View
                   style={[
                     styles.statIconWrapper,
-                    { backgroundColor: primaryColor ? `${primaryColor}15` : "#EFF6FF" },
+                    {
+                      backgroundColor: primaryColor
+                        ? `${primaryColor}15`
+                        : "#EFF6FF",
+                    },
                   ]}
                 >
                   <Feather
@@ -1153,7 +1218,8 @@ export default function NativeMap() {
                       </Text>
                       <Text style={styles.anchorRowSub}>
                         {ap.category?.icon_name
-                          ? CATEGORY_LABELS[ap.category.icon_name] || "Ponto de Apoio"
+                          ? CATEGORY_LABELS[ap.category.icon_name] ||
+                            "Ponto de Apoio"
                           : "Ponto de Apoio"}
                         {ap.on_route ? " • Na Rota" : ""}
                       </Text>
@@ -1197,11 +1263,17 @@ export default function NativeMap() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalHeaderTitleRow}>
                   <View style={styles.modalHeaderIconWrap}>
-                    <Feather name="sliders" size={18} color={primaryColor || "#2563EB"} />
+                    <Feather
+                      name="sliders"
+                      size={18}
+                      color={primaryColor || "#2563EB"}
+                    />
                   </View>
                   <View>
                     <Text style={styles.modalTitle}>Filtros do Mapa</Text>
-                    <Text style={styles.modalSubtitle}>Categorias e opções de exibição</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Categorias e opções de exibição
+                    </Text>
                   </View>
                 </View>
 
@@ -1221,7 +1293,9 @@ export default function NativeMap() {
                 contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
                 showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.modalSectionLabel}>CATEGORIAS DE PONTOS DE APOIO</Text>
+                <Text style={styles.modalSectionLabel}>
+                  CATEGORIAS DE PONTOS DE APOIO
+                </Text>
                 <View style={styles.categoryGrid}>
                   {Object.entries(ICON_MAP).map(([key, IconComponent]) => {
                     const active = categoryFilter.has(key);
@@ -1268,7 +1342,9 @@ export default function NativeMap() {
                   })}
                 </View>
 
-                <Text style={[styles.modalSectionLabel, { marginTop: 8 }]}>EXIBIÇÃO DE ROTAS</Text>
+                <Text style={[styles.modalSectionLabel, { marginTop: 8 }]}>
+                  EXIBIÇÃO DE ROTAS
+                </Text>
                 <Pressable
                   style={({ pressed }) => [
                     styles.routeOptionCard,
@@ -1309,7 +1385,10 @@ export default function NativeMap() {
               {/* Modal Footer */}
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={[styles.modalDone, { backgroundColor: primaryColor || "#2563EB" }]}
+                style={[
+                  styles.modalDone,
+                  { backgroundColor: primaryColor || "#2563EB" },
+                ]}
                 onPress={closeModal}
               >
                 <Text style={styles.modalDoneText}>

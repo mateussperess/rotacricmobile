@@ -201,8 +201,9 @@ export default function CidadeDetalhe() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1 }}
+          nestedScrollEnabled
         >
-          {/* ── Header Rolante da Cidade ── */}
+          {/* ── Header da Cidade ── */}
           <View style={[styles.header, { backgroundColor: primaryColor }]}>
             {/* Barra Superior: Botão Voltar Estilizado + Tag Rota */}
             <View style={styles.headerTopBar}>
@@ -309,49 +310,65 @@ export default function CidadeDetalhe() {
             </View>
           </View>
 
-          {/* ── Conteúdo da Aba Ativa ── */}
-          <View style={styles.body}>
-            {/* ── ABA 0: SOBRE ── */}
-            {activeTab === "sobre" && (
-              <View style={styles.card}>
-                <WeatherCard lat={city.lat} lng={city.lng} />
-
-                {/* Carrossel de imagens (oculto em modo off-line) */}
-                {(() => {
-                  if (isOffline) return null;
-
-                  const displayImages =
-                    cityImages.length > 0
-                      ? cityImages
-                      : city?.banner_image
-                        ? [
-                            {
-                              id: `banner-${city.id}`,
-                              city_id: city.id,
-                              url: city.banner_image,
-                              caption: city.name,
-                              order: 0,
-                              created_at: new Date().toISOString(),
-                            },
-                          ]
-                        : [];
-
-                  if (loadingImages || displayImages.length === 0) return null;
-                  return <CityImageCarousel images={displayImages} />;
-                })()}
-
-                <Text style={styles.cardTitle}>Sobre a cidade</Text>
-                <Text style={styles.cardText}>
-                  {city.about?.trim()
-                    ? city.about
-                    : "Informações sobre esta cidade em breve."}
-                </Text>
-              </View>
+          {/* ── Conteúdo com Pager Horizontal Animado ── */}
+          <Animated.ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+              { useNativeDriver: true },
             )}
+            onMomentumScrollEnd={handleMomentumScrollEnd}
+            scrollEventThrottle={16}
+            style={styles.contentContainer}
+            contentContainerStyle={{ width: windowWidth * TABS.length }}
+          >
+            {/* ── ABA 0: SOBRE ── */}
+            <View style={{ width: windowWidth }}>
+              <View style={styles.body}>
+                <View style={styles.card}>
+                  <WeatherCard lat={city.lat} lng={city.lng} />
+
+                  {/* Carrossel de imagens (oculto em modo off-line) */}
+                  {(() => {
+                    if (isOffline) return null;
+
+                    const displayImages =
+                      cityImages.length > 0
+                        ? cityImages
+                        : city?.banner_image
+                          ? [
+                              {
+                                id: `banner-${city.id}`,
+                                city_id: city.id,
+                                url: city.banner_image,
+                                caption: city.name,
+                                order: 0,
+                                created_at: new Date().toISOString(),
+                              },
+                            ]
+                          : [];
+
+                    if (loadingImages || displayImages.length === 0) return null;
+                    return <CityImageCarousel images={displayImages} />;
+                  })()}
+
+                  <Text style={styles.cardTitle}>Sobre a cidade</Text>
+                  <Text style={styles.cardText}>
+                    {city.about?.trim()
+                      ? city.about
+                      : "Informações sobre esta cidade em breve."}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
             {/* ── ABA 1: TRECHO ── */}
-            {activeTab === "trecho" && (
-              <>
+            <View style={{ width: windowWidth }}>
+              <View style={styles.body}>
                 <View style={styles.card}>
                   <Text style={styles.cardTitle}>Rotas pela cidade</Text>
 
@@ -418,12 +435,12 @@ export default function CidadeDetalhe() {
                 <Pressable style={styles.mapBtn} onPress={handleGoToMap}>
                   <Text style={styles.mapBtnText}>Ver no mapa</Text>
                 </Pressable>
-              </>
-            )}
+              </View>
+            </View>
 
             {/* ── ABA 2: PONTOS DE APOIO ── */}
-            {activeTab === "apoio" && (
-              <>
+            <View style={{ width: windowWidth }}>
+              <View style={styles.body}>
                 {isAdmin && (
                   <Pressable
                     style={styles.adminApoioBtn}
@@ -527,9 +544,9 @@ export default function CidadeDetalhe() {
                     </Text>
                   </>
                 )}
-              </>
-            )}
-          </View>
+              </View>
+            </View>
+          </Animated.ScrollView>
         </ScrollView>
       </View>
     </SafeAreaView>
