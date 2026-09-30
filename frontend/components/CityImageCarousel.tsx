@@ -1,3 +1,4 @@
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { CityImage } from "@/services/cities/citiesService";
 import { Image } from "expo-image";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -6,6 +7,7 @@ import {
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,12 +40,6 @@ export function CityImageCarousel({ images }: Props) {
 
   const isLoop = images.length > 1;
 
-  useEffect(() => {
-    if (isLoop) {
-      scrollRef.current?.scrollTo({ x: SNAP_INTERVAL, animated: false });
-    }
-  }, [isLoop]);
-
   const animateDots = useCallback(
     (index: number) => {
       dotAnims.forEach((anim, i) => {
@@ -57,6 +53,28 @@ export function CityImageCarousel({ images }: Props) {
     },
     [dotAnims],
   );
+
+  const handleNext = () => {
+    if (images.length <= 1) return;
+    const nextIndex = (activeIndex + 1) % images.length;
+    setActiveIndex(nextIndex);
+    animateDots(nextIndex);
+    const targetX = isLoop
+      ? (nextIndex + 1) * SNAP_INTERVAL
+      : nextIndex * SNAP_INTERVAL;
+    scrollRef.current?.scrollTo({ x: targetX, animated: true });
+  };
+
+  const handlePrev = () => {
+    if (images.length <= 1) return;
+    const prevIndex = (activeIndex - 1 + images.length) % images.length;
+    setActiveIndex(prevIndex);
+    animateDots(prevIndex);
+    const targetX = isLoop
+      ? (prevIndex + 1) * SNAP_INTERVAL
+      : prevIndex * SNAP_INTERVAL;
+    scrollRef.current?.scrollTo({ x: targetX, animated: true });
+  };
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!isLoop) return;
@@ -94,36 +112,58 @@ export function CityImageCarousel({ images }: Props) {
         </Text>
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleScroll}
-        snapToInterval={SNAP_INTERVAL}
-        decelerationRate="fast"
-        contentContainerStyle={styles.scrollContent}
-        scrollEventThrottle={16}
-      >
-        {(isLoop ? loopedImages : images).map((img, i) => (
-          <View key={`${img.id}-${i}`} style={styles.imageWrapper}>
-            <Image
-              source={{ uri: img.url }}
-              style={styles.image}
-              contentFit="cover"
-              cachePolicy="disk"
-              transition={300}
-            />
-            {img.caption && (
-              <View style={styles.captionContainer}>
-                <Text style={styles.caption} numberOfLines={1}>
-                  {img.caption}
-                </Text>
-              </View>
-            )}
-          </View>
-        ))}
-      </ScrollView>
+      <View style={styles.carouselWrapper}>
+        {images.length > 1 && (
+          <>
+            <Pressable
+              style={[styles.navBtn, styles.navBtnLeft]}
+              onPress={handlePrev}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <IconSymbol name="chevron.left" size={16} color="#FFFFFF" />
+            </Pressable>
+
+            <Pressable
+              style={[styles.navBtn, styles.navBtnRight]}
+              onPress={handleNext}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
+            </Pressable>
+          </>
+        )}
+
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScroll}
+          snapToInterval={SNAP_INTERVAL}
+          decelerationRate="fast"
+          contentContainerStyle={styles.scrollContent}
+          scrollEventThrottle={16}
+        >
+          {(isLoop ? loopedImages : images).map((img, i) => (
+            <View key={`${img.id}-${i}`} style={styles.imageWrapper}>
+              <Image
+                source={{ uri: img.url }}
+                style={styles.image}
+                contentFit="cover"
+                cachePolicy="disk"
+                transition={300}
+              />
+              {img.caption && (
+                <View style={styles.captionContainer}>
+                  <Text style={styles.caption} numberOfLines={1}>
+                    {img.caption}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Dots animados */}
       {images.length > 1 && (
@@ -159,6 +199,35 @@ const styles = StyleSheet.create({
   counter: { fontSize: 12, color: "#9CA3AF", fontWeight: "600" },
 
   scrollContent: { gap: GAP },
+
+  carouselWrapper: {
+    position: "relative",
+  },
+  navBtn: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  navBtnLeft: {
+    left: 8,
+  },
+  navBtnRight: {
+    right: 8,
+  },
 
   imageWrapper: {
     width: IMAGE_WIDTH,
