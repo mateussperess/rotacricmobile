@@ -5,18 +5,27 @@ import { CitiesService } from "@/services/cities/citiesService";
 import { Stamp, StampService } from "@/services/stamps/stampService";
 import * as Location from "expo-location";
 import { router, useFocusEffect } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
     ActivityIndicator,
+    LayoutAnimation,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
+    UIManager,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+type FilterType = "all" | "collected" | "pending";
+const FILTERS: FilterType[] = ["all", "collected", "pending"];
 
 const CRIC_BLUE = "#2563EB";
 
@@ -288,13 +297,48 @@ function StampCard({ stamp }: { stamp: any }) {
 
 export default function CarimbosScreen() {
   const { isLoggedIn, primaryColor, isAdmin } = useAuth();
+  const { width: windowWidth } = useWindowDimensions();
+  const pageWidth = Math.max(windowWidth - 40, 200);
+  const pagerRef = useRef<ScrollView>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [displayStamps, setDisplayStamps] = useState<any[]>([]);
   const [stats, setStats] = useState({ collected: 0, total: 0, progress: 0 });
-  const [selectedFilter, setSelectedFilter] = useState<
-    "all" | "collected" | "pending"
-  >("all");
+  const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
+
+  const handleFilterChange = (filter: FilterType) => {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSelectedFilter(filter);
+    const index = FILTERS.indexOf(filter);
+    if (index !== -1 && pagerRef.current) {
+      pagerRef.current.scrollTo({ x: index * pageWidth, animated: true });
+    }
+  };
+
+  const handleMomentumScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / pageWidth);
+    const filter = FILTERS[index];
+    if (filter && filter !== selectedFilter) {
+      if (
+        Platform.OS === "android" &&
+        UIManager.setLayoutAnimationEnabledExperimental
+      ) {
+        UIManager.setLayoutAnimationEnabledExperimental(true);
+      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setSelectedFilter(filter);
+    }
+  };
 
   const loadStamps = async () => {
     try {
@@ -511,13 +555,37 @@ export default function CarimbosScreen() {
             <TouchableOpacity
               style={[
                 styles.statBox,
+                selectedFilter === "all" && styles.statBoxActive,
+              ]}
+              onPress={() => handleFilterChange("all")}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  selectedFilter === "all" && styles.statValueActive,
+                ]}
+              >
+                {Math.round(stats.progress)}%
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  selectedFilter === "all" && styles.statLabelActive,
+                ]}
+              >
+                Progresso
+              </Text>
+              {selectedFilter === "all" && (
+                <View style={styles.activeStatIndicator} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.statBox,
                 selectedFilter === "collected" && styles.statBoxActive,
               ]}
-              onPress={() =>
-                setSelectedFilter((prev) =>
-                  prev === "collected" ? "all" : "collected",
-                )
-              }
+              onPress={() => handleFilterChange("collected")}
               activeOpacity={0.7}
             >
               <Text
@@ -546,11 +614,7 @@ export default function CarimbosScreen() {
                 styles.statBox,
                 selectedFilter === "pending" && styles.statBoxActive,
               ]}
-              onPress={() =>
-                setSelectedFilter((prev) =>
-                  prev === "pending" ? "all" : "pending",
-                )
-              }
+              onPress={() => handleFilterChange("pending")}
               activeOpacity={0.7}
             >
               <Text
@@ -574,34 +638,6 @@ export default function CarimbosScreen() {
               )}
             </TouchableOpacity>
             <View style={styles.statDivider} />
-            <TouchableOpacity
-              style={[
-                styles.statBox,
-                selectedFilter === "all" && styles.statBoxActive,
-              ]}
-              onPress={() => setSelectedFilter("all")}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.statValue,
-                  selectedFilter === "all" && styles.statValueActive,
-                ]}
-              >
-                {Math.round(stats.progress)}%
-              </Text>
-              <Text
-                style={[
-                  styles.statLabel,
-                  selectedFilter === "all" && styles.statLabelActive,
-                ]}
-              >
-                Progresso
-              </Text>
-              {selectedFilter === "all" && (
-                <View style={styles.activeStatIndicator} />
-              )}
-            </TouchableOpacity>
           </View>
           <View style={styles.progressBarBg}>
             <View
@@ -651,7 +687,7 @@ export default function CarimbosScreen() {
                   borderColor: primaryColor,
                 },
               ]}
-              onPress={() => setSelectedFilter("all")}
+              onPress={() => handleFilterChange("all")}
               activeOpacity={0.8}
             >
               <Text
@@ -672,7 +708,7 @@ export default function CarimbosScreen() {
                   borderColor: primaryColor,
                 },
               ]}
-              onPress={() => setSelectedFilter("collected")}
+              onPress={() => handleFilterChange("collected")}
               activeOpacity={0.8}
             >
               <IconSymbol
@@ -698,7 +734,7 @@ export default function CarimbosScreen() {
                   borderColor: primaryColor,
                 },
               ]}
-              onPress={() => setSelectedFilter("pending")}
+              onPress={() => handleFilterChange("pending")}
               activeOpacity={0.8}
             >
               <IconSymbol
@@ -728,28 +764,57 @@ export default function CarimbosScreen() {
                 Calculando distâncias e carregando carimbos...
               </Text>
             </View>
-          ) : filteredStamps.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <IconSymbol name="star.fill" size={36} color="#94A3B8" />
-              <Text style={styles.emptyTitle}>
-                {selectedFilter === "collected"
-                  ? "Nenhum carimbo coletado ainda"
-                  : selectedFilter === "pending"
-                    ? "Parabéns! Todos os carimbos foram coletados"
-                    : "Nenhum carimbo encontrado"}
-              </Text>
-              <Text style={styles.emptySub}>
-                {selectedFilter === "collected"
-                  ? "Visite os pontos de apoio da rota e escaneie o QRCode para registrar seu carimbo."
-                  : selectedFilter === "pending"
-                    ? "Você concluiu todos os carimbos disponíveis na Rota CRIC!"
-                    : "Tente ajustar o filtro para visualizar mais carimbos."}
-              </Text>
-            </View>
           ) : (
-            filteredStamps.map((stamp) => (
-              <StampCard key={stamp.id} stamp={stamp} />
-            ))
+            <ScrollView
+              ref={pagerRef}
+              horizontal
+              pagingEnabled
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              scrollEventThrottle={16}
+              contentContainerStyle={{ width: pageWidth * FILTERS.length }}
+            >
+              {FILTERS.map((filter) => {
+                const stamps = displayStamps.filter((s) => {
+                  if (filter === "collected") return s.collected;
+                  if (filter === "pending") return !s.collected;
+                  return true;
+                });
+
+                return (
+                  <View key={filter} style={{ width: pageWidth }}>
+                    {stamps.length === 0 ? (
+                      <View style={styles.emptyCard}>
+                        <IconSymbol
+                          name="star.fill"
+                          size={36}
+                          color="#94A3B8"
+                        />
+                        <Text style={styles.emptyTitle}>
+                          {filter === "collected"
+                            ? "Nenhum carimbo coletado ainda"
+                            : filter === "pending"
+                              ? "Parabéns! Todos os carimbos foram coletados"
+                              : "Nenhum carimbo encontrado"}
+                        </Text>
+                        <Text style={styles.emptySub}>
+                          {filter === "collected"
+                            ? "Visite os pontos de apoio da rota e escaneie o QRCode para registrar seu carimbo."
+                            : filter === "pending"
+                              ? "Você concluiu todos os carimbos disponíveis na Rota CRIC!"
+                              : "Tente ajustar o filtro para visualizar mais carimbos."}
+                        </Text>
+                      </View>
+                    ) : (
+                      stamps.map((stamp) => (
+                        <StampCard key={stamp.id} stamp={stamp} />
+                      ))
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
           )}
         </ScrollView>
       </View>
