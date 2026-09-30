@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.testapp"
+      "bundleIdentifier": "com.anonymous.testapp",
+      "infoPlist": {
+        "UIBackgroundModes": ["location"],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O Rota CRIC precisa de acesso à sua localização para alertá-lo sobre pontos de apoio próximos mesmo com o aplicativo fechado.",
+        "NSLocationWhenInUseUsageDescription": "O Rota CRIC precisa de acesso à sua localização para exibir sua posição no mapa e registrar rotas."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,8 +30,10 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ],
       "config": {
         "googleMaps": {
@@ -43,7 +50,10 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Permitir que o Rota CRIC acesse sua localização para alertar sobre pontos de apoio próximos mesmo com o app fechado.",
+          "locationAlwaysPermission": "Permitir que o Rota CRIC acesse sua localização em segundo plano para enviar alertas de proximidade.",
+          "locationWhenInUsePermission": "Permitir que o Rota CRIC acesse sua localização enquanto usa o aplicativo.",
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       [

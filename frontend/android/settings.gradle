@@ -49,7 +49,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'testapp'
+rootProject.name = 'rotacricmobile'
 
 expoAutolinking.useExpoVersionCatalog()
 
