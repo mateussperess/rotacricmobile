@@ -106,7 +106,7 @@ const CITY_ORDER: Record<
 type CityWithMeta = City & { anchorCount: number };
 
 export default function Cidades() {
-  const { primaryColor } = useAuth();
+  const { primaryColor, isAdmin } = useAuth();
   const [cities, setCities] = useState<CityWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -181,9 +181,23 @@ export default function Cidades() {
             <View>
               {/* Header Hero */}
               <View style={[styles.hero, { backgroundColor: primaryColor }]}>
-                <View style={styles.brandBadge}>
-                  <Feather name="compass" size={12} color="#FFFFFF" />
-                  <Text style={styles.brandText}>ROTA CRIC</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                  }}
+                >
+                  <View style={styles.brandBadge}>
+                    <Feather name="compass" size={12} color="#FFFFFF" />
+                    <Text style={styles.brandText}>PORTAL DO CICLISTA</Text>
+                  </View>
+                  <View style={styles.adminPill}>
+                    <Text style={styles.adminPillText}>
+                      {isAdmin ? "ADMINISTRADOR" : "ROTA CRIC"}
+                    </Text>
+                  </View>
                 </View>
 
                 <Text style={styles.heroTitle}>Cidades da Rota</Text>
@@ -310,6 +324,25 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 2,
     color: "#FFFFFF",
+  },
+  adminPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  adminPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.5,
   },
   heroTitle: {
     fontSize: 28,

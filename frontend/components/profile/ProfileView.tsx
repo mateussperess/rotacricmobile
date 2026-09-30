@@ -183,10 +183,24 @@ export function ProfileView() {
         >
           {/* Header Hero Dynamic Theme */}
           <View style={[styles.headerBlue, { backgroundColor: primaryColor }]}>
-            {/* Tag de Marca Superior */}
-            <View style={styles.brandBadge}>
-              <MaterialIcons name="directions-bike" size={13} color="#FFFFFF" />
-              <Text style={styles.brandBadgeText}>PORTAL DO CICLISTA</Text>
+            {/* Tag de Marca Superior + Badge no Canto Direito */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 14,
+              }}
+            >
+              <View style={styles.brandBadge}>
+                <MaterialIcons name="directions-bike" size={13} color="#FFFFFF" />
+                <Text style={styles.brandBadgeText}>PORTAL DO CICLISTA</Text>
+              </View>
+              <View style={styles.adminPill}>
+                <Text style={styles.adminPillText}>
+                  {isAdmin ? "ADMINISTRADOR" : "ROTA CRIC"}
+                </Text>
+              </View>
             </View>
 
             <View style={styles.userInfoRow}>
@@ -198,11 +212,6 @@ export function ProfileView() {
               <View style={styles.userInfoText}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
                   <Text style={styles.brand}>ROTA CRIC</Text>
-                  {isAdmin && (
-                    <View style={styles.adminBadgeTag}>
-                      <Text style={styles.adminBadgeTagText}>ADMIN</Text>
-                    </View>
-                  )}
                 </View>
                 <Text style={styles.title} numberOfLines={1}>{user?.name || "Ciclista"}</Text>
                 <Text style={styles.subtitle} numberOfLines={1}>{user?.email}</Text>
@@ -649,6 +658,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 1.8,
     color: "#FFFFFF",
+  },
+  adminPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  adminPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
   },
   userInfoRow: {
     flexDirection: "row",

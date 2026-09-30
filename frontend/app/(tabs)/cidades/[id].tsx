@@ -217,8 +217,10 @@ export default function CidadeDetalhe() {
                 <Text style={styles.backLabel}>Cidades</Text>
               </Pressable>
 
-              <View style={styles.routeTag}>
-                <Text style={styles.routeTagText}>ROTA CRIC</Text>
+              <View style={styles.adminPill}>
+                <Text style={styles.adminPillText}>
+                  {isAdmin ? "ADMINISTRADOR" : "ROTA CRIC"}
+                </Text>
               </View>
             </View>
 
@@ -594,6 +596,20 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "rgba(255, 255, 255, 0.8)",
     letterSpacing: 1.5,
+  },
+  adminPill: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  adminPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 1.2,
   },
   cityName: {
     fontSize: 30,

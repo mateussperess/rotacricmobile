@@ -56,9 +56,41 @@ export default function ProfileScreen() {
           {/* Header Hero com Gradiente Azul e Branding */}
           <SafeAreaView edges={["top"]} style={{ backgroundColor: primaryColor || "#2563EB" }}>
             <View style={[styles.headerBlue, { backgroundColor: primaryColor || "#2563EB" }]}>
-              <View style={styles.badgeContainer}>
-                <MaterialIcons name="directions-bike" size={14} color="#FFFFFF" />
-                <Text style={styles.badgeText}>PORTAL DO CICLISTA</Text>
+              <View
+                style={{
+                  width: "100%",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
+                }}
+              >
+                <View style={styles.badgeContainer}>
+                  <MaterialIcons name="directions-bike" size={14} color="#FFFFFF" />
+                  <Text style={styles.badgeText}>PORTAL DO CICLISTA</Text>
+                </View>
+
+                <View
+                  style={{
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 10,
+                      fontWeight: "800",
+                      letterSpacing: 1.2,
+                    }}
+                  >
+                    ROTA CRIC
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.iconCircle}>
