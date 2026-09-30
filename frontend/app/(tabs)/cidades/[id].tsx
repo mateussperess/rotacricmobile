@@ -16,12 +16,16 @@ import { useCityImages } from "@/hooks/use-city-images";
 import { useCityRouteDistance } from "@/hooks/use-city-route-distance";
 
 import {
+    AnchorPointCategory,
+    AnchorPointCategoryService,
+} from "@/services/anchorpoints/anchorPointCategoryService";
+import {
     AnchorPoint,
     AnchorPointsService,
 } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Animated,
@@ -40,7 +44,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const CRIC_BLUE = "#2563EB";
 
 type Tab = "sobre" | "trecho" | "apoio";
-type ApoioFilter = "all" | "on_route" | "off_route";
 const TABS: Tab[] = ["sobre", "trecho", "apoio"];
 
 const TABS_CONFIG: {
@@ -64,10 +67,11 @@ export default function CidadeDetalhe() {
 
   const [city, setCity] = useState<City | null>(null);
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
+  const [categories, setCategories] = useState<AnchorPointCategory[]>([]);
   const [loadingCity, setLoadingCity] = useState(true);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("sobre");
-  const [apoioFilter, setApoioFilter] = useState<ApoioFilter>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const router = useRouter();
   const { isOffline } = useNetworkStatus();
   const { data: routeDistance, loading: loadingDistance } =
@@ -117,10 +121,59 @@ export default function CidadeDetalhe() {
     });
   }, [id]);
 
+  useEffect(() => {
+    AnchorPointCategoryService.findAll()
+      .then((data) => {
+        if (data && Array.isArray(data)) {
+          setCategories(data.filter((c) => c.is_active !== false));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const availableCategories = useMemo(() => {
+    const catMap = new Map<
+      string,
+      { id: string; name: string; icon_name?: string }
+    >();
+
+    categories.forEach((cat) => {
+      catMap.set(cat.id.toString(), {
+        id: cat.id.toString(),
+        name: cat.name,
+        icon_name: cat.icon_name,
+      });
+    });
+
+    anchorPoints.forEach((ap) => {
+      if (ap.category) {
+        const cId = ap.category.id.toString();
+        if (!catMap.has(cId)) {
+          catMap.set(cId, {
+            id: cId,
+            name: ap.category.name,
+            icon_name: ap.category.icon_name,
+          });
+        }
+      }
+    });
+
+    return Array.from(catMap.values());
+  }, [categories, anchorPoints]);
+
   const filteredPoints = anchorPoints.filter((ap) => {
-    if (apoioFilter === "on_route") return ap.on_route === true;
-    if (apoioFilter === "off_route") return ap.on_route === false;
-    return true;
+    if (selectedCategory === "all") return true;
+    const apCatId = (ap.category_id || ap.category?.id)?.toString();
+    const apCatName = ap.category?.name?.toLowerCase().trim();
+    const selectedCatObj = availableCategories.find(
+      (c) => c.id === selectedCategory,
+    );
+    const targetCatName = selectedCatObj?.name?.toLowerCase().trim();
+
+    return (
+      apCatId === selectedCategory ||
+      (apCatName && targetCatName && apCatName === targetCatName)
+    );
   });
 
   const handleGoToMap = () => {
@@ -171,11 +224,7 @@ export default function CidadeDetalhe() {
     );
   }
 
-  const APOIO_FILTERS: { key: ApoioFilter; label: string; icon: string }[] = [
-    { key: "all", label: "Todos", icon: "" },
-    { key: "on_route", label: "Na rota", icon: "" },
-    { key: "off_route", label: "Fora da rota", icon: "" },
-  ];
+
 
   const ICON_MAP: Record<
     string,
@@ -457,28 +506,66 @@ export default function CidadeDetalhe() {
                   </Pressable>
                 )}
 
-                {/* Filtros */}
-                <View style={styles.filterRow}>
-                  {APOIO_FILTERS.map((f) => (
-                    <Pressable
-                      key={f.key}
+                {/* Filtros por Categoria de Ponto de Apoio */}
+                <View style={styles.filterWrapContainer}>
+                  <Pressable
+                    style={[
+                      styles.filterChip,
+                      selectedCategory === "all" && styles.filterChipActive,
+                    ]}
+                    onPress={() => setSelectedCategory("all")}
+                  >
+                    <Text
                       style={[
-                        styles.filterChip,
-                        apoioFilter === f.key && styles.filterChipActive,
+                        styles.filterChipText,
+                        selectedCategory === "all" && styles.filterChipTextActive,
                       ]}
-                      onPress={() => setApoioFilter(f.key)}
                     >
-                      <Text style={styles.filterChipIcon}>{f.icon}</Text>
-                      <Text
+                      Todos ({anchorPoints.length})
+                    </Text>
+                  </Pressable>
+
+                  {availableCategories.map((cat) => {
+                    const IconComponent = cat.icon_name
+                      ? ICON_MAP[cat.icon_name]
+                      : null;
+                    const count = anchorPoints.filter((ap) => {
+                      const apCatId = (
+                        ap.category_id || ap.category?.id
+                      )?.toString();
+                      const apCatName = ap.category?.name?.toLowerCase().trim();
+                      return (
+                        apCatId === cat.id ||
+                        (apCatName &&
+                          apCatName === cat.name.toLowerCase().trim())
+                      );
+                    }).length;
+
+                    const isSelected = selectedCategory === cat.id;
+
+                    return (
+                      <Pressable
+                        key={cat.id}
                         style={[
-                          styles.filterChipText,
-                          apoioFilter === f.key && styles.filterChipTextActive,
+                          styles.filterChip,
+                          isSelected && styles.filterChipActive,
                         ]}
+                        onPress={() => setSelectedCategory(cat.id)}
                       >
-                        {f.label}
-                      </Text>
-                    </Pressable>
-                  ))}
+                        {IconComponent ? (
+                          <IconComponent width={14} height={14} />
+                        ) : null}
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            isSelected && styles.filterChipTextActive,
+                          ]}
+                        >
+                          {cat.name} ({count})
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
 
                 {/* Lista */}
@@ -489,7 +576,7 @@ export default function CidadeDetalhe() {
                     <Text style={styles.cardText}>
                       {anchorPoints.length === 0
                         ? "Nenhum ponto de apoio cadastrado para esta cidade."
-                        : "Nenhum ponto de apoio encontrado com este filtro."}
+                        : "Nenhum ponto de apoio encontrado com esta categoria."}
                     </Text>
                   </View>
                 ) : (
@@ -757,19 +844,20 @@ const styles = StyleSheet.create({
   },
   mapBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
-  // Filtros
-  filterRow: {
+  // Filtros de Categoria
+  filterWrapContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
+    marginBottom: 4,
   },
   filterChip: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: "#fff",
     borderWidth: 1.5,
@@ -779,9 +867,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2FF",
     borderColor: CRIC_BLUE,
   },
-  filterChipIcon: { fontSize: 13 },
   filterChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  filterChipTextActive: { color: CRIC_BLUE },
+  filterChipTextActive: { color: CRIC_BLUE, fontWeight: "700" },
 
   // Anchor cards
   anchorCard: {
