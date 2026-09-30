@@ -8,6 +8,7 @@ import { router, useFocusEffect } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Animated,
     LayoutAnimation,
     NativeScrollEvent,
     NativeSyntheticEvent,
@@ -18,7 +19,6 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    UIManager,
     useWindowDimensions,
     View,
 } from "react-native";
@@ -299,6 +299,7 @@ export default function CarimbosScreen() {
   const { isLoggedIn, primaryColor, isAdmin } = useAuth();
   const { width: windowWidth } = useWindowDimensions();
   const pageWidth = Math.max(windowWidth - 40, 200);
+  const boxWidth = Math.max((windowWidth - 48) / 3, 80);
   const pagerRef = useRef<ScrollView>(null);
 
   const [loading, setLoading] = useState(true);
@@ -307,13 +308,17 @@ export default function CarimbosScreen() {
   const [stats, setStats] = useState({ collected: 0, total: 0, progress: 0 });
   const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
 
+  const scrollX = useRef(
+    new Animated.Value(FILTERS.indexOf("all") * pageWidth),
+  ).current;
+
+  const indicatorTranslateX = scrollX.interpolate({
+    inputRange: [0, pageWidth, pageWidth * 2],
+    outputRange: [0, boxWidth, boxWidth * 2],
+    extrapolate: "clamp",
+  });
+
   const handleFilterChange = (filter: FilterType) => {
-    if (
-      Platform.OS === "android" &&
-      UIManager.setLayoutAnimationEnabledExperimental
-    ) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSelectedFilter(filter);
     const index = FILTERS.indexOf(filter);
@@ -329,12 +334,6 @@ export default function CarimbosScreen() {
     const index = Math.round(offsetX / pageWidth);
     const filter = FILTERS[index];
     if (filter && filter !== selectedFilter) {
-      if (
-        Platform.OS === "android" &&
-        UIManager.setLayoutAnimationEnabledExperimental
-      ) {
-        UIManager.setLayoutAnimationEnabledExperimental(true);
-      }
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setSelectedFilter(filter);
     }
@@ -553,10 +552,7 @@ export default function CarimbosScreen() {
           </Text>
           <View style={styles.statsRow}>
             <TouchableOpacity
-              style={[
-                styles.statBox,
-                selectedFilter === "all" && styles.statBoxActive,
-              ]}
+              style={styles.statBox}
               onPress={() => handleFilterChange("all")}
               activeOpacity={0.7}
             >
@@ -576,15 +572,10 @@ export default function CarimbosScreen() {
               >
                 Progresso
               </Text>
-              {selectedFilter === "all" && (
-                <View style={styles.activeStatIndicator} />
-              )}
             </TouchableOpacity>
+            <View style={styles.statDivider} />
             <TouchableOpacity
-              style={[
-                styles.statBox,
-                selectedFilter === "collected" && styles.statBoxActive,
-              ]}
+              style={styles.statBox}
               onPress={() => handleFilterChange("collected")}
               activeOpacity={0.7}
             >
@@ -604,16 +595,10 @@ export default function CarimbosScreen() {
               >
                 Coletados
               </Text>
-              {selectedFilter === "collected" && (
-                <View style={styles.activeStatIndicator} />
-              )}
             </TouchableOpacity>
             <View style={styles.statDivider} />
             <TouchableOpacity
-              style={[
-                styles.statBox,
-                selectedFilter === "pending" && styles.statBoxActive,
-              ]}
+              style={styles.statBox}
               onPress={() => handleFilterChange("pending")}
               activeOpacity={0.7}
             >
@@ -633,11 +618,20 @@ export default function CarimbosScreen() {
               >
                 Restantes
               </Text>
-              {selectedFilter === "pending" && (
-                <View style={styles.activeStatIndicator} />
-              )}
             </TouchableOpacity>
-            <View style={styles.statDivider} />
+
+            {/* Tracinho Indicador Animado Deslizante Em Tempo Real */}
+            <Animated.View
+              style={[
+                styles.activeStatIndicatorContainer,
+                {
+                  width: boxWidth,
+                  transform: [{ translateX: indicatorTranslateX }],
+                },
+              ]}
+            >
+              <View style={styles.activeStatIndicatorBar} />
+            </Animated.View>
           </View>
           <View style={styles.progressBarBg}>
             <View
@@ -765,12 +759,16 @@ export default function CarimbosScreen() {
               </Text>
             </View>
           ) : (
-            <ScrollView
+            <Animated.ScrollView
               ref={pagerRef}
               horizontal
               pagingEnabled
               nestedScrollEnabled
               showsHorizontalScrollIndicator={false}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                { useNativeDriver: true },
+              )}
               onMomentumScrollEnd={handleMomentumScrollEnd}
               scrollEventThrottle={16}
               contentContainerStyle={{ width: pageWidth * FILTERS.length }}
@@ -814,7 +812,7 @@ export default function CarimbosScreen() {
                   </View>
                 );
               })}
-            </ScrollView>
+            </Animated.ScrollView>
           )}
         </ScrollView>
       </View>
@@ -897,13 +895,23 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "800",
   },
-  activeStatIndicator: {
+  activeStatIndicatorContainer: {
     position: "absolute",
-    bottom: -10,
-    width: 20,
+    bottom: 3,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeStatIndicatorBar: {
+    width: 22,
     height: 3,
     backgroundColor: "#FFFFFF",
     borderRadius: 2,
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 3,
   },
   progressBarBg: {
     height: 6,
