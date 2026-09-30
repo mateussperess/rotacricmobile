@@ -18,6 +18,7 @@ const MAPPING = {
   "person.fill": "person",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
+  "chevron.left": "chevron-left",
   "arrow.forward.circle.fill": "directions",
   "barcode.viewfinder": "qr-code",
   "star.fill": "star",

@@ -1,17 +1,20 @@
-import { useAuth } from "@/components/contexts/AuthContext";
 import { CityCard } from "@/components/CityCard";
+import { CyclistManual } from "@/components/CyclistManual";
+import { useAuth } from "@/components/contexts/AuthContext";
 import { useTotalDistance } from "@/hooks/use-total-distance";
 import { AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
 import { CitiesService, City } from "@/services/cities/citiesService";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -105,10 +108,11 @@ const CITY_ORDER: Record<
 type CityWithMeta = City & { anchorCount: number };
 
 export default function Cidades() {
-  const { primaryColor } = useAuth();
+  const { primaryColor, isAdmin } = useAuth();
   const [cities, setCities] = useState<CityWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<"cidades" | "manual">("cidades");
   const router = useRouter();
 
   const { data: distanceData } = useTotalDistance();
@@ -134,7 +138,7 @@ export default function Cidades() {
         const count = points.filter(
           (ap) =>
             (ap.city_id || (ap as any).city?.id)?.toString() ===
-            city.id.toString()
+            city.id.toString(),
         ).length;
         return { ...city, anchorCount: count };
       });
@@ -158,10 +162,13 @@ export default function Cidades() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
-      <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
+      <View style={styles.mainContainer}>
         <FlatList
-          data={cities}
+          data={activeTab === "cidades" ? cities : []}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
@@ -175,46 +182,169 @@ export default function Cidades() {
           }
           ListHeaderComponent={
             <View>
+              {/* Header Hero */}
               <View style={[styles.hero, { backgroundColor: primaryColor }]}>
-                <Text style={styles.brand}>ROTA CRIC</Text>
-                <Text style={styles.heroTitle}>Cidades da Rota</Text>
-                <Text style={styles.heroSub}>
-                  Conheça cada município que compõe esta rota histórica pelo
-                  carvão gaúcho.
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                  }}
+                >
+                  <View style={styles.brandBadge}>
+                    <Feather name="compass" size={12} color="#FFFFFF" />
+                    <Text style={styles.brandText}>PORTAL DO CICLISTA</Text>
+                  </View>
+                  <View style={styles.adminPill}>
+                    <Text style={styles.adminPillText}>
+                      {isAdmin ? "ADMINISTRADOR" : "ROTA CRIC"}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.heroTitle}>
+                  {activeTab === "cidades" ? "Cidades da Rota" : "Manual do Ciclista"}
                 </Text>
+                <Text style={styles.heroSub}>
+                  {activeTab === "cidades"
+                    ? "Conheça cada município que compõe esta rota histórica pelo carvão gaúcho."
+                    : "Orientações fundamentais de segurança, saúde e preservação para sua pedalada."}
+                </Text>
+
+                {/* Container de Estatísticas */}
                 <View style={styles.statsRow}>
                   <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{loading ? "···" : totalCities}</Text>
-                    <Text style={styles.statLabel}>Cidades</Text>
+                    <View style={styles.statIconWrapper}>
+                      <Feather name="map" size={14} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.statValue}>
+                      {loading ? "···" : totalCities}
+                    </Text>
+                    <Text style={styles.statLabel}>CIDADES</Text>
                   </View>
+
                   <View style={styles.statDivider} />
+
                   <View style={styles.statBox}>
+                    <View style={styles.statIconWrapper}>
+                      <Feather name="navigation" size={14} color="#FFFFFF" />
+                    </View>
                     <Text style={styles.statValue}>{totalKm} km</Text>
-                    <Text style={styles.statLabel}>Extensão total</Text>
+                    <Text style={styles.statLabel}>EXTENSÃO TOTAL</Text>
                   </View>
+
                   <View style={styles.statDivider} />
+
                   <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{loading ? "···" : totalAnchors}</Text>
-                    <Text style={styles.statLabel}>Pontos de apoio</Text>
+                    <View style={styles.statIconWrapper}>
+                      <Feather name="map-pin" size={14} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.statValue}>
+                      {loading ? "···" : totalAnchors}
+                    </Text>
+                    <Text style={styles.statLabel}>PONTOS DE APOIO</Text>
                   </View>
+                </View>
+
+                {/* Alternador de Abas (Cidades / Manual) */}
+                <View style={styles.tabToggleContainer}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.tabToggleButton,
+                      activeTab === "cidades" && styles.tabToggleButtonActive,
+                    ]}
+                    onPress={() => setActiveTab("cidades")}
+                  >
+                    <Feather
+                      name="map"
+                      size={14}
+                      color={
+                        activeTab === "cidades"
+                          ? primaryColor
+                          : "rgba(255,255,255,0.85)"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.tabToggleText,
+                        activeTab === "cidades"
+                          ? { color: primaryColor, fontWeight: "700" }
+                          : { color: "#FFFFFF" },
+                      ]}
+                    >
+                      Cidades
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.tabToggleButton,
+                      activeTab === "manual" && styles.tabToggleButtonActive,
+                    ]}
+                    onPress={() => setActiveTab("manual")}
+                  >
+                    <Feather
+                      name="book-open"
+                      size={14}
+                      color={
+                        activeTab === "manual"
+                          ? primaryColor
+                          : "rgba(255,255,255,0.85)"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.tabToggleText,
+                        activeTab === "manual"
+                          ? { color: primaryColor, fontWeight: "700" }
+                          : { color: "#FFFFFF" },
+                      ]}
+                    >
+                      Manual do Ciclista
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              <Text style={styles.sectionLabel}>MUNICÍPIOS</Text>
+              {/* Rótulo da Seção (quando na aba cidades) */}
+              {activeTab === "cidades" && (
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionLabel}>MUNICÍPIOS DA ROTA</Text>
+                  {cities.length > 0 && (
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countBadgeText}>
+                        {cities.length} CIDADES
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           }
           ListEmptyComponent={
-            loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={primaryColor} />
-                <Text style={styles.loadingText}>Carregando cidades da rota...</Text>
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
-              </View>
-            )
+            activeTab === "cidades" ? (
+              loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={primaryColor} />
+                  <Text style={styles.loadingText}>
+                    Carregando cidades da rota...
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Feather name="map-pin" size={32} color="#94A3B8" />
+                  <Text style={styles.emptyText}>Nenhuma cidade encontrada.</Text>
+                  <Text style={styles.emptySubtext}>
+                    Puxe para baixo para tentar atualizar a lista.
+                  </Text>
+                </View>
+              )
+            ) : null
           }
+          ListFooterComponent={<CyclistManual />}
           renderItem={({ item }) => (
             <CityCard
               item={item}
@@ -233,81 +363,186 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: CRIC_BLUE,
   },
+  mainContainer: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
   listContent: {
     paddingBottom: 40,
   },
   hero: {
     backgroundColor: CRIC_BLUE,
-    paddingHorizontal: 24,
-    paddingTop: 36,
+    paddingHorizontal: 22,
+    paddingTop: 28,
     paddingBottom: 32,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  brand: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 2.5,
-    color: "rgba(255,255,255,0.45)",
-    marginBottom: 6,
+  brandBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  brandText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 2,
+    color: "#FFFFFF",
+  },
+  adminPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  adminPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.5,
   },
   heroTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "800",
-    color: "#fff",
+    color: "#FFFFFF",
     letterSpacing: -0.5,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   heroSub: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(255, 255, 255, 0.78)",
     lineHeight: 19,
     marginBottom: 24,
   },
   statsRow: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 18,
     paddingVertical: 14,
+    paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
-  statBox: { flex: 1, alignItems: "center", gap: 4 },
-  statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
-  statValue: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  statIconWrapper: {
+    marginBottom: 2,
+    opacity: 0.85,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    marginVertical: 4,
+  },
+  statValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -0.3,
+  },
   statLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255, 255, 255, 0.7)",
     fontWeight: "600",
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 14,
   },
   sectionLabel: {
     fontSize: 11,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 1.2,
+  },
+  countBadge: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  countBadgeText: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#9CA3AF",
-    letterSpacing: 1.5,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    color: "#475569",
+    letterSpacing: 0.5,
   },
   loadingContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
+    paddingVertical: 50,
     gap: 12,
   },
   loadingText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "#64748B",
     fontWeight: "500",
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
+    paddingVertical: 50,
+    gap: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: "#94A3B8",
+  },
+  tabToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0, 0, 0, 0.16)",
+    borderRadius: 14,
+    padding: 4,
+    marginTop: 18,
+  },
+  tabToggleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  tabToggleButtonActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

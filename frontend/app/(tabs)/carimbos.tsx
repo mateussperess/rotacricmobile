@@ -12,7 +12,6 @@ import {
     LayoutAnimation,
     NativeScrollEvent,
     NativeSyntheticEvent,
-    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -536,14 +535,15 @@ export default function CarimbosScreen() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
+              marginBottom: 8,
             }}
           >
-            <Text style={styles.brand}>ROTA CRIC</Text>
-            {isAdmin && (
-              <View style={styles.adminPill}>
-                <Text style={styles.adminPillText}>MODO ADMIN</Text>
-              </View>
-            )}
+            <Text style={styles.brand}>PORTAL DO CICLISTA</Text>
+            <View style={styles.adminPill}>
+              <Text style={styles.adminPillText}>
+                {isAdmin ? "ADMINISTRADOR" : "ROTA CRIC"}
+              </Text>
+            </View>
           </View>
           <Text style={styles.heroTitle}>Meus Carimbos</Text>
           <Text style={styles.heroSub}>
@@ -570,7 +570,7 @@ export default function CarimbosScreen() {
                   selectedFilter === "all" && styles.statLabelActive,
                 ]}
               >
-                Progresso
+                PROGRESSO
               </Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
@@ -593,7 +593,7 @@ export default function CarimbosScreen() {
                   selectedFilter === "collected" && styles.statLabelActive,
                 ]}
               >
-                Coletados
+                COLETADOS
               </Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
@@ -616,7 +616,7 @@ export default function CarimbosScreen() {
                   selectedFilter === "pending" && styles.statLabelActive,
                 ]}
               >
-                Restantes
+                RESTANTES
               </Text>
             </TouchableOpacity>
 
@@ -1199,9 +1199,9 @@ const styles = StyleSheet.create({
   },
   adminPill: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
   },
@@ -1209,6 +1209,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
   },
 });

@@ -8,51 +8,53 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 
-import {
-  BootstrapOfflineService,
-  CitiesOfflineRepository,
-  AnchorPointsOfflineRepository,
-  RoutesOfflineRepository,
-  StampsOfflineRepository,
-} from "@/services/database/offlineRepositories";
-import { useAuth } from "@/components/contexts/AuthContext";
 import { AnchorPointMarker } from "@/components/anchorPointIcon";
-import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useAuth } from "@/components/contexts/AuthContext";
 import {
-  AnchorPoint,
-  AnchorPointsService,
-} from "@/services/anchorpoints/anchorPointService";
-import { Stamp, StampService } from "@/services/stamps/stampService";
-import { CitiesService } from "@/services/cities/citiesService";
-import { Route, RoutesService } from "@/services/routes/routeService";
+    NetworkStatusInlineBadge,
+    useNetworkStatus,
+} from "@/components/NetworkStatusBanner";
+import { useTotalDistance } from "@/hooks/use-total-distance";
 import { useWeather } from "@/hooks/use-weather";
 import {
-  useNetworkStatus,
-  NetworkStatusInlineBadge,
-} from "@/components/NetworkStatusBanner";
+    AnchorPoint,
+    AnchorPointsService,
+} from "@/services/anchorpoints/anchorPointService";
+import {
+    AnchorPointsOfflineRepository,
+    BootstrapOfflineService,
+    CitiesOfflineRepository,
+    RoutesOfflineRepository,
+    StampsOfflineRepository,
+} from "@/services/database/offlineRepositories";
+import { Route, RoutesService } from "@/services/routes/routeService";
+import { Stamp, StampService } from "@/services/stamps/stampService";
+import { Feather } from "@expo/vector-icons";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import polyline from "@mapbox/polyline";
-import * as Location from "expo-location";
 import NetInfo from "@react-native-community/netinfo";
+import * as Location from "expo-location";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Easing,
+    PanResponder,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Circle, Marker, Polyline, Region } from "react-native-maps";
+import MapView, { Marker, Polyline, Region } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type LocationData = Location.LocationObject | null;
@@ -109,13 +111,6 @@ function formatDist(meters: number): string {
     : `${(meters / 1000).toFixed(1)} km`;
 }
 
-const MOCK_ROUTE_INFO = {
-  label: "ROTA CRIC — Principal",
-  distance: "42 km",
-  time: "3h 20min",
-  elevation: "+280 m",
-};
-
 const AnchorMarker = React.memo(
   ({ ap, isCollected }: { ap: AnchorPoint; isCollected?: boolean }) => {
     const [tracksViewChanges, setTracksViewChanges] = useState(true);
@@ -159,7 +154,7 @@ const AnchorMarker = React.memo(
     prevProps.ap.business_hours === nextProps.ap.business_hours &&
     prevProps.ap.category_id === nextProps.ap.category_id &&
     prevProps.ap.category?.icon_name === nextProps.ap.category?.icon_name &&
-    prevProps.isCollected === nextProps.isCollected
+    prevProps.isCollected === nextProps.isCollected,
 );
 
 AnchorMarker.displayName = "AnchorMarker";
@@ -203,7 +198,9 @@ export default function NativeMap() {
 
   const [viewingCity, setViewingCity] = useState(!!cityTarget);
   const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
-  const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(null);
+  const [selectedSingleApId, setSelectedSingleApId] = useState<string | null>(
+    null,
+  );
   const [singleApName, setSingleApName] = useState<string | null>(null);
   const [location, setLocation] = useState<LocationData>(null);
   const [acquiring, setAcquiring] = useState(true);
@@ -220,9 +217,10 @@ export default function NativeMap() {
   const [showOfflineCardModal, setShowOfflineCardModal] = useState(false);
 
   // ── Animações ──
-  const sheetAnim = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(0)).current;
   const chevronAnim = useRef(new Animated.Value(0)).current;
-  const sheetOpen = useRef(false);
+  const sheetOpenRef = useRef(false);
   const dragStart = useRef(0);
   const modalAnim = useRef(new Animated.Value(0)).current;
 
@@ -248,45 +246,45 @@ export default function NativeMap() {
   const [includeEventRoutes, setIncludeEventRoutes] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const animateSheet = (open: boolean) => {
-    Animated.parallel([
-      Animated.spring(sheetAnim, {
-        toValue: open ? SHEET_EXPANDED : SHEET_COLLAPSED,
-        useNativeDriver: false,
-        tension: 60,
-        friction: 12,
-      }),
-      Animated.timing(chevronAnim, {
-        toValue: open ? 1 : 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+  const animateSheet = useCallback(
+    (open: boolean) => {
+      sheetOpenRef.current = open;
+      setIsSheetOpen(open);
+      Animated.parallel([
+        Animated.timing(sheetAnim, {
+          toValue: open ? 1 : 0,
+          duration: 220,
+          easing: Easing.out(Easing.poly(4)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(chevronAnim, {
+          toValue: open ? 1 : 0,
+          duration: 220,
+          easing: Easing.out(Easing.poly(4)),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    [sheetAnim, chevronAnim],
+  );
 
-  const toggleSheet = () => {
-    sheetOpen.current = !sheetOpen.current;
-    animateSheet(sheetOpen.current);
-  };
+  const toggleSheet = useCallback(() => {
+    animateSheet(!sheetOpenRef.current);
+  }, [animateSheet]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        dragStart.current = sheetOpen.current
-          ? SHEET_EXPANDED
-          : SHEET_COLLAPSED;
+        dragStart.current = sheetOpenRef.current ? 1 : 0;
       },
       onPanResponderMove: (_, g) => {
-        const next = Math.max(
-          SHEET_COLLAPSED,
-          Math.min(SHEET_EXPANDED, dragStart.current - g.dy),
-        );
+        const delta = -g.dy / (SHEET_EXPANDED - SHEET_COLLAPSED);
+        const next = Math.max(0, Math.min(1, dragStart.current + delta));
         sheetAnim.setValue(next);
       },
       onPanResponderRelease: (_, g) => {
-        const snap = g.dy < -30 || (sheetOpen.current && g.dy < 30);
-        sheetOpen.current = snap;
+        const snap = g.dy < -30 || (sheetOpenRef.current && g.dy < 30);
         animateSheet(snap);
       },
     }),
@@ -360,7 +358,7 @@ export default function NativeMap() {
   useFocusEffect(
     useCallback(() => {
       loadMapData();
-    }, [loadMapData])
+    }, [loadMapData]),
   );
 
   useEffect(() => {
@@ -416,8 +414,13 @@ export default function NativeMap() {
           setFollowing(false);
           requestAnimationFrame(() => {
             mapRef.current?.animateToRegion(
-              { latitude, longitude, latitudeDelta: 0.012, longitudeDelta: 0.012 },
-              400
+              {
+                latitude,
+                longitude,
+                latitudeDelta: 0.012,
+                longitudeDelta: 0.012,
+              },
+              400,
             );
           });
         }
@@ -425,29 +428,32 @@ export default function NativeMap() {
     }
   }, [apId, apName, lat, lng, t]);
 
-  const matchNearestCityOffline = useCallback(async (latVal: number, lngVal: number) => {
-    try {
-      const cities = await CitiesOfflineRepository.getAll();
-      if (!cities || cities.length === 0) return null;
-      let closestCity: string | null = null;
-      let minDistance = Infinity;
-      for (const city of cities) {
-        const cLat = Number(city.lat ?? (city as any).latitude);
-        const cLng = Number(city.lng ?? (city as any).longitude);
-        if (!isNaN(cLat) && !isNaN(cLng) && (cLat !== 0 || cLng !== 0)) {
-          const dist = haversineMeters(latVal, lngVal, cLat, cLng);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestCity = city.name;
+  const matchNearestCityOffline = useCallback(
+    async (latVal: number, lngVal: number) => {
+      try {
+        const cities = await CitiesOfflineRepository.getAll();
+        if (!cities || cities.length === 0) return null;
+        let closestCity: string | null = null;
+        let minDistance = Infinity;
+        for (const city of cities) {
+          const cLat = Number(city.lat ?? (city as any).latitude);
+          const cLng = Number(city.lng ?? (city as any).longitude);
+          if (!isNaN(cLat) && !isNaN(cLng) && (cLat !== 0 || cLng !== 0)) {
+            const dist = haversineMeters(latVal, lngVal, cLat, cLng);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestCity = city.name;
+            }
           }
         }
-      }
-      if (closestCity && minDistance <= 35000) {
-        return closestCity;
-      }
-    } catch {}
-    return null;
-  }, []);
+        if (closestCity && minDistance <= 35000) {
+          return closestCity;
+        }
+      } catch {}
+      return null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!location || geocodedRef.current) return;
@@ -617,7 +623,14 @@ export default function NativeMap() {
 
     try {
       if (router && typeof router.setParams === "function") {
-        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined, zoom: undefined });
+        router.setParams({
+          apId: undefined,
+          apName: undefined,
+          lat: undefined,
+          lng: undefined,
+          t: undefined,
+          zoom: undefined,
+        });
       }
     } catch {}
 
@@ -630,7 +643,9 @@ export default function NativeMap() {
       );
     } else {
       try {
-        const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const currentLoc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
         if (currentLoc?.coords) {
           setLocation(currentLoc);
           mapRef.current?.animateToRegion(
@@ -659,7 +674,13 @@ export default function NativeMap() {
 
     try {
       if (router && typeof router.setParams === "function") {
-        router.setParams({ apId: undefined, apName: undefined, lat: undefined, lng: undefined, t: undefined });
+        router.setParams({
+          apId: undefined,
+          apName: undefined,
+          lat: undefined,
+          lng: undefined,
+          t: undefined,
+        });
       }
     } catch {}
 
@@ -681,7 +702,12 @@ export default function NativeMap() {
 
     try {
       if (router && typeof router.setParams === "function") {
-        router.setParams({ lat: undefined, lng: undefined, zoom: undefined, t: undefined });
+        router.setParams({
+          lat: undefined,
+          lng: undefined,
+          zoom: undefined,
+          t: undefined,
+        });
       }
     } catch {}
 
@@ -715,7 +741,9 @@ export default function NativeMap() {
   const stampsApSet = useMemo(() => {
     const set = new Set<string>();
     (stamps || []).forEach((s) => {
-      const apId = (s.anchor_point_id || (s as any).anchor_point?.id)?.toString();
+      const apId = (
+        s.anchor_point_id || (s as any).anchor_point?.id
+      )?.toString();
       if (apId) set.add(apId);
     });
     return set;
@@ -733,8 +761,7 @@ export default function NativeMap() {
 
     (userStamps || []).forEach((us) => {
       const explicitApId = (
-        us.anchor_point_id ||
-        us.stamp?.anchor_point_id
+        us.anchor_point_id || us.stamp?.anchor_point_id
       )?.toString();
       if (explicitApId) {
         set.add(explicitApId);
@@ -750,13 +777,41 @@ export default function NativeMap() {
     return set;
   }, [isLoggedIn, stamps, userStamps]);
 
+  const { data: distanceData } = useTotalDistance();
+
+  const totalKmDisplay = useMemo(() => {
+    if (distanceData?.totalKm) {
+      return `${Math.round(distanceData.totalKm)} km`;
+    }
+    if (routes.length > 0) {
+      const sum = routes.reduce((acc, r) => acc + Number(r.distance || 0), 0);
+      if (sum > 0) return `${Math.round(sum)} km`;
+    }
+    return "180 km";
+  }, [distanceData, routes]);
+
+  const totalAnchorsCount = useMemo(() => {
+    return anchorPoints.length;
+  }, [anchorPoints]);
+
+  const stampProgressDisplay = useMemo(() => {
+    const totalStamps = stamps.length > 0 ? stamps.length : anchorPoints.length;
+    if (!isLoggedIn) {
+      return totalStamps > 0 ? `${totalStamps} locais` : "0";
+    }
+    const collectedCount = collectedApSet.size;
+    return `${collectedCount} / ${totalStamps || 0}`;
+  }, [isLoggedIn, stamps, anchorPoints, collectedApSet]);
+
   const visibleAnchorPoints = useMemo(() => {
     let list = anchorPoints;
     if (categoryFilter.size > 0) {
       list = anchorPoints.filter((ap) => {
         const iconName =
           ap.category?.icon_name ||
-          (ap.category_id ? CATEGORY_LABELS[ap.category_id.toString()] : null) ||
+          (ap.category_id
+            ? CATEGORY_LABELS[ap.category_id.toString()]
+            : null) ||
           "store";
         return categoryFilter.has(iconName);
       });
@@ -797,9 +852,14 @@ export default function NativeMap() {
       .slice(0, 4);
   }, [visibleAnchorPoints, latitude, longitude]);
 
-  const mapHeight = sheetAnim.interpolate({
-    inputRange: [SHEET_COLLAPSED, SHEET_EXPANDED],
-    outputRange: ["92%", "62%"],
+  const sheetTranslateY = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SHEET_EXPANDED - SHEET_COLLAPSED, 0],
+  });
+
+  const fabTranslateY = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -(SHEET_EXPANDED - SHEET_COLLAPSED)],
   });
 
   const chevronRotate = chevronAnim.interpolate({
@@ -808,10 +868,13 @@ export default function NativeMap() {
   });
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
       <View style={styles.container}>
         {/* ── Mapa ── */}
-        <Animated.View style={[styles.mapWrapper, { height: mapHeight }]}>
+        <View style={styles.mapWrapper}>
           <MapView
             ref={mapRef}
             style={styles.map}
@@ -868,7 +931,9 @@ export default function NativeMap() {
                 {weatherData && (
                   <View style={styles.weatherBadge}>
                     <Text style={styles.weatherEmoji}>{weatherData.emoji}</Text>
-                    <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
+                    <Text style={styles.weatherTemp}>
+                      {weatherData.temperature}°C
+                    </Text>
                   </View>
                 )}
               </View>
@@ -883,7 +948,9 @@ export default function NativeMap() {
 
             {/* Sub-banner para exibição de Cidade ou Ponto de Apoio Selecionado */}
             {selectedSingleApId ? (
-              <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+              <View
+                style={[styles.cityBanner, { backgroundColor: primaryColor }]}
+              >
                 <Text style={styles.cityBannerText} numberOfLines={1}>
                   Visualizando {singleApName || "ponto de apoio"}
                 </Text>
@@ -896,8 +963,11 @@ export default function NativeMap() {
                 </Pressable>
               </View>
             ) : (
-              viewingCity && cityTarget && (
-                <View style={[styles.cityBanner, { backgroundColor: primaryColor }]}>
+              viewingCity &&
+              cityTarget && (
+                <View
+                  style={[styles.cityBanner, { backgroundColor: primaryColor }]}
+                >
                   <Text style={styles.cityBannerText} numberOfLines={1}>
                     Visualizando cidade
                   </Text>
@@ -922,7 +992,12 @@ export default function NativeMap() {
           )}
 
           {/* Deck Flutuante de Botões de Ação do Mapa (FAB Deck) */}
-          <View style={styles.fabDeck}>
+          <Animated.View
+            style={[
+              styles.fabDeck,
+              { transform: [{ translateY: fabTranslateY }] },
+            ]}
+          >
             <TouchableOpacity
               activeOpacity={0.8}
               style={[
@@ -931,7 +1006,15 @@ export default function NativeMap() {
               ]}
               onPress={openModal}
             >
-              <Text style={styles.fabBtnIcon}>⚙️</Text>
+              <Feather
+                name="sliders"
+                size={20}
+                color={
+                  categoryFilter.size > 0
+                    ? primaryColor || "#2563EB"
+                    : "#334155"
+                }
+              />
               {categoryFilter.size > 0 && (
                 <View style={styles.filterBadge}>
                   <Text style={styles.filterBadgeText}>
@@ -947,14 +1030,27 @@ export default function NativeMap() {
                 style={styles.fabBtn}
                 onPress={handleRecenter}
               >
-                <Text style={styles.fabBtnIcon}>📍</Text>
+                <FontAwesome6
+                  name="location-crosshairs"
+                  size={18}
+                  color={
+                    categoryFilter.size > 0
+                      ? primaryColor || "#2563EB"
+                      : "#334155"
+                  }
+                />
               </TouchableOpacity>
             )}
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </View>
 
         {/* ── Bottom Sheet (Menu Expandível) ── */}
-        <Animated.View style={[styles.sheet, { height: sheetAnim }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            { transform: [{ translateY: sheetTranslateY }] },
+          ]}
+        >
           {/* Handle de drag */}
           <View {...panResponder.panHandlers} style={styles.handleArea}>
             <View style={styles.handle} />
@@ -963,14 +1059,14 @@ export default function NativeMap() {
           {/* Header clicável do Bottom Sheet */}
           <Pressable onPress={toggleSheet} style={styles.sheetHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sheetLabel}>{MOCK_ROUTE_INFO.label}</Text>
+              <Text style={styles.sheetLabel}>ROTA CRIC — Principal</Text>
               <Text style={styles.sheetRoute} numberOfLines={1}>
                 {cityName ? `Você está em ${cityName}` : "ROTA CRIC"}
               </Text>
             </View>
             <View style={styles.expandTogglePill}>
               <Text style={styles.expandToggleText}>
-                {sheetOpen.current ? "Recolher" : "Menu"}
+                {isSheetOpen ? "Recolher" : "Menu"}
               </Text>
               <Animated.Text
                 style={[
@@ -991,30 +1087,71 @@ export default function NativeMap() {
           >
             {/* Grid de Estatísticas da Rota */}
             <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Text style={styles.statIcon}>🚴</Text>
+              <View style={styles.statBox}>
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    {
+                      backgroundColor: primaryColor
+                        ? `${primaryColor}15`
+                        : "#EFF6FF",
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="navigation"
+                    size={13}
+                    color={primaryColor || "#2563EB"}
+                  />
                 </View>
-                <Text style={styles.statLabel}>Distância</Text>
-                <Text style={styles.statValue}>{MOCK_ROUTE_INFO.distance}</Text>
+                <Text style={styles.statValue}>{totalKmDisplay}</Text>
+                <Text style={styles.statLabel}>EXTENSÃO TOTAL</Text>
               </View>
+
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Text style={styles.statIcon}>🕐</Text>
+
+              <View style={styles.statBox}>
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    {
+                      backgroundColor: primaryColor
+                        ? `${primaryColor}15`
+                        : "#EFF6FF",
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="map-pin"
+                    size={13}
+                    color={primaryColor || "#2563EB"}
+                  />
                 </View>
-                <Text style={styles.statLabel}>Tempo est.</Text>
-                <Text style={styles.statValue}>{MOCK_ROUTE_INFO.time}</Text>
+                <Text style={styles.statValue}>{totalAnchorsCount}</Text>
+                <Text style={styles.statLabel}>LOCAIS DE APOIO</Text>
               </View>
+
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrap}>
-                  <Text style={styles.statIcon}>↑</Text>
+
+              <View style={styles.statBox}>
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    {
+                      backgroundColor: primaryColor
+                        ? `${primaryColor}15`
+                        : "#EFF6FF",
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="award"
+                    size={13}
+                    color={primaryColor || "#2563EB"}
+                  />
                 </View>
-                <Text style={styles.statLabel}>Elevação</Text>
-                <Text style={[styles.statValue, { color: "#D97706" }]}>
-                  {MOCK_ROUTE_INFO.elevation}
-                </Text>
+                <Text style={styles.statValue}>{stampProgressDisplay}</Text>
+                <Text style={styles.statLabel}>PASSAPORTE</Text>
               </View>
             </View>
 
@@ -1081,7 +1218,8 @@ export default function NativeMap() {
                       </Text>
                       <Text style={styles.anchorRowSub}>
                         {ap.category?.icon_name
-                          ? CATEGORY_LABELS[ap.category.icon_name] || "Ponto de Apoio"
+                          ? CATEGORY_LABELS[ap.category.icon_name] ||
+                            "Ponto de Apoio"
                           : "Ponto de Apoio"}
                         {ap.on_route ? " • Na Rota" : ""}
                       </Text>
@@ -1125,11 +1263,17 @@ export default function NativeMap() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalHeaderTitleRow}>
                   <View style={styles.modalHeaderIconWrap}>
-                    <Text style={{ fontSize: 16 }}>⚙️</Text>
+                    <Feather
+                      name="sliders"
+                      size={18}
+                      color={primaryColor || "#2563EB"}
+                    />
                   </View>
                   <View>
                     <Text style={styles.modalTitle}>Filtros do Mapa</Text>
-                    <Text style={styles.modalSubtitle}>Categorias e opções de exibição</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Categorias e opções de exibição
+                    </Text>
                   </View>
                 </View>
 
@@ -1149,7 +1293,9 @@ export default function NativeMap() {
                 contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
                 showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.modalSectionLabel}>CATEGORIAS DE PONTOS DE APOIO</Text>
+                <Text style={styles.modalSectionLabel}>
+                  CATEGORIAS DE PONTOS DE APOIO
+                </Text>
                 <View style={styles.categoryGrid}>
                   {Object.entries(ICON_MAP).map(([key, IconComponent]) => {
                     const active = categoryFilter.has(key);
@@ -1196,7 +1342,9 @@ export default function NativeMap() {
                   })}
                 </View>
 
-                <Text style={[styles.modalSectionLabel, { marginTop: 8 }]}>EXIBIÇÃO DE ROTAS</Text>
+                <Text style={[styles.modalSectionLabel, { marginTop: 8 }]}>
+                  EXIBIÇÃO DE ROTAS
+                </Text>
                 <Pressable
                   style={({ pressed }) => [
                     styles.routeOptionCard,
@@ -1237,7 +1385,10 @@ export default function NativeMap() {
               {/* Modal Footer */}
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={[styles.modalDone, { backgroundColor: primaryColor || "#2563EB" }]}
+                style={[
+                  styles.modalDone,
+                  { backgroundColor: primaryColor || "#2563EB" },
+                ]}
                 onPress={closeModal}
               >
                 <Text style={styles.modalDoneText}>
@@ -1329,7 +1480,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7F8FC",
   },
-  mapWrapper: { width: "100%", overflow: "hidden" },
+  mapWrapper: { flex: 1, width: "100%" },
   map: { flex: 1 },
   userDot: {
     width: 18,
@@ -1434,7 +1585,7 @@ const styles = StyleSheet.create({
   /* Deck Flutuante de Ações */
   fabDeck: {
     position: "absolute",
-    bottom: 14,
+    bottom: SHEET_COLLAPSED + 14,
     right: 14,
     gap: 10,
     alignItems: "center",
@@ -1475,15 +1626,21 @@ const styles = StyleSheet.create({
 
   /* Bottom Sheet Otimizado */
   sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: SHEET_EXPANDED,
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 12,
     overflow: "hidden",
+    zIndex: 30,
   },
   handleArea: { alignItems: "center", paddingTop: 10, paddingBottom: 8 },
   handle: { width: 36, height: 4, backgroundColor: "#CBD5E1", borderRadius: 2 },
@@ -1531,33 +1688,46 @@ const styles = StyleSheet.create({
   /* Stats Grid */
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
     backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    paddingVertical: 12,
+    borderRadius: 18,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  statItem: { alignItems: "center", gap: 3, flex: 1 },
-  statIconWrap: {
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  statIconWrapper: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    marginBottom: 2,
   },
-  statIcon: { fontSize: 14 },
-  statDivider: { width: 1, backgroundColor: "#E2E8F0", marginVertical: 4 },
-  statLabel: { fontSize: 10, color: "#64748B", fontWeight: "600" },
-  statValue: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
+  statDivider: {
+    width: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 4,
+  },
+  statValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.3,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: "#64748B",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
 
   sectionHeaderRow: {
     flexDirection: "row",

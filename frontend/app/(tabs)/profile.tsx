@@ -17,7 +17,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileScreen() {
-  const { isLoggedIn, loading } = useAuth();
+  const { isLoggedIn, loading, primaryColor } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
 
   if (loading) {
@@ -30,7 +30,7 @@ export default function ProfileScreen() {
           backgroundColor: "#F8FAFC",
         }}
       >
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={primaryColor || "#2563EB"} />
         <Text style={{ marginTop: 12, color: "#64748B", fontWeight: "500" }}>
           Carregando perfil...
         </Text>
@@ -54,15 +54,47 @@ export default function ProfileScreen() {
           contentContainerStyle={{ flexGrow: 1 }}
         >
           {/* Header Hero com Gradiente Azul e Branding */}
-          <SafeAreaView edges={["top"]} style={{ backgroundColor: "#1D4ED8" }}>
-            <View style={styles.headerBlue}>
-              <View style={styles.badgeContainer}>
-                <MaterialIcons name="directions-bike" size={14} color="#E0E7FF" />
-                <Text style={styles.badgeText}>PORTAL DO CICLISTA</Text>
+          <SafeAreaView edges={["top"]} style={{ backgroundColor: primaryColor || "#2563EB" }}>
+            <View style={[styles.headerBlue, { backgroundColor: primaryColor || "#2563EB" }]}>
+              <View
+                style={{
+                  width: "100%",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
+                }}
+              >
+                <View style={styles.badgeContainer}>
+                  <MaterialIcons name="directions-bike" size={14} color="#FFFFFF" />
+                  <Text style={styles.badgeText}>PORTAL DO CICLISTA</Text>
+                </View>
+
+                <View
+                  style={{
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 10,
+                      fontWeight: "800",
+                      letterSpacing: 1.2,
+                    }}
+                  >
+                    ROTA CRIC
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.iconCircle}>
-                <FontAwesome5 name="bicycle" size={32} color="#FFFFFF" />
+                <FontAwesome5 name="bicycle" size={30} color="#FFFFFF" />
               </View>
 
               <Text style={styles.title}>ROTA CRIC</Text>
@@ -89,7 +121,7 @@ export default function ProfileScreen() {
                   <Text
                     style={
                       mode === m
-                        ? styles.toggleTextActive
+                        ? [styles.toggleTextActive, { color: primaryColor || "#2563EB" }]
                         : styles.toggleTextInactive
                     }
                   >
@@ -113,3 +145,4 @@ export default function ProfileScreen() {
     </SafeAreaProvider>
   );
 }
+
