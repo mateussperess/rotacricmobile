@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import * as Notifications from "expo-notifications";
+import * as SecureStore from "expo-secure-store";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { useRouter } from "expo-router";
 import {
@@ -8,17 +9,21 @@ import {
 } from "@/services/notifications/notificationService";
 import { NotificationToast } from "@/components/ui/NotificationToast";
 
+const NOTIFICATIONS_ENABLED_KEY = "user_notifications_enabled";
+
 interface NotificationContextData {
   notifications: AppNotification[];
   unreadCount: number;
   activeToast: AppNotification | null;
   isOnline: boolean;
+  notificationsEnabled: boolean;
+  setNotificationsEnabled: (enabled: boolean) => Promise<void>;
   notify: (
     title: string,
     body: string,
     type?: AppNotification["type"],
     data?: Record<string, any>
-  ) => Promise<AppNotification>;
+  ) => Promise<AppNotification | null>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   deleteNotification: (id: string) => Promise<void>;
@@ -37,7 +42,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [activeToast, setActiveToast] = useState<AppNotification | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [notificationsEnabled, setNotificationsEnabledState] = useState<boolean>(true);
   const router = useRouter();
+
+  // Carregar preferência salva no SecureStore
+  useEffect(() => {
+    SecureStore.getItemAsync(NOTIFICATIONS_ENABLED_KEY)
+      .then((val) => {
+        if (val !== null) {
+          setNotificationsEnabledState(val === "true");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const setNotificationsEnabled = useCallback(async (enabled: boolean) => {
+    setNotificationsEnabledState(enabled);
+    try {
+      await SecureStore.setItemAsync(NOTIFICATIONS_ENABLED_KEY, String(enabled));
+    } catch (e) {
+      console.warn("Erro ao salvar preferência de notificação:", e);
+    }
+  }, []);
 
   // Carrega notificações do SQLite
   const refreshNotifications = useCallback(async () => {
@@ -51,7 +77,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // Dispara uma nova notificação (offline/online)
+  // Dispara uma nova notificação (offline/online) se as notificações estiverem habilitadas
   const notify = useCallback(
     async (
       title: string,
@@ -59,12 +85,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       type: AppNotification["type"] = "info",
       data: Record<string, any> = {}
     ) => {
+      if (!notificationsEnabled) {
+        return null;
+      }
       const created = await notificationService.notify(title, body, type, data);
       setActiveToast(created);
       await refreshNotifications();
       return created;
     },
-    [refreshNotifications]
+    [notificationsEnabled, refreshNotifications]
   );
 
   const markAsRead = useCallback(
@@ -142,17 +171,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsOnline((prevOnline) => {
         if (initialCheckDone && prevOnline !== connected) {
           if (!connected) {
-            notificationService.notify(
-              "Você está Offline",
-              "O app continuará salvando seus carimbos e rotas localmente.",
-              "warning"
-            ).then(() => refreshNotifications());
+            if (notificationsEnabled) {
+              notificationService.notify(
+                "Você está Offline",
+                "O app continuará salvando seus carimbos e rotas localmente.",
+                "warning"
+              ).then(() => refreshNotifications());
+            }
           } else {
-            notificationService.notify(
-              "Conexão Restabelecida",
-              "Seus dados estão sendo sincronizados com a nuvem.",
-              "sync"
-            ).then(() => refreshNotifications());
+            if (notificationsEnabled) {
+              notificationService.notify(
+                "Conexão Restabelecida",
+                "Seus dados estão sendo sincronizados com a nuvem.",
+                "sync"
+              ).then(() => refreshNotifications());
+            }
           }
         }
         initialCheckDone = true;
@@ -164,7 +197,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       if (subscription) subscription.remove();
       unsubscribeNetInfo();
     };
-  }, [refreshNotifications, router]);
+  }, [notificationsEnabled, refreshNotifications, router]);
 
   return (
     <NotificationContext.Provider
@@ -173,6 +206,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         unreadCount,
         activeToast,
         isOnline,
+        notificationsEnabled,
+        setNotificationsEnabled,
         notify,
         markAsRead,
         markAllAsRead,
@@ -182,13 +217,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       }}
     >
       {children}
-      <NotificationToast
-        notification={activeToast}
-        onDismiss={() => setActiveToast(null)}
-        onPress={handleNotificationPress}
-      />
+      {notificationsEnabled && (
+        <NotificationToast
+          notification={activeToast}
+          onDismiss={() => setActiveToast(null)}
+          onPress={handleNotificationPress}
+        />
+      )}
     </NotificationContext.Provider>
   );
 };
 
 export const useNotificationsContext = () => useContext(NotificationContext);
+
