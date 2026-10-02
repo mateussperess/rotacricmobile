@@ -20,18 +20,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     const target = process.env.DB_TARGET || 'local';
     let rawUrl = process.env.DATABASE_URL;
 
-    if (target === 'production') {
-      if (process.env.PROD_DATABASE_URL && process.env.PROD_DATABASE_URL.trim()) {
-        rawUrl = process.env.PROD_DATABASE_URL.trim();
-      } else {
-        throw new Error(
-          '[PrismaService] DB_TARGET=production foi definido, porém PROD_DATABASE_URL não está configurada no .env!',
-        );
-      }
+    if (target === 'production' && process.env.PROD_DATABASE_URL && process.env.PROD_DATABASE_URL.trim()) {
+      rawUrl = process.env.PROD_DATABASE_URL.trim();
+    } else if (!rawUrl && process.env.PROD_DATABASE_URL) {
+      rawUrl = process.env.PROD_DATABASE_URL.trim();
     }
 
     if (!rawUrl) {
-      throw new Error(`DATABASE_URL environment variable is not defined for DB_TARGET=${target}`);
+      throw new Error(`[PrismaService] Nenhuma variável DATABASE_URL ou PROD_DATABASE_URL foi configurada!`);
     }
 
     console.log(`[PrismaService] Connecting to database target: ${target.toUpperCase()}`);

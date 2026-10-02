@@ -12,7 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.testapp",
       "infoPlist": {
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": [
+          "location"
+        ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "O Rota CRIC precisa de acesso à sua localização para alertá-lo sobre pontos de apoio próximos mesmo com o aplicativo fechado.",
         "NSLocationWhenInUseUsageDescription": "O Rota CRIC precisa de acesso à sua localização para exibir sua posição no mapa e registrar rotas."
       }
@@ -69,7 +71,11 @@
         }
       ],
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
