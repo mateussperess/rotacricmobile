@@ -2,25 +2,60 @@ import { NetworkStatusBanner } from "@/components/NetworkStatusBanner";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
-import React from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
+import React, { useRef } from "react";
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
 
 const TAB_BAR_HEIGHT = 64;
 
 /** Botão central elevado — substitui o tabBarButton padrão só no Escanear */
 function ScanTabButton({ onPress, primaryColor }: any) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.88,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 4,
+    }).start();
+
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 25,
+      bounciness: 8,
+    }).start();
+  };
+
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       style={styles.scanTabButton}
       android_ripple={{ color: "transparent" }}
     >
-      {/* Círculo elevado adaptativo */}
-      <View style={[styles.scanButton, { backgroundColor: primaryColor, shadowColor: primaryColor }]}>
-        <IconSymbol size={26} name="barcode.viewfinder" color="#FFFFFF" />
-      </View>
-      <Text style={[styles.scanLabel, { color: primaryColor }]}>Escanear</Text>
+      <Animated.View
+        style={{
+          transform: [{ scale: scaleAnim }],
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {/* Círculo elevado adaptativo */}
+        <View style={[styles.scanButton, { backgroundColor: primaryColor, shadowColor: primaryColor }]}>
+          <IconSymbol size={26} name="barcode.viewfinder" color="#FFFFFF" />
+        </View>
+        <Text style={[styles.scanLabel, { color: primaryColor }]}>Escanear</Text>
+      </Animated.View>
     </Pressable>
   );
 }

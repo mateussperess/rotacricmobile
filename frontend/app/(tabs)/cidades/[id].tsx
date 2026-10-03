@@ -401,9 +401,12 @@ export default function CidadeDetalhe() {
                             ]
                           : [];
 
-                    if (loadingImages || displayImages.length === 0)
-                      return null;
-                    return <CityImageCarousel images={displayImages} />;
+                    return (
+                      <CityImageCarousel
+                        images={displayImages}
+                        cityName={city?.name}
+                      />
+                    );
                   })()}
 
                   <Text style={styles.cardTitle}>Sobre a cidade</Text>

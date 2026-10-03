@@ -1,5 +1,6 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { CityImage } from "@/services/cities/citiesService";
+import { getCityFallbackImage, resolveImageUrl } from "@/utils/imageUtils";
 import { Image } from "expo-image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -23,32 +24,78 @@ const SNAP_INTERVAL = IMAGE_WIDTH + GAP;
 
 interface Props {
   images: CityImage[];
+  cityName?: string;
 }
 
-export function CityImageCarousel({ images }: Props) {
+export function CityImageCarousel({ images, cityName }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // Mapear e resolver URLs de cada imagem
+  const [resolvedImages, setResolvedImages] = useState<Array<CityImage & { resolvedUrl: string }>>([]);
+
+  useEffect(() => {
+    if (images && images.length > 0) {
+      const mapped = images.map((img, idx) => {
+        const rawUrl =
+          img.url ||
+          (img as any).image_path ||
+          (img as any).image ||
+          (img as any).uri ||
+          "";
+        return {
+          ...img,
+          resolvedUrl: resolveImageUrl(rawUrl, cityName, idx),
+        };
+      });
+      setResolvedImages(mapped);
+    } else {
+      // Se não houver imagens vindas do backend, gerar carrossel com fotos padrão da cidade
+      const fallbackUrl1 = getCityFallbackImage(cityName, 0);
+      const fallbackUrl2 = getCityFallbackImage(cityName, 1);
+      setResolvedImages([
+        {
+          id: `fallback-1-${cityName || "city"}`,
+          city_id: "0",
+          url: fallbackUrl1,
+          resolvedUrl: fallbackUrl1,
+          caption: cityName ? `Paisagem de ${cityName}` : "Rota CRIC",
+          order: 0,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: `fallback-2-${cityName || "city"}`,
+          city_id: "0",
+          url: fallbackUrl2,
+          resolvedUrl: fallbackUrl2,
+          caption: cityName ? `Circuito de ${cityName}` : "Rota CRIC",
+          order: 1,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    }
+  }, [images, cityName]);
+
   const dotAnims = useRef<Animated.Value[]>([]);
 
-  if (dotAnims.current.length !== images.length) {
-    dotAnims.current = images.map(
+  if (dotAnims.current.length !== resolvedImages.length) {
+    dotAnims.current = resolvedImages.map(
       (_, i) => new Animated.Value(i === activeIndex ? 1 : 0),
     );
   }
 
   const loopedImages =
-    images.length > 1
-      ? [images[images.length - 1], ...images, images[0]]
-      : images;
+    resolvedImages.length > 1
+      ? [resolvedImages[resolvedImages.length - 1], ...resolvedImages, resolvedImages[0]]
+      : resolvedImages;
 
-  const isLoop = images.length > 1;
+  const isLoop = resolvedImages.length > 1;
 
   useEffect(() => {
     if (isLoop && scrollRef.current) {
       scrollRef.current.scrollTo({ x: SNAP_INTERVAL, animated: false });
     }
-  }, [isLoop, images]);
+  }, [isLoop, resolvedImages.length]);
 
   const animateDots = useCallback(
     (index: number) => {
@@ -65,8 +112,8 @@ export function CityImageCarousel({ images }: Props) {
   );
 
   const handleNext = () => {
-    if (images.length <= 1) return;
-    const nextIndex = (activeIndex + 1) % images.length;
+    if (resolvedImages.length <= 1) return;
+    const nextIndex = (activeIndex + 1) % resolvedImages.length;
     setActiveIndex(nextIndex);
     animateDots(nextIndex);
     const targetX = isLoop
@@ -76,8 +123,8 @@ export function CityImageCarousel({ images }: Props) {
   };
 
   const handlePrev = () => {
-    if (images.length <= 1) return;
-    const prevIndex = (activeIndex - 1 + images.length) % images.length;
+    if (resolvedImages.length <= 1) return;
+    const prevIndex = (activeIndex - 1 + resolvedImages.length) % resolvedImages.length;
     setActiveIndex(prevIndex);
     animateDots(prevIndex);
     const targetX = isLoop
@@ -92,13 +139,13 @@ export function CityImageCarousel({ images }: Props) {
     const offsetX = e.nativeEvent.contentOffset.x;
     const rawIndex = Math.round(offsetX / SNAP_INTERVAL);
 
-    const realIndex = (rawIndex - 1 + images.length) % images.length;
+    const realIndex = (rawIndex - 1 + resolvedImages.length) % resolvedImages.length;
     setActiveIndex(realIndex);
     animateDots(realIndex);
 
     if (rawIndex === 0) {
       scrollRef.current?.scrollTo({
-        x: SNAP_INTERVAL * images.length,
+        x: SNAP_INTERVAL * resolvedImages.length,
         animated: false,
       });
     }
@@ -111,19 +158,28 @@ export function CityImageCarousel({ images }: Props) {
     }
   };
 
-  if (images.length === 0) return null;
+  const handleImageError = (imgId: string, idx: number) => {
+    const fallback = getCityFallbackImage(cityName, idx);
+    setResolvedImages((prev) =>
+      prev.map((item, i) =>
+        item.id === imgId || i === idx ? { ...item, resolvedUrl: fallback } : item
+      )
+    );
+  };
+
+  if (resolvedImages.length === 0) return null;
 
   return (
     <View style={styles.container}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>Fotos</Text>
         <Text style={styles.counter}>
-          {activeIndex + 1}/{images.length}
+          {activeIndex + 1}/{resolvedImages.length}
         </Text>
       </View>
 
       <View style={styles.carouselWrapper}>
-        {images.length > 1 && (
+        {resolvedImages.length > 1 && (
           <>
             <Pressable
               style={[styles.navBtn, styles.navBtnLeft]}
@@ -155,25 +211,17 @@ export function CityImageCarousel({ images }: Props) {
           contentContainerStyle={styles.scrollContent}
           scrollEventThrottle={16}
         >
-          {(isLoop ? loopedImages : images).map((img, i) => {
-            const imageUrl =
-              img.url ||
-              (img as any).image_path ||
-              (img as any).image ||
-              (img as any).uri ||
-              "";
-
+          {(isLoop ? loopedImages : resolvedImages).map((img, i) => {
             return (
               <View key={`${img.id}-${i}`} style={styles.imageWrapper}>
-                {imageUrl ? (
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={styles.image}
-                    contentFit="cover"
-                    cachePolicy="disk"
-                    transition={300}
-                  />
-                ) : null}
+                <Image
+                  source={{ uri: img.resolvedUrl }}
+                  style={styles.image}
+                  contentFit="cover"
+                  cachePolicy="disk"
+                  transition={300}
+                  onError={() => handleImageError(img.id, i)}
+                />
                 {img.caption && (
                   <View style={styles.captionContainer}>
                     <Text style={styles.caption} numberOfLines={1}>
@@ -188,9 +236,9 @@ export function CityImageCarousel({ images }: Props) {
       </View>
 
       {/* Dots animados */}
-      {images.length > 1 && (
+      {resolvedImages.length > 1 && (
         <View style={styles.dots}>
-          {images.map((_, i) => {
+          {resolvedImages.map((_, i) => {
             const anim =
               dotAnims.current[i] || new Animated.Value(i === 0 ? 1 : 0);
             const width = anim.interpolate({

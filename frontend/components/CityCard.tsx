@@ -7,6 +7,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useCityRouteDistance } from "../hooks/use-city-route-distance";
 import { useWeather } from "../hooks/use-weather";
 
+import { getCityFallbackImage, resolveImageUrl } from "@/utils/imageUtils";
+
 interface CityMeta {
   order: number;
   kmStart: number;
@@ -27,7 +29,9 @@ interface CityCardProps {
 
 export function CityCard({ item, meta, onPress }: CityCardProps) {
   const { primaryColor } = useAuth();
-  const [imageError, setImageError] = useState(false);
+  const [imageUri, setImageUri] = useState<string>(() =>
+    resolveImageUrl(item.banner_image, item.name)
+  );
 
   const { data: weather, loading: weatherLoading } = useWeather(
     item.lat,
@@ -45,107 +49,61 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
         ? `${meta.kmEnd - meta.kmStart} km`
         : null;
 
-  const hasBanner = Boolean(
-    item.banner_image &&
-      !imageError &&
-      (item.banner_image.startsWith("http://") ||
-        item.banner_image.startsWith("https://"))
-  );
-
   const stepNumber = meta !== undefined ? (meta.order + 1).toString().padStart(2, "0") : null;
+
+  const handleImageError = () => {
+    const fallback = getCityFallbackImage(item.name);
+    if (imageUri !== fallback) {
+      setImageUri(fallback);
+    }
+  };
 
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
-      {/* Banner / Cover Header se houver imagem */}
-      {hasBanner ? (
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: item.banner_image! }}
-            style={styles.bannerImage}
-            contentFit="cover"
-            transition={300}
-            onError={() => setImageError(true)}
-          />
-          {/* Sombra/Gradiente visual inferior da imagem */}
-          <View style={styles.imageOverlay} />
+      {/* Banner / Cover Header da Cidade */}
+      <View style={styles.imageContainer}>
+        <Image
+          source={{ uri: imageUri }}
+          style={styles.bannerImage}
+          contentFit="cover"
+          transition={300}
+          onError={handleImageError}
+        />
+        {/* Sombra/Gradiente visual inferior da imagem */}
+        <View style={styles.imageOverlay} />
 
-          {/* Badges Flutuantes sobre a Imagem */}
-          <View style={styles.floatingBadgesRow}>
-            {stepNumber ? (
-              <View style={[styles.stepBadge, { backgroundColor: primaryColor }]}>
-                <Text style={styles.stepBadgeText}>ETAPA {stepNumber}</Text>
-              </View>
-            ) : (
-              <View />
-            )}
-
-            {/* Weather Badge no banner */}
-            <View style={styles.glassWeatherChip}>
-              {weatherLoading ? (
-                <Text style={styles.glassWeatherText}>···</Text>
-              ) : weather ? (
-                <>
-                  <Text style={styles.weatherIcon}>{weather.emoji}</Text>
-                  <Text style={styles.glassWeatherTemp}>{weather.temperature}°</Text>
-                </>
-              ) : (
-                <Text style={styles.glassWeatherText}>—</Text>
-              )}
+        {/* Badges Flutuantes sobre a Imagem */}
+        <View style={styles.floatingBadgesRow}>
+          {stepNumber ? (
+            <View style={[styles.stepBadge, { backgroundColor: primaryColor }]}>
+              <Text style={styles.stepBadgeText}>ETAPA {stepNumber}</Text>
             </View>
+          ) : (
+            <View />
+          )}
+
+          {/* Weather Badge no banner */}
+          <View style={styles.glassWeatherChip}>
+            {weatherLoading ? (
+              <Text style={styles.glassWeatherText}>···</Text>
+            ) : weather ? (
+              <>
+                <Text style={styles.weatherIcon}>{weather.emoji}</Text>
+                <Text style={styles.glassWeatherTemp}>{weather.temperature}°</Text>
+              </>
+            ) : (
+              <Text style={styles.glassWeatherText}>—</Text>
+            )}
           </View>
         </View>
-      ) : (
-        /* Accent strip sem imagem */
-        <View style={styles.noImageHeader}>
-          <View style={[styles.cardAccent, { backgroundColor: primaryColor }]} />
-        </View>
-      )}
+      </View>
 
       <View style={styles.cardBody}>
-        {/* Header do card quando não tem banner */}
-        {!hasBanner && (
-          <View style={styles.cardMeta}>
-            {stepNumber ? (
-              <View
-                style={[
-                  styles.stepBadgeLight,
-                  { backgroundColor: primaryColor + "15" },
-                ]}
-              >
-                <Text style={[styles.stepBadgeLightText, { color: primaryColor }]}>
-                  ETAPA {stepNumber}
-                </Text>
-              </View>
-            ) : null}
-
-            {meta && (
-              <Text style={styles.kmLabel}>
-                KM {meta.kmStart} – {meta.kmEnd}
-              </Text>
-            )}
-
-            <View style={styles.weatherChip}>
-              {weatherLoading ? (
-                <Text style={styles.weatherText}>···</Text>
-              ) : weather ? (
-                <>
-                  <Text style={styles.weatherIcon}>{weather.emoji}</Text>
-                  <Text style={[styles.weatherTemp, { color: primaryColor }]}>
-                    {weather.temperature}°
-                  </Text>
-                </>
-              ) : (
-                <Text style={styles.weatherText}>—</Text>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Faixa KM quando tem banner */}
-        {hasBanner && meta && (
+        {/* Faixa KM do trecho */}
+        {meta && (
           <View style={styles.bannerKmRow}>
             <View
               style={[
