@@ -3,22 +3,21 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "ELECTRON_DISABLE_SANDBOX=1 expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
+    "android": "ELECTRON_DISABLE_SANDBOX=1 expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@mapbox/polyline": "^1.2.1",
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-community/netinfo": "12.0.1",
-    "@react-navigation/bottom-tabs": "^7.4.0",
-    "@react-navigation/elements": "^2.6.3",
-    "@react-navigation/native": "^7.1.8",
     "axios": "^1.15.2",
     "expo": "^57.0.26",
+    "expo-build-properties": "^57.0.22",
     "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.20",
     "expo-font": "~57.0.4",
@@ -40,7 +39,6 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
-    "react-native-leaflet-view": "^1.1.2",
     "react-native-maps": "1.27.2",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
@@ -56,11 +54,7 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~57.0.2",
     "react-native-svg-transformer": "^1.5.3",
-    "typescript": "~6.0.3"
-  },
-  "overrides": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "typescript": "~5.9.2"
   },
   "private": true
 }

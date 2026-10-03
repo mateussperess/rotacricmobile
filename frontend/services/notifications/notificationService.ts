@@ -45,7 +45,6 @@ class NotificationService {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: "#FF231F7C",
-          sound: "default",
         });
       }
 
@@ -95,7 +94,7 @@ class NotificationService {
           title: newNotification.title,
           body: newNotification.body,
           data: newNotification.data,
-          sound: "default",
+          sound: true,
         },
         trigger: null, // Disparo imediato
       });

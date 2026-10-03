@@ -4,7 +4,7 @@ import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
 
 const TAB_BAR_HEIGHT = 64;
 
@@ -27,11 +27,13 @@ function ScanTabButton({ onPress, primaryColor }: any) {
 
 export default function TabLayout() {
   const { token, loading, primaryColor, isAdmin } = useAuth();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Carregando...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}>
+        <ActivityIndicator size="large" color={primaryColor || "#2563EB"} />
       </View>
     );
   }

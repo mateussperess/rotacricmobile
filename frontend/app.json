@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "rotacricmobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.testapp",
@@ -26,7 +25,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.testapp",
       "permissions": [
@@ -48,6 +46,17 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          },
+          "android": {
+            "jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC"
+          }
+        }
+      ],
       "expo-router",
       [
         "expo-location",
@@ -75,7 +84,9 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-task-manager",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

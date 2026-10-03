@@ -27,7 +27,7 @@ export function useNetworkStatus() {
   const [pendingCount, setPendingCount] = useState(0);
   const [statusState, setStatusState] = useState<NetworkStatusState>("online");
   const wasOfflineRef = useRef(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -554,7 +554,7 @@ export function NetworkStatusBanner() {
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(15, 23, 42, 0.25)",
     zIndex: 99998,
   },
