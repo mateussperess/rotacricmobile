@@ -1,4 +1,3 @@
-import { Image } from "expo-image";
 import api from "../api";
 import {
   CitiesOfflineRepository,
@@ -52,14 +51,6 @@ export const CitiesService = {
       const { data } = await api.get("/cities");
       if (data && Array.isArray(data)) {
         CitiesOfflineRepository.saveAll(data).catch(() => {});
-        
-        // Pre-carregar imagens de capa no cache de disco nativo para acesso off-line
-        const bannerUrls = data
-          .map((c: City) => c.banner_image)
-          .filter((url): url is string => Boolean(url && typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))));
-        if (bannerUrls.length > 0) {
-          Image.prefetch(bannerUrls, "disk").catch(() => {});
-        }
 
         const orderedData = [...data].sort((a: City, b: City) =>
           a.name.localeCompare(b.name)
@@ -77,9 +68,6 @@ export const CitiesService = {
       const { data } = await api.get(`/cities/${id}`);
       if (data) {
         await CitiesOfflineRepository.saveAll([data]);
-        if (data.banner_image && (data.banner_image.startsWith("http://") || data.banner_image.startsWith("https://"))) {
-          Image.prefetch(data.banner_image, "disk").catch(() => {});
-        }
       }
       return data;
     } catch (error) {
@@ -97,15 +85,6 @@ export const CitiesService = {
           ...img,
           url: img.url || img.image_path || img.image || "",
         }));
-
-        // Pre-carregar imagens da galeria no cache de disco nativo para acesso off-line
-        const urlsToPrefetch = formatted
-          .map((img: CityImage) => img.url)
-          .filter((url: string) => Boolean(url) && (url.startsWith("http://") || url.startsWith("https://")));
-
-        if (urlsToPrefetch.length > 0) {
-          Image.prefetch(urlsToPrefetch, "disk").catch(() => {});
-        }
 
         return formatted;
       }

@@ -1,11 +1,11 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { CityImage } from "@/services/cities/citiesService";
 import { getCityFallbackImage, resolveImageUrl } from "@/utils/imageUtils";
-import { Image } from "expo-image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -159,11 +159,19 @@ export function CityImageCarousel({ images, cityName }: Props) {
   };
 
   const handleImageError = (imgId: string, idx: number) => {
-    const fallback = getCityFallbackImage(cityName, idx);
     setResolvedImages((prev) =>
-      prev.map((item, i) =>
-        item.id === imgId || i === idx ? { ...item, resolvedUrl: fallback } : item
-      )
+      prev.map((item, i) => {
+        if (item.id === imgId || i === idx) {
+          const nextFallbackIdx = ((item as any).fallbackIndex || 0) + 1;
+          const fallback = getCityFallbackImage(cityName, idx + nextFallbackIdx);
+          return {
+            ...item,
+            resolvedUrl: fallback,
+            fallbackIndex: nextFallbackIdx,
+          };
+        }
+        return item;
+      })
     );
   };
 
@@ -215,11 +223,10 @@ export function CityImageCarousel({ images, cityName }: Props) {
             return (
               <View key={`${img.id}-${i}`} style={styles.imageWrapper}>
                 <Image
+                  key={`${img.id}-${img.resolvedUrl}-${i}`}
                   source={{ uri: img.resolvedUrl }}
                   style={styles.image}
-                  contentFit="cover"
-                  cachePolicy="disk"
-                  transition={300}
+                  resizeMode="cover"
                   onError={() => handleImageError(img.id, i)}
                 />
                 {img.caption && (

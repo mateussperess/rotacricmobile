@@ -1,9 +1,8 @@
 import { useAuth } from "@/components/contexts/AuthContext";
 import { City } from "@/services/cities/citiesService";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useCityRouteDistance } from "../hooks/use-city-route-distance";
 import { useWeather } from "../hooks/use-weather";
 
@@ -29,9 +28,12 @@ interface CityCardProps {
 
 export function CityCard({ item, meta, onPress }: CityCardProps) {
   const { primaryColor } = useAuth();
-  const [imageUri, setImageUri] = useState<string>(() =>
-    resolveImageUrl(item.banner_image, item.name)
-  );
+  
+  const [fallbackIndex, setFallbackIndex] = useState(0);
+
+  const imageUri = React.useMemo(() => {
+    return resolveImageUrl(item.banner_image, item.name, fallbackIndex);
+  }, [item.banner_image, item.name, fallbackIndex]);
 
   const { data: weather, loading: weatherLoading } = useWeather(
     item.lat,
@@ -52,10 +54,7 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
   const stepNumber = meta !== undefined ? (meta.order + 1).toString().padStart(2, "0") : null;
 
   const handleImageError = () => {
-    const fallback = getCityFallbackImage(item.name);
-    if (imageUri !== fallback) {
-      setImageUri(fallback);
-    }
+    setFallbackIndex((prev) => prev + 1);
   };
 
   return (
@@ -66,10 +65,10 @@ export function CityCard({ item, meta, onPress }: CityCardProps) {
       {/* Banner / Cover Header da Cidade */}
       <View style={styles.imageContainer}>
         <Image
+          key={`${imageUri}-${fallbackIndex}`}
           source={{ uri: imageUri }}
           style={styles.bannerImage}
-          contentFit="cover"
-          transition={300}
+          resizeMode="cover"
           onError={handleImageError}
         />
         {/* Sombra/Gradiente visual inferior da imagem */}

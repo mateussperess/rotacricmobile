@@ -8,9 +8,7 @@ import Repair from "@/assets/images/anchorpoint_categories_logos/repair.svg";
 import Store from "@/assets/images/anchorpoint_categories_logos/store.svg";
 import Tourism from "@/assets/images/anchorpoint_categories_logos/tourism.svg";
 import { CityImageCarousel } from "@/components/CityImageCarousel";
-import {
-    useNetworkStatus
-} from "@/components/NetworkStatusBanner";
+import { useNetworkStatus } from "@/components/NetworkStatusBanner";
 import { WeatherCard } from "@/components/WeatherCard";
 import { useAuth } from "@/components/contexts/AuthContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -55,7 +53,7 @@ const TABS_CONFIG: {
 }[] = [
   { key: "sobre", label: "Sobre", icon: "building.2.fill" },
   { key: "trecho", label: "Trecho", icon: "bicycle" },
-  { key: "apoio", label: "Pontos de Apoio", icon: "mappin.and.ellipse" },
+  { key: "apoio", label: "Apoio", icon: "mappin.and.ellipse" },
 ];
 
 export default function CidadeDetalhe() {
