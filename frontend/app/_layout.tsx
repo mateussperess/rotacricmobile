@@ -1,9 +1,10 @@
+import "@/services/notifications/backgroundGeofenceTask";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from "@react-navigation/native";
-import { Stack } from "expo-router";
+  Stack,
+} from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import * as SplashScreen from "expo-splash-screen";
@@ -14,7 +15,6 @@ import { NotificationProvider } from "@/components/contexts/NotificationContext"
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
 import { BootstrapOfflineService } from "@/services/database/offlineRepositories";
-import "@/services/notifications/backgroundGeofenceTask";
 import { proximityService } from "@/services/notifications/proximityService";
 
 // Manter a splash nativa visível até a inicialização inicial
@@ -29,8 +29,6 @@ export default function RootLayout() {
   const [splashAnimationDone, setSplashAnimationDone] = useState(false);
 
   useEffect(() => {
-    // Oculta a splash nativa estática do sistema para exibir a AnimatedSplashScreen
-    SplashScreen.hideAsync().catch(() => {});
     // Garante o preenchimento do SQLite com cidades, rotas e pontos de apoio e ativa o Geofencing
     BootstrapOfflineService.syncBootstrapData()
       .then(() => {
