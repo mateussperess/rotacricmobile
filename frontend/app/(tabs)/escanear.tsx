@@ -602,7 +602,7 @@ export default function EscanearScreen() {
         <View style={styles.fullCameraContainer}>
           <Animated.View style={{ flex: 1, opacity: fadeAnim, backgroundColor: "#000" }}>
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
               onBarcodeScanned={handleBarcodeScanned}
@@ -997,7 +997,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   unfocusedArea: {
     flex: 1,

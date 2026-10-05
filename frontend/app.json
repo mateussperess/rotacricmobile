@@ -7,12 +7,13 @@
     "icon": "./assets/images/icon.png",
     "scheme": "rotacricmobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.testapp",
       "infoPlist": {
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": [
+          "location"
+        ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "O Rota CRIC precisa de acesso à sua localização para alertá-lo sobre pontos de apoio próximos mesmo com o aplicativo fechado.",
         "NSLocationWhenInUseUsageDescription": "O Rota CRIC precisa de acesso à sua localização para exibir sua posição no mapa e registrar rotas."
       }
@@ -24,7 +25,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.testapp",
       "permissions": [
@@ -46,6 +46,18 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          },
+          "android": {
+            "usesCleartextTraffic": true,
+            "jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC"
+          }
+        }
+      ],
       "expo-router",
       [
         "expo-location",
@@ -69,7 +81,13 @@
         }
       ],
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser",
+      "expo-task-manager",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

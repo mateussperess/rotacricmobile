@@ -344,7 +344,7 @@ export default function Cidades() {
               )
             ) : null
           }
-          ListFooterComponent={<CyclistManual />}
+          ListFooterComponent={activeTab === "manual" ? <CyclistManual /> : null}
           renderItem={({ item }) => (
             <CityCard
               item={item}
