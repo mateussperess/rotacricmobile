@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { formatImageUrl } from 'src/utils/image.utils';
 import { DjangoPasswordUtil } from './django-password.util';
 
 @Injectable()
@@ -53,10 +54,9 @@ export class AuthService {
         last_name: user.last_name,
         is_staff: Boolean(user.is_staff),
         is_superuser: Boolean(user.is_superuser),
-        profile_picture: user.profile?.profile_picture_path
-          ? `${process.env.MEDIA_BASE_URL || 'https://rota-cric.charqueadas.ifsul.edu.br/media/'}${user.profile.profile_picture_path}`
-          : null,
+        profile_picture: formatImageUrl(user.profile?.profile_picture_path),
       },
     };
   }
 }
+

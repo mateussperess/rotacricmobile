@@ -77,9 +77,10 @@ export function isUnreachableUrl(url: string): boolean {
   if (!url || typeof url !== "string") return true;
   const lower = url.trim().toLowerCase();
   if (!lower) return true;
-  if (lower.includes("charqueadas.ifsul.edu.br")) return true;
   return false;
 }
+
+const DEFAULT_MEDIA_BASE_URL = "https://projetocric-django.onrender.com/media/";
 
 export function resolveImageUrl(
   url: string | null | undefined,
@@ -92,7 +93,22 @@ export function resolveImageUrl(
 
   const trimmed = url.trim();
 
-  // URLs inacessíveis conhecidas (ex: rota-cric.charqueadas.ifsul.edu.br)
+  const mediaBaseUrl =
+    process.env.EXPO_PUBLIC_MEDIA_URL || DEFAULT_MEDIA_BASE_URL;
+  const cleanMediaBase = mediaBaseUrl.endsWith("/")
+    ? mediaBaseUrl
+    : `${mediaBaseUrl}/`;
+
+  // Se a URL contiver o endereço antigo da universidade, reescreve para a nova base de mídia no Render
+  if (trimmed.includes("rota-cric.charqueadas.ifsul.edu.br/media/")) {
+    const relativePart = trimmed.split("rota-cric.charqueadas.ifsul.edu.br/media/")[1];
+    const cleanRelative = relativePart.startsWith("/")
+      ? relativePart.slice(1)
+      : relativePart;
+    return `${cleanMediaBase}${cleanRelative}`;
+  }
+
+  // URLs inacessíveis conhecidas
   if (isUnreachableUrl(trimmed)) {
     return getCityFallbackImage(fallbackCityName, fallbackIndex);
   }
@@ -111,14 +127,12 @@ export function resolveImageUrl(
     return trimmed;
   }
 
-  // Se for caminho relativo (ex: /uploads/... ou media/...)
-  const baseApiUrl = api.defaults.baseURL || "";
-  const baseHost = baseApiUrl.replace(/\/api\/?$/, "");
-  const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-
-  if (baseHost && !baseHost.includes("localhost")) {
-    return `${baseHost}${cleanPath}`;
+  // Se for caminho relativo (ex: cities/images/... ou /media/cities/...)
+  let cleanPath = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
+  if (cleanPath.startsWith("media/")) {
+    cleanPath = cleanPath.slice(6);
   }
 
-  return getCityFallbackImage(fallbackCityName, fallbackIndex);
+  return `${cleanMediaBase}${cleanPath}`;
 }
+

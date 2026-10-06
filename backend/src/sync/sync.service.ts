@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CityResponseDto } from 'src/cities/dto/city-response.dto';
+import { CityImageResponseDto } from 'src/cities/dto/city-image-response.dto';
 import { AnchorPointResponseDto } from 'src/anchor-points/dto/anchor-point-response.dto';
 import { AnchorPointCategoryResponseDto } from 'src/anchor-point-categories/dto/anchor-point-category-response.dto';
 
@@ -38,6 +39,7 @@ export class SyncService {
       ]);
 
     const mappedCities = cities.map((c) => new CityResponseDto(c));
+    const mappedCityImages = cityImages.map((img) => new CityImageResponseDto(img));
     const mappedAnchorPoints = anchorPoints.map((ap) => {
       const dto = new AnchorPointResponseDto(ap);
       return {
@@ -51,7 +53,7 @@ export class SyncService {
     return this.serializeBigInt({
       timestamp: new Date().toISOString(),
       cities: mappedCities,
-      cityImages,
+      cityImages: mappedCityImages,
       routes,
       cityRoutes,
       categories,
@@ -60,3 +62,4 @@ export class SyncService {
     });
   }
 }
+
