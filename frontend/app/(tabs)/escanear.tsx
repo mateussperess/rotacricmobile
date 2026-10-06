@@ -1,27 +1,30 @@
 import { useAuth } from "@/components/contexts/AuthContext";
-import { AnchorPoint, AnchorPointsService } from "@/services/anchorpoints/anchorPointService";
-import { CitiesService, City } from "@/services/cities/citiesService";
-import { Stamp, StampService } from "@/services/stamps/stampService";
 import {
-  StampsOfflineRepository,
-  SyncQueueRepository,
+    AnchorPoint,
+    AnchorPointsService,
+} from "@/services/anchorpoints/anchorPointService";
+import { CitiesService, City } from "@/services/cities/citiesService";
+import {
+    StampsOfflineRepository,
+    SyncQueueRepository,
 } from "@/services/database/offlineRepositories";
+import { Stamp, StampService } from "@/services/stamps/stampService";
 import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Animated,
+    Easing,
+    PanResponder,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,7 +39,7 @@ function haversineMeters(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number
+  lng2: number,
 ): number {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -51,7 +54,8 @@ function haversineMeters(
 }
 
 function formatDistance(meters?: number | null): string {
-  if (meters === undefined || meters === null || isNaN(meters)) return "Distância desconhecida";
+  if (meters === undefined || meters === null || isNaN(meters))
+    return "Distância desconhecida";
   if (meters < 1000) {
     return `${Math.round(meters)} m`;
   }
@@ -85,7 +89,7 @@ function formatDate(dateVal?: any): string {
 function resolveCityName(
   ap: AnchorPoint | undefined | null,
   citiesList: City[],
-  citiesMap: Map<string, string>
+  citiesMap: Map<string, string>,
 ): string {
   if (!ap) return "Rota CRIC";
   const explicitCityId = (ap.city_id || (ap as any).city?.id)?.toString();
@@ -154,6 +158,7 @@ interface ScannedValidationResult {
 export default function EscanearScreen() {
   const { primaryColor, isLoggedIn } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
+  const [isFocused, setIsFocused] = useState(false);
 
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [stamps, setStamps] = useState<Stamp[]>([]);
@@ -161,11 +166,14 @@ export default function EscanearScreen() {
   const [anchorPoints, setAnchorPoints] = useState<AnchorPoint[]>([]);
   const [citiesMap, setCitiesMap] = useState<Map<string, string>>(new Map());
   const [citiesList, setCitiesList] = useState<City[]>([]);
-  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [userLocation, setUserLocation] =
+    useState<Location.LocationObject | null>(null);
   const [isOnline, setIsOnline] = useState(true);
 
   const [scanned, setScanned] = useState(false);
-  const [scanResult, setScanResult] = useState<ScannedValidationResult | null>(null);
+  const [scanResult, setScanResult] = useState<ScannedValidationResult | null>(
+    null,
+  );
   const [collecting, setCollecting] = useState(false);
   const [collectSuccess, setCollectSuccess] = useState(false);
 
@@ -174,17 +182,17 @@ export default function EscanearScreen() {
   const lastScanTimeRef = useRef<number>(0);
 
   // Animações
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(1));
+  const [scanLineAnim] = useState(() => new Animated.Value(0));
 
   // Bottom Sheet deslizante & Chevron do mapa
-  const sheetAnim = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
-  const chevronAnim = useRef(new Animated.Value(0)).current;
+  const [sheetAnim] = useState(() => new Animated.Value(SHEET_COLLAPSED));
+  const [chevronAnim] = useState(() => new Animated.Value(0));
   const sheetOpen = useRef(false);
   const dragStart = useRef(0);
 
   // Verificar se há conexão ativa de rede
-  const checkConnectivity = async (): Promise<boolean> => {
+  const checkConnectivity = useCallback(async (): Promise<boolean> => {
     if (typeof navigator !== "undefined" && "onLine" in navigator) {
       return navigator.onLine;
     }
@@ -200,62 +208,79 @@ export default function EscanearScreen() {
     } catch {
       return false;
     }
-  };
+  }, []);
 
-  const getMaxExpandedHeight = () => (scanned ? SHEET_SCANNED_EXPANDED : SHEET_IDLE_EXPANDED);
+  const getMaxExpandedHeight = useCallback(
+    () => (scanned ? SHEET_SCANNED_EXPANDED : SHEET_IDLE_EXPANDED),
+    [scanned]
+  );
 
-  const animateSheet = (open: boolean, forceScannedExpanded?: boolean) => {
-    sheetOpen.current = open;
-    const targetExpanded = forceScannedExpanded ? SHEET_SCANNED_EXPANDED : getMaxExpandedHeight();
-    const targetHeight = open ? targetExpanded : SHEET_COLLAPSED;
+  const animateSheet = useCallback(
+    (open: boolean, forceScannedExpanded?: boolean) => {
+      sheetOpen.current = open;
+      const targetExpanded = forceScannedExpanded
+        ? SHEET_SCANNED_EXPANDED
+        : getMaxExpandedHeight();
+      const targetHeight = open ? targetExpanded : SHEET_COLLAPSED;
 
-    Animated.parallel([
-      Animated.spring(sheetAnim, {
-        toValue: targetHeight,
-        useNativeDriver: false,
-        tension: 80,
-        friction: 12,
-      }),
-      Animated.timing(chevronAnim, {
-        toValue: open ? 1 : 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+      Animated.parallel([
+        Animated.spring(sheetAnim, {
+          toValue: targetHeight,
+          useNativeDriver: false,
+          tension: 80,
+          friction: 12,
+        }),
+        Animated.timing(chevronAnim, {
+          toValue: open ? 1 : 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    [chevronAnim, getMaxExpandedHeight, sheetAnim]
+  );
 
-  const toggleSheet = () => {
+  const toggleSheet = useCallback(() => {
     animateSheet(!sheetOpen.current);
-  };
+  }, [animateSheet]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        dragStart.current = sheetOpen.current ? getMaxExpandedHeight() : SHEET_COLLAPSED;
-      },
-      onPanResponderMove: (_, g) => {
-        const maxH = getMaxExpandedHeight();
-        const next = Math.max(
-          SHEET_COLLAPSED,
-          Math.min(maxH, dragStart.current - g.dy)
-        );
-        sheetAnim.setValue(next);
-      },
-      onPanResponderRelease: (_, g) => {
-        const snap = g.dy < -30 || (sheetOpen.current && g.dy < 30);
-        animateSheet(snap);
-      },
-    })
-  ).current;
+  const panResponder = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          dragStart.current = sheetOpen.current
+            ? getMaxExpandedHeight()
+            : SHEET_COLLAPSED;
+        },
+        onPanResponderMove: (_, g) => {
+          const maxH = getMaxExpandedHeight();
+          const next = Math.max(
+            SHEET_COLLAPSED,
+            Math.min(maxH, dragStart.current - g.dy)
+          );
+          sheetAnim.setValue(next);
+        },
+        onPanResponderRelease: (_, g) => {
+          const snap = g.dy < -30 || (sheetOpen.current && g.dy < 30);
+          animateSheet(snap);
+        },
+      }),
+    [animateSheet, getMaxExpandedHeight, sheetAnim]
+  );
 
-  const chevronRotate = chevronAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "180deg"],
-  });
+  const chevronRotate = useMemo(
+    () =>
+      chevronAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+      }),
+    [chevronAnim]
+  );
 
   // Carregar dados do catálogo e localização GPS
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoadingCatalog(true);
 
@@ -274,12 +299,15 @@ export default function EscanearScreen() {
         console.log("GPS não disponível no momento:", e);
       }
 
-      const [stampsData, userStampsData, apData, citiesData] = await Promise.all([
-        StampService.findAll().catch(() => []),
-        isLoggedIn ? StampService.getUserStamps().catch(() => []) : Promise.resolve([]),
-        AnchorPointsService.findAll().catch(() => []),
-        CitiesService.findAll().catch(() => []),
-      ]);
+      const [stampsData, userStampsData, apData, citiesData] =
+        await Promise.all([
+          StampService.findAll().catch(() => []),
+          isLoggedIn
+            ? StampService.getUserStamps().catch(() => [])
+            : Promise.resolve([]),
+          AnchorPointsService.findAll().catch(() => []),
+          CitiesService.findAll().catch(() => []),
+        ]);
 
       setStamps(stampsData || []);
       setUserStamps(userStampsData || []);
@@ -287,19 +315,25 @@ export default function EscanearScreen() {
       setCitiesList(citiesData || []);
 
       const cMap = new Map<string, string>();
-      (citiesData || []).forEach((c: City) => cMap.set(c.id.toString(), c.name));
+      (citiesData || []).forEach((c: City) =>
+        cMap.set(c.id.toString(), c.name)
+      );
       setCitiesMap(cMap);
     } catch (err) {
       console.error("Erro ao carregar dados do scanner:", err);
     } finally {
       setLoadingCatalog(false);
     }
-  };
+  }, [checkConnectivity, isLoggedIn]);
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       loadData();
-    }, [isLoggedIn])
+      return () => {
+        setIsFocused(false);
+      };
+    }, [loadData])
   );
 
   // Laser animado de varredura
@@ -324,7 +358,7 @@ export default function EscanearScreen() {
       loop.start();
       return () => loop.stop();
     }
-  }, [scanned]);
+  }, [scanLineAnim, scanned]);
 
   // Manipular escaneamento de QR Code
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
@@ -333,7 +367,10 @@ export default function EscanearScreen() {
 
     const now = Date.now();
     // Se for o mesmo código escaneado há menos de 2.5s, ignorar para evitar acionamentos contínuos
-    if (cleanData === lastScannedDataRef.current && now - lastScanTimeRef.current < 2500) {
+    if (
+      cleanData === lastScannedDataRef.current &&
+      now - lastScanTimeRef.current < 2500
+    ) {
       return;
     }
 
@@ -352,7 +389,7 @@ export default function EscanearScreen() {
         s.qr_code_token === cleanData ||
         s.id.toString() === cleanData ||
         s.anchor_point_id?.toString() === cleanData ||
-        cleanData.toLowerCase().includes(s.qr_code_token.toLowerCase())
+        cleanData.toLowerCase().includes(s.qr_code_token.toLowerCase()),
     );
 
     // Efeito visual de foco
@@ -371,7 +408,9 @@ export default function EscanearScreen() {
 
     if (!matchedStamp) {
       // ❌ QR Code Inválido
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
+        () => {},
+      );
       setScanResult({
         isValid: false,
         rawToken: cleanData,
@@ -382,12 +421,15 @@ export default function EscanearScreen() {
     }
 
     // ✅ QR Code Válido
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+      () => {},
+    );
 
     // Ponto de Apoio vinculado
-    const linkedAp = anchorPoints.find(
-      (ap) => ap.id.toString() === matchedStamp.anchor_point_id.toString()
-    ) || matchedStamp.anchor_point;
+    const linkedAp =
+      anchorPoints.find(
+        (ap) => ap.id.toString() === matchedStamp.anchor_point_id.toString(),
+      ) || matchedStamp.anchor_point;
 
     // Cidade do Ponto usando resolução refinada
     const cityName = resolveCityName(linkedAp, citiesList, citiesMap);
@@ -397,10 +439,13 @@ export default function EscanearScreen() {
     const collectedEntry = userStamps.find(
       (us) =>
         us.stamp_id?.toString() === matchedStamp.id.toString() ||
-        us.anchor_point_id?.toString() === matchedStamp.anchor_point_id.toString()
+        us.anchor_point_id?.toString() ===
+          matchedStamp.anchor_point_id.toString(),
     );
     const isCollected = Boolean(collectedEntry);
-    const collectedAt = collectedEntry ? formatDate(collectedEntry.scanned_at) : null;
+    const collectedAt = collectedEntry
+      ? formatDate(collectedEntry.scanned_at)
+      : null;
 
     // Distância GPS até o Ponto de Apoio
     let distMeters: number | null = null;
@@ -412,12 +457,13 @@ export default function EscanearScreen() {
         userLocation.coords.latitude,
         userLocation.coords.longitude,
         apLat,
-        apLng
+        apLng,
       );
     }
 
     // Validação do raio de proximidade (15 metros)
-    const isWithinRadius = distMeters !== null && distMeters <= RADIUS_LIMIT_METERS;
+    const isWithinRadius =
+      distMeters !== null && distMeters <= RADIUS_LIMIT_METERS;
 
     // Calcular Pontos de Apoio Próximos Vizinhos
     let neighborPoints: NeighborPoint[] = [];
@@ -491,12 +537,14 @@ export default function EscanearScreen() {
 
     try {
       const stampId = scanResult.stamp.id?.toString();
-      const apId = (scanResult.anchorPoint?.id || scanResult.stamp.anchor_point_id)?.toString();
+      const apId = (
+        scanResult.anchorPoint?.id || scanResult.stamp.anchor_point_id
+      )?.toString();
 
       if (stampId || apId) {
         await StampsOfflineRepository.markAsCollected(
           stampId || "",
-          apId || ""
+          apId || "",
         );
 
         // Verificar se a ação já existe na fila para evitar enfileiramento duplicado
@@ -533,7 +581,9 @@ export default function EscanearScreen() {
       await new Promise((res) => setTimeout(res, 500));
 
       setCollectSuccess(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
       loadData();
     } catch (err) {
       console.error("Erro ao coletar carimbo:", err);
@@ -544,7 +594,10 @@ export default function EscanearScreen() {
 
   if (!permission || !permission.granted) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: primaryColor }]}
+        edges={["top"]}
+      >
         <View style={styles.screen}>
           <View style={[styles.headerHero, { backgroundColor: primaryColor }]}>
             <Text style={styles.brand}>ROTA CRIC • VALIDADOR</Text>
@@ -556,10 +609,14 @@ export default function EscanearScreen() {
             </View>
             <Text style={styles.permissionTitle}>Permissão da Câmera</Text>
             <Text style={styles.permissionSub}>
-              Precisamos de acesso à câmera para você poder escanear os QR Codes das placas e validar seus carimbos.
+              Precisamos de acesso à câmera para você poder escanear os QR Codes
+              das placas e validar seus carimbos.
             </Text>
             <Pressable
-              style={({ pressed }) => [styles.primaryBtn, pressed && styles.btnPressed]}
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                pressed && styles.btnPressed,
+              ]}
               onPress={requestPermission}
             >
               <Text style={styles.primaryBtnText}>Conceder Permissão</Text>
@@ -572,7 +629,10 @@ export default function EscanearScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: primaryColor }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: primaryColor }]}
+      edges={["top"]}
+    >
       <View style={styles.screen}>
         {/* Header Superior Fixo com indicador de Conectividade */}
         <View style={[styles.headerHero, { backgroundColor: primaryColor }]}>
@@ -600,13 +660,17 @@ export default function EscanearScreen() {
 
         {/* 📷 CÂMERA EM TELA CHEIA */}
         <View style={styles.fullCameraContainer}>
-          <Animated.View style={{ flex: 1, opacity: fadeAnim, backgroundColor: "#000" }}>
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-              onBarcodeScanned={handleBarcodeScanned}
-            />
+          <Animated.View
+            style={{ flex: 1, opacity: fadeAnim, backgroundColor: "#000" }}
+          >
+            {isFocused && (
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                onBarcodeScanned={handleBarcodeScanned}
+              />
+            )}
 
             {/* Overlay da Câmera com Mira e Laser */}
             <View style={styles.overlay} pointerEvents="none">
@@ -617,7 +681,9 @@ export default function EscanearScreen() {
                   style={[
                     styles.targetSquare,
                     scanned && scanResult?.isValid && styles.targetSquareValid,
-                    scanned && !scanResult?.isValid && styles.targetSquareInvalid,
+                    scanned &&
+                      !scanResult?.isValid &&
+                      styles.targetSquareInvalid,
                   ]}
                 >
                   <View style={[styles.corner, styles.cornerTL]} />
@@ -655,15 +721,15 @@ export default function EscanearScreen() {
                 {!scanned
                   ? "INSTRUÇÃO DE USO"
                   : scanResult?.isValid
-                  ? scanResult.routeSegmentName
-                  : "STATUS DE LEITURA"}
+                    ? scanResult.routeSegmentName
+                    : "STATUS DE LEITURA"}
               </Text>
               <Text style={styles.sheetMainTitle} numberOfLines={1}>
                 {!scanned
                   ? "Aponte a câmera para o QR Code"
                   : scanResult?.isValid
-                  ? scanResult.stamp?.name || scanResult.anchorPoint?.name
-                  : "QR Code Não Reconhecido"}
+                    ? scanResult.stamp?.name || scanResult.anchorPoint?.name
+                    : "QR Code Não Reconhecido"}
               </Text>
             </View>
             <Animated.Text
@@ -689,11 +755,15 @@ export default function EscanearScreen() {
                   <View style={styles.instructionIconWrap}>
                     <Feather name="code" size={18} color={CRIC_BLUE} />
                   </View>
-                  <Text style={styles.instructionTitle}>Como escanear seu carimbo</Text>
+                  <Text style={styles.instructionTitle}>
+                    Como escanear seu carimbo
+                  </Text>
                 </View>
 
                 <Text style={styles.instructionBody}>
-                  Centralize o QR Code da placa física na mira. Ao identificar um código válido a menos de {RADIUS_LIMIT_METERS}m do Ponto de Apoio, a validação de presença e da conexão será exibida aqui.
+                  Centralize o QR Code da placa física na mira. Ao identificar
+                  um código válido a menos de {RADIUS_LIMIT_METERS}m do Ponto de
+                  Apoio, a validação de presença e da conexão será exibida aqui.
                 </Text>
               </View>
             ) : !scanResult?.isValid ? (
@@ -701,13 +771,19 @@ export default function EscanearScreen() {
               <View style={styles.invalidContainer}>
                 <View style={styles.invalidHeaderRow}>
                   <Feather name="alert-circle" size={24} color="#EF4444" />
-                  <Text style={styles.invalidTitle}>QR Code Não Reconhecido</Text>
+                  <Text style={styles.invalidTitle}>
+                    QR Code Não Reconhecido
+                  </Text>
                 </View>
                 <Text style={styles.invalidText}>
-                  O código lido não pertence a nenhum carimbo oficial da Rota CRIC cadastrado em nosso sistema.
+                  O código lido não pertence a nenhum carimbo oficial da Rota
+                  CRIC cadastrado em nosso sistema.
                 </Text>
                 <Pressable
-                  style={({ pressed }) => [styles.resetBtn, pressed && styles.btnPressed]}
+                  style={({ pressed }) => [
+                    styles.resetBtn,
+                    pressed && styles.btnPressed,
+                  ]}
                   onPress={handleResetScan}
                 >
                   <Feather name="refresh-cw" size={16} color="#374151" />
@@ -724,9 +800,13 @@ export default function EscanearScreen() {
                     <View style={styles.gpsSuccessBadge}>
                       <Feather name="wifi" size={18} color="#059669" />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.gpsSuccessTitle}>Presença Confirmada • Conexão Online 🟢</Text>
+                        <Text style={styles.gpsSuccessTitle}>
+                          Presença Confirmada • Conexão Online 🟢
+                        </Text>
                         <Text style={styles.gpsSuccessSub}>
-                          Você está a {scanResult.distText} do local e conectado. O carimbo será sincronizado instantaneamente.
+                          Você está a {scanResult.distText} do local e
+                          conectado. O carimbo será sincronizado
+                          instantaneamente.
                         </Text>
                       </View>
                     </View>
@@ -735,9 +815,13 @@ export default function EscanearScreen() {
                     <View style={styles.gpsWarningBadge}>
                       <Feather name="wifi-off" size={18} color="#D97706" />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.gpsWarningTitle}>Presença Confirmada • Modo Off-line 🟡</Text>
+                        <Text style={styles.gpsWarningTitle}>
+                          Presença Confirmada • Modo Off-line 🟡
+                        </Text>
                         <Text style={styles.gpsWarningSub}>
-                          Você está a {scanResult.distText} do local. O carimbo será salvo no aplicativo e sincronizado automaticamente ao reconectar.
+                          Você está a {scanResult.distText} do local. O carimbo
+                          será salvo no aplicativo e sincronizado
+                          automaticamente ao reconectar.
                         </Text>
                       </View>
                     </View>
@@ -747,9 +831,14 @@ export default function EscanearScreen() {
                   <View style={styles.gpsDangerBadge}>
                     <Feather name="alert-circle" size={18} color="#DC2626" />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.gpsDangerTitle}>Fora do Raio de Coleta 🔴 (Limite: {RADIUS_LIMIT_METERS}m)</Text>
+                      <Text style={styles.gpsDangerTitle}>
+                        Fora do Raio de Coleta 🔴 (Limite: {RADIUS_LIMIT_METERS}
+                        m)
+                      </Text>
                       <Text style={styles.gpsDangerSub}>
-                        Sua distância atual é de {scanResult.distText}. Aproxime-se a menos de {RADIUS_LIMIT_METERS}m do Ponto de Apoio para liberar a coleta.
+                        Sua distância atual é de {scanResult.distText}.
+                        Aproxime-se a menos de {RADIUS_LIMIT_METERS}m do Ponto
+                        de Apoio para liberar a coleta.
                       </Text>
                     </View>
                   </View>
@@ -757,13 +846,18 @@ export default function EscanearScreen() {
 
                 {/* 2. INFORMAÇÕES DO CARIMBO E TRECHO DA ROTA */}
                 <View style={styles.infoCard}>
-                  <Text style={styles.infoSegmentLabel}>{scanResult.routeSegmentName}</Text>
-                  <Text style={styles.infoStampName}>{scanResult.stamp?.name}</Text>
+                  <Text style={styles.infoSegmentLabel}>
+                    {scanResult.routeSegmentName}
+                  </Text>
+                  <Text style={styles.infoStampName}>
+                    {scanResult.stamp?.name}
+                  </Text>
                   <Text style={styles.infoApName}>
                     📍 {scanResult.anchorPoint?.name} • {scanResult.cityName}
                   </Text>
 
-                  {scanResult.anchorPoint?.business_hours || scanResult.anchorPoint?.phone ? (
+                  {scanResult.anchorPoint?.business_hours ||
+                  scanResult.anchorPoint?.phone ? (
                     <View style={styles.detailsBox}>
                       {scanResult.anchorPoint?.business_hours ? (
                         <Text style={styles.detailsText}>
@@ -780,48 +874,61 @@ export default function EscanearScreen() {
                 </View>
 
                 {/* 3. PONTOS DE APOIO VIZINHOS MAIS PRÓXIMOS */}
-                {scanResult.neighborPoints && scanResult.neighborPoints.length > 0 && (
-                  <View style={styles.neighborsSection}>
-                    <Text style={styles.sectionHeaderTitle}>PONTOS DE APOIO PRÓXIMOS DESTE LOCAL</Text>
-                    {scanResult.neighborPoints.map((np) => (
-                      <Pressable
-                        key={np.id}
-                        style={styles.neighborItemRow}
-                        onPress={() => {
-                          router.push({
-                            pathname: "/(tabs)/nativeMap",
-                            params: {
-                              apId: np.id,
-                              apName: np.name,
-                              lat: np.lat.toString(),
-                              lng: np.lng.toString(),
-                            },
-                          });
-                        }}
-                      >
-                        <View style={styles.neighborIconWrap}>
-                          <Feather name="map-pin" size={16} color={CRIC_BLUE} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.neighborName} numberOfLines={1}>
-                            {np.name}
-                          </Text>
-                          <Text style={styles.neighborCity}>{np.cityName}</Text>
-                        </View>
-                        <View style={styles.neighborDistChip}>
-                          <Text style={styles.neighborDistText}>{formatDistance(np.distMeters)}</Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
+                {scanResult.neighborPoints &&
+                  scanResult.neighborPoints.length > 0 && (
+                    <View style={styles.neighborsSection}>
+                      <Text style={styles.sectionHeaderTitle}>
+                        PONTOS DE APOIO PRÓXIMOS DESTE LOCAL
+                      </Text>
+                      {scanResult.neighborPoints.map((np) => (
+                        <Pressable
+                          key={np.id}
+                          style={styles.neighborItemRow}
+                          onPress={() => {
+                            router.push({
+                              pathname: "/(tabs)/nativeMap",
+                              params: {
+                                apId: np.id,
+                                apName: np.name,
+                                lat: np.lat.toString(),
+                                lng: np.lng.toString(),
+                              },
+                            });
+                          }}
+                        >
+                          <View style={styles.neighborIconWrap}>
+                            <Feather
+                              name="map-pin"
+                              size={16}
+                              color={CRIC_BLUE}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.neighborName} numberOfLines={1}>
+                              {np.name}
+                            </Text>
+                            <Text style={styles.neighborCity}>
+                              {np.cityName}
+                            </Text>
+                          </View>
+                          <View style={styles.neighborDistChip}>
+                            <Text style={styles.neighborDistText}>
+                              {formatDistance(np.distMeters)}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
 
                 {/* 4. FEEDBACK DE COLETA & BOTÕES */}
                 {collectSuccess ? (
                   <View style={styles.successBanner}>
                     <Feather name="award" size={22} color="#059669" />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.successBannerTitle}>Carimbo Registrado com Sucesso! 🎉</Text>
+                      <Text style={styles.successBannerTitle}>
+                        Carimbo Registrado com Sucesso! 🎉
+                      </Text>
                       <Text style={styles.successBannerSub}>
                         {scanResult.isOnline
                           ? "Sincronizado instantaneamente no servidor."
@@ -841,7 +948,10 @@ export default function EscanearScreen() {
                 {/* Botões de Ação */}
                 <View style={styles.actionsRow}>
                   <Pressable
-                    style={({ pressed }) => [styles.resetBtn, pressed && styles.btnPressed]}
+                    style={({ pressed }) => [
+                      styles.resetBtn,
+                      pressed && styles.btnPressed,
+                    ]}
                     onPress={handleResetScan}
                   >
                     <Feather name="camera" size={16} color="#374151" />
@@ -867,9 +977,14 @@ export default function EscanearScreen() {
                       <Pressable
                         style={({ pressed }) => [
                           styles.collectBtn,
-                          scanResult.isOnline ? styles.collectBtnOnline : styles.collectBtnOffline,
-                          (!scanResult.isWithinRadius || collecting) && styles.btnDisabled,
-                          pressed && scanResult.isWithinRadius && styles.btnPressed,
+                          scanResult.isOnline
+                            ? styles.collectBtnOnline
+                            : styles.collectBtnOffline,
+                          (!scanResult.isWithinRadius || collecting) &&
+                            styles.btnDisabled,
+                          pressed &&
+                            scanResult.isWithinRadius &&
+                            styles.btnPressed,
                         ]}
                         onPress={handleCollectStamp}
                         disabled={!scanResult.isWithinRadius || collecting}
@@ -878,7 +993,11 @@ export default function EscanearScreen() {
                           <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <>
-                            <Feather name={scanResult.isOnline ? "check" : "save"} size={18} color="#fff" />
+                            <Feather
+                              name={scanResult.isOnline ? "check" : "save"}
+                              size={18}
+                              color="#fff"
+                            />
                             <Text style={styles.collectBtnText}>
                               {scanResult.isWithinRadius
                                 ? scanResult.isOnline
@@ -892,7 +1011,10 @@ export default function EscanearScreen() {
                     )
                   ) : (
                     <Pressable
-                      style={({ pressed }) => [styles.mapBtn, pressed && styles.btnPressed]}
+                      style={({ pressed }) => [
+                        styles.mapBtn,
+                        pressed && styles.btnPressed,
+                      ]}
                       onPress={() => {
                         if (scanResult.anchorPoint) {
                           router.push({
@@ -900,8 +1022,14 @@ export default function EscanearScreen() {
                             params: {
                               apId: scanResult.anchorPoint.id,
                               apName: scanResult.anchorPoint.name,
-                              lat: (scanResult.anchorPoint.lat ?? (scanResult.anchorPoint as any).latitude)?.toString(),
-                              lng: (scanResult.anchorPoint.lng ?? (scanResult.anchorPoint as any).longitude)?.toString(),
+                              lat: (
+                                scanResult.anchorPoint.lat ??
+                                (scanResult.anchorPoint as any).latitude
+                              )?.toString(),
+                              lng: (
+                                scanResult.anchorPoint.lng ??
+                                (scanResult.anchorPoint as any).longitude
+                              )?.toString(),
                             },
                           });
                         }
@@ -1031,10 +1159,34 @@ const styles = StyleSheet.create({
     height: 22,
     borderColor: CRIC_BLUE,
   },
-  cornerTL: { top: 8, left: 8, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
-  cornerTR: { top: 8, right: 8, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
-  cornerBL: { bottom: 8, left: 8, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
-  cornerBR: { bottom: 8, right: 8, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  cornerTL: {
+    top: 8,
+    left: 8,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 6,
+  },
+  cornerTR: {
+    top: 8,
+    right: 8,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderTopRightRadius: 6,
+  },
+  cornerBL: {
+    bottom: 8,
+    left: 8,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomLeftRadius: 6,
+  },
+  cornerBR: {
+    bottom: 8,
+    right: 8,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderBottomRightRadius: 6,
+  },
 
   laserLine: {
     width: "100%",
